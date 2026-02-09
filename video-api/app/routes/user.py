@@ -10,7 +10,7 @@ from app.utils.dependencies import get_current_user, get_db
 from app.utils import security
 from app.database.models import User
 
-router = APIRouter(prefix="/user", tags=["user"])
+router = APIRouter(prefix="/api/user", tags=["user"])
 
 @router.get("/", response_model=user_schema.UserOut, status_code=status.HTTP_200_OK)
 async def get_user_profile(current_user: User = Depends(get_current_user)):
