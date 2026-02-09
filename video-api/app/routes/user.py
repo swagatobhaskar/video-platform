@@ -2,6 +2,7 @@ from fastapi.routing import APIRouter
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status, Depends
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from typing import cast
 
 from app.schemas import user_schema
@@ -26,6 +27,32 @@ async def get_user_profile(current_user: User = Depends(get_current_user)):
     #     "body": body,
     # }
     return current_user
+
+
+@router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    try:
+        await session.delete(current_user)
+        await session.commit()
+        # return {"message": "Account deleted successfully."}
+    except IntegrityError:
+        # Catch integrity error (e.g., foreign key constraint violation)
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete user due to linked records."
+        )
+    except Exception as e:
+        # Catch all other exceptions
+        await session.rollback()
+        # logging.exception("Failed to delete user")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not delete user, please try again!"
+        )
 
 
 @router.patch("/", response_model=user_schema.UpdateProfileResponse, status_code=status.HTTP_200_OK)
