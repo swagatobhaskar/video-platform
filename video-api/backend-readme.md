@@ -1,67 +1,24 @@
 1. Create a virtual environment with `python3 -m venv env`, and activate it with `source env/bin/activate`,
 2. Install these dependencies: `pip install "fastapi[standard]" sqlalchemy asyncpg python-dotenv psycopg2-binary gunicorn alembic pydantic-settings "python-jose[cryptography]" "passlib[bcrypt]" python-multipart`,
 
-
-# Alembic Setup
-1. Configure alembic.ini
-    Set a sync database URL (Alembic itself is sync):
-    `sqlalchemy.url = postgresql://user:password@localhost/dbname`
-
-    > Why sync? \
-    > Alembic migrations run synchronously \
-    > Even though your app is async, migrations are not
-
-2. Configure Alembic for async SQLAlchemy
-    Edit `alembic/env.py`
+# PostgreSQL Container
+1. Start a PostgreSQL container directly with the official Docker image:
     ```
-    import asyncio
-    from logging.config import fileConfig
-
-    from sqlalchemy import pool
-    from sqlalchemy.engine import Connection
-    from sqlalchemy.ext.asyncio import async_engine_from_config
-
-    from alembic import context
-
-    from app.db.base import Base
-    from app.db import models  # <-- ensures models are imported
-
-    Set metadata
-    target_metadata = Base.metadata
+    docker run --name video_postgres \
+     -e POSTGRES_USER=swagato \
+     -e POSTGRES_PASSWORD=^dogesh39A \
+     -e POSTGRES_DB=videodevdb \
+     -p 5432:5432 \
+     -v pgdata:/var/lib/postgresql \
+     -d postgres:18
     ```
-    **Async migration runner**
+    * If a postgresql service is already running on port 5432:
+      * Find it with: `sudo lsof -i :5432`
+      * Stop it with: `sudo service postgresql stop`
+      * If you get error like: `docker: Error response from daemon: Conflict. The container name "/video_postgres" is already in use by container`, remove the exisitng container with `docker rm video_postgres`, and re-run the container.
 
-    Replace the default run_migrations_online with this:
-    ```
-    def run_migrations_online() -> None:
-        connectable = async_engine_from_config(
-            context.config.get_section(context.config.config_ini_section),
-            prefix="sqlalchemy.",
-            poolclass=pool.NullPool,
-        )
-
-        async def run_migrations() -> None:
-            async with connectable.connect() as connection:
-                await connection.run_sync(do_run_migrations)
-
-        asyncio.run(run_migrations())
-    ```
-
-    And define:
-    ```
-    def do_run_migrations(connection: Connection) -> None:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-        )
-
-        with context.begin_transaction():
-            context.run_migrations()
-    ```
-    **Keep `run_migrations_offline` mostly unchanged.** Offline migrations stay sync and simple.
-
-3. Create your first migration: `alembic revision --autogenerate -m "create users table"`
-
-4. Run migrations: `alembic upgrade head`
+2. Get inside the running container with: `docker exec -it chat_postgres psql -U swagato -d videodevdb`.
+    * If you see error like: `Error response from daemon: container 94c21aeab73.. is not running`, check Docker logs with `docker logs video_postgres`.
+  
+3. Connect to the running PostgreSQL container from your FastAPI app, use the following DATABASE_URL string: `postgresql+asyncpg://swagato:^dogesh39A@localhost:5432/videodevdb`.
 
