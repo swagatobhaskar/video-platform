@@ -6,8 +6,10 @@ from contextlib import asynccontextmanager
 
 from app.config import get_settings, Settings
 from app.database.session import engine, Base
+
 from app.routes.user import router as UserRouter
 from app.routes.auth import router as AuthRouter
+from app.routes.upload import router as UploadRouter
 
 settings = get_settings()
 
@@ -36,6 +38,7 @@ app.add_middleware(
 
 app.include_router(UserRouter)
 app.include_router(AuthRouter)
+app.include_router(UploadRouter)
 
 router = APIRouter()
 
