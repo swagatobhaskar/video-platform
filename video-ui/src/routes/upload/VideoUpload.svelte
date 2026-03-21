@@ -47,9 +47,15 @@
         e.preventDefault();  // Stop the video from playing
         isHovered = false;
 
-        if (e.dataTransfer?.files) {
-            files = e.dataTransfer.files;  // Assign the dropped files to our state
+        // 1. Extract the files from the drop event
+        const droppedFiles = e.dataTransfer?.files;
+
+        // 2. Safety Check: Ensure files exist and the list isn't empty
+        if (droppedFiles && droppedFiles.length > 0) {
+            files = droppedFiles;   // This updates your $state
             console.log("Dropped file:", files[0].name);
+        } else {
+            console.warn("No files detected in drop event.");
         }
     }
 
@@ -131,7 +137,7 @@
             <div class="text-center pointer-events-none flex flex-col items-center">
                 <div class="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
                     <span class="text-lg font-bold text-gray-700">
-                        {files ? files[0].name : "Drop Video Here"}
+                        {files && files.length > 0 ? files[0].name : "Drop Video Here"}
                     </span>
 
                     {#if files && !uploading}
