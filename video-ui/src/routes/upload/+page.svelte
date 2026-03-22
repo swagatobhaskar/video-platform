@@ -4,6 +4,8 @@
 	import VideoDetailForm from './VideoDetailForm.svelte';
 </script>
 
-<VideoUpload />
-<ThumbnailForm />
-<VideoDetailForm />
+<main class="bg-red-400">
+    <VideoUpload />
+    <ThumbnailForm />
+    <VideoDetailForm />
+</main>

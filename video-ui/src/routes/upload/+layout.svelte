@@ -1,12 +1,12 @@
 <script lang="ts">
+    import Sidebar from "./Sidebar.svelte";
 	let { children } = $props();
 </script>
 
 <div class="flex flex-row">
-    <aside class="w-1/4 h-full">
-        <p>Sidebar</p>
-    </aside>
-    <main class="w-3/4">
+    <Sidebar />
+    
+    <main class="w-5/6">
         {@render children()}
     </main>
 </div>

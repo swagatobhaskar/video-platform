@@ -52,7 +52,6 @@
     async function handleSaveDraft() {
 
     }
-    console.log("SEO TAGS: ", seoTags);
 </script>
 
 <div class="p-8 max-w-lg mx-auto bg-white rounded-xl shadow-md space-y-4">
