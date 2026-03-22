@@ -55,12 +55,11 @@
     console.log("SEO TAGS: ", seoTags);
 </script>
 
-<div>
-    <h2 class="">Video Metadata</h2>
+<div class="p-8 max-w-lg mx-auto bg-white rounded-xl shadow-md space-y-4">
+    <h2 class="text-2xl font-bold text-gray-800">Video Metadata</h2>
 
-    <form onsubmit={handleFormSubmit}>
-
-        <label>
+    <form onsubmit={handleFormSubmit} class="flex flex-col gap-y-2 w-full px-3 items-center">
+        <label for="title">
             <span class="">Video Title</span>
             <input
                 type="text"
@@ -82,7 +81,7 @@
             ></textarea>
         </label>
 
-        <label>
+        <label for="category">
             <span class="">Category</span>
             <select
                 id="category"

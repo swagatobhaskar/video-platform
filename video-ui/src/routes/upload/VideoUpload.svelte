@@ -78,7 +78,7 @@
         formData.append("title", title);
 
         try {
-            const response = await fetch("http://127.0.0.1:8000/api/upload", {
+            const response = await fetch("http://127.0.0.1:8000/api/upload/video", {
                 method: "POST",
                 body: formData,
                 signal: controller.signal  // pass the signal here
