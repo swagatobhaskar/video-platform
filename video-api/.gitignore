@@ -21,6 +21,9 @@ __pycache__/
 *.avi
 *.mkv
 
+# test humbnails and videos
+videos/
+thumbnails/
 
 # Distribution / packaging
 .Python
