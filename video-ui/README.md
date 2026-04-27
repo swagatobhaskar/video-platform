@@ -15,7 +15,7 @@ To recreate this project with the same configuration:
 
 ```sh
 # recreate this project
-npx sv create --template minimal --types ts --add prettier eslint tailwindcss="plugins:typography" sveltekit-adapter="adapter:node" vitest="usages:unit" --install npm video-ui
+npx sv@0.15.1 create --template minimal --types ts --add tailwindcss="plugins:forms,typography" prettier eslint sveltekit-adapter="adapter:node" --install npm ./
 ```
 
 ## Developing

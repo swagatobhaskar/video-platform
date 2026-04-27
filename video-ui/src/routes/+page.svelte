@@ -1,6 +1,1 @@
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
-
-<h1 class="text-3xl font-bold underline text-red-400">
-  Hello world!
-</h1>
+<h1 class="font-extrabold text-6xl font-serif text-gray-400">This is going to be the home page of this SvelteKit App.</h1>
