@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int
     refresh_token_expire_days: int
     allowed_origins: List[str] = allowed_origins_list
+    r2_account_id: str
+    r2_access_key_id: str
+    r2_secret_access_key: str
     
     model_config = SettingsConfigDict(
         env_file = ".env",

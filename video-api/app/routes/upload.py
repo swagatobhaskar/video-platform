@@ -2,6 +2,9 @@ import os
 import shutil
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException
 
+from app.schemas.r2_upload_schema import CompleteRequest, PartRequest, StartUploadRequest
+from app.utils.r2_helper import s3
+
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
 @router.post('/video')
@@ -36,3 +39,45 @@ async def upload_thumbnail(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, file_object)
     
     return {"info": f"Video thumbnail {file.filename} saved at {thumbnail_file_location}"}
+
+
+RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
+
+@router.post('/start-upload')
+def start_upload(req: StartUploadRequest):
+    response = s3.create_multipart_upload(
+        bucket=RAW_VIDEO_BUCKET,
+        key=req.fileName,
+        ContentType=req.contentType
+    )
+    
+    return {
+        "uploadId": response["uploadId"],
+        "key": req.fileName,
+    }
+
+@router.post("/get-presigned-url")
+def get_presigned_url(req: PartRequest):
+    url = s3.generate_presigned_url(
+        ClientMethod="upload_part",
+        Params={
+            "Bucket": RAW_VIDEO_BUCKET,
+            "key": req.key,
+            "UploadId": req.uploadId,
+            "PartNumber": req.partNumber,
+        },
+        ExpiresIn=3600,
+    )
+    return {"uploadUrl": url}
+
+@router.post("/complete-upload")
+def complete_upload(req: CompleteRequest):
+    s3.complete_multipart_upload(
+        Bucket=RAW_VIDEO_BUCKET,
+        key=req.key,
+        UploadId=req.uploadId,
+        MultipartUpload={
+            "Parts": req.parts,  # [{ETag, PartNumber}]
+        },
+    )
+    return {"success": True}
