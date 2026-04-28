@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-class StartUploadRequest(BaseModel):
+class InitiateUploadRequest(BaseModel):
     fileName: str
     contentType: str
     

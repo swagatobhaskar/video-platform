@@ -2,7 +2,7 @@ import os
 import shutil
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException
 
-from app.schemas.r2_upload_schema import CompleteRequest, PartRequest, StartUploadRequest
+from app.schemas.r2_upload_schema import CompleteRequest, PartRequest, InitiateUploadRequest
 from app.utils.r2_helper import s3
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
@@ -43,13 +43,14 @@ async def upload_thumbnail(file: UploadFile = File(...)):
 
 RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
 
-@router.post('/start-upload')
-def start_upload(req: StartUploadRequest):
+@router.post('/initiate-upload')
+def initiate_upload(req: InitiateUploadRequest):
     response = s3.create_multipart_upload(
         bucket=RAW_VIDEO_BUCKET,
         key=req.fileName,
         ContentType=req.contentType
     )
+    print("Initiate Upload Response: ", response)
     
     return {
         "uploadId": response["uploadId"],
