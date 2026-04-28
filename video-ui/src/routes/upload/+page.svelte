@@ -65,17 +65,23 @@
         formData.append("video", file);
 
         console.log("Inside Upload Function");
-        file = null;
-
-        /*
+        // file = null;
+        console.log("Initiate Upload Request BODY: ", JSON.stringify({ fileName: file.name, contentType: file.type }));
+        // Step 1: Initiate Upload
         try {
-            const res = await fetch("/api/upload", {
+            const res = await fetch("http://localhost:8000/api/upload/initiate-upload", {
                 method: "POST",
-                body: formData
-        });
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ fileName: file.name, contentType: file.type }),
+            });
 
-        if (!res.ok) {
-            throw new Error("Upload failed");
+            const { uploadId, key } = await res.json();
+            console.log("Upload ID: ", uploadId, "Key: ", key);
+
+            if (!res.ok) {
+                throw new Error("Upload failed");
         }
 
         console.log("Upload success");
@@ -83,8 +89,9 @@
         
         } catch (err) {
             console.error(err);
+        } finally {
+            uploading = false;
         }
-        */
     }
 
     // effect for video preview
