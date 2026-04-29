@@ -140,12 +140,13 @@
 
         // Step 4: Complete Upload
         console.log("Entering step 4 to complete upload");
-        await fetch("http://127.0.0.1:8000/api/upload/complete_upload", {
+        await fetch("http://127.0.0.1:8000/api/upload/complete-upload", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
+                key,
                 filename: file.name,
                 uploadId,
                 parts
