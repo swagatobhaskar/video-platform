@@ -54,44 +54,112 @@
         }
     }
 
+    function splitFileIntoChunks(file: File, chunkSizeMB: number = 5): Blob[] {
+        const chunkSize = chunkSizeMB * 1024 * 1024; // Convert MB to bytes
+        const chunks: Blob[] = [];
+        let offset = 0;
+
+        while (offset < file.size) {
+            const chunk = file.slice(offset, offset + chunkSize);
+            chunks.push(chunk);
+            offset += chunkSize;
+        }
+
+        return chunks;
+    }
+
     async function uploadVideoFile(): Promise<void> {
         
         if (!file) return;
         
-        // set uploading = true
         uploading = true;
-
-        const formData = new FormData();
-        formData.append("video", file);
 
         console.log("Inside Upload Function");
         // file = null;
-        console.log("Initiate Upload Request BODY: ", JSON.stringify({ fileName: file.name, contentType: file.type }));
+        // console.log("Initiate Upload Request BODY: ", JSON.stringify({ fileName: file.name, contentType: file.type }));
+        
         // Step 1: Initiate Upload
-        try {
-            const res = await fetch("http://localhost:8000/api/upload/initiate-upload", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ fileName: file.name, contentType: file.type }),
-            });
+        // try {
+        const res = await fetch("http://localhost:8000/api/upload/initiate-upload", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ fileName: file.name, contentType: file.type }),
+        });
 
-            const { uploadId, key } = await res.json();
-            console.log("Upload ID: ", uploadId, "Key: ", key);
+        const { uploadId, key } = await res.json();
+        // console.log("Upload ID: ", uploadId, "Key: ", key);
 
-            if (!res.ok) {
-                throw new Error("Upload failed");
+        if (!res.ok) {
+            throw new Error("Upload Initiation Failed!");
         }
+
+        const chunks = splitFileIntoChunks(file);
+
+        const parts = [];
+        
+        for (let i=0; i < chunks.length; i++) {
+            const partNumber = i + 1;
+
+            // Step 2: Get Signed url
+            console.log("Entering step 2 for part number: ", partNumber);
+            const urlRes = await fetch(
+                "http://127.0.0.1:8000/api/upload/get-presigned-url",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        // filename: file.name,
+                        uploadId,
+                        key,
+                        partNumber
+                    }),
+                }
+                // filename=${file.name}&upload_id=${uploadId}&part_number=${partNumber}`
+            );
+            const {uploadUrl} = await urlRes.json();
+
+            // Step 3: Upload chunk directly to R2
+            console.log("Entering step 3 for part number: ", partNumber);
+
+            if (!uploadUrl) {
+                throw new Error("Missing upload URL from backend");
+            }
+
+            const uploadRes = await fetch(uploadUrl, {
+                method: "PUT",
+                body: chunks[i]
+            });
+            const etag = uploadRes.headers.get("ETag");
+            console.log(`Uploaded part ${partNumber}, ETag: ${etag}`);
+            parts.push({ ETag: etag, PartNumber: partNumber });  // this needs to be sent to backend as well
+        }
+
+        // Step 4: Complete Upload
+        console.log("Entering step 4 to complete upload");
+        await fetch("http://127.0.0.1:8000/api/upload/complete_upload", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                filename: file.name,
+                uploadId,
+                parts
+            })
+        });
 
         console.log("Upload success");
         file = null;
-        
-        } catch (err) {
-            console.error(err);
-        } finally {
-            uploading = false;
-        }
+        uploading = false;
+        // } catch (err) {
+        //     console.error(err);
+        // } finally {
+        //     uploading = false;
+        // }
     }
 
     // effect for video preview

@@ -46,15 +46,15 @@ RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
 @router.post('/initiate-upload')
 def initiate_upload(req: InitiateUploadRequest):
     response = s3.create_multipart_upload(
-        bucket=RAW_VIDEO_BUCKET,
-        key=req.fileName,
+        Bucket=RAW_VIDEO_BUCKET,
+        Key=req.fileName,
         ContentType=req.contentType
     )
     print("Initiate Upload Response: ", response)
     
     return {
-        "uploadId": response["uploadId"],
-        "key": req.fileName,
+        "uploadId": response["UploadId"],
+        "key": response["Key"],
     }
 
 @router.post("/get-presigned-url")
@@ -63,19 +63,20 @@ def get_presigned_url(req: PartRequest):
         ClientMethod="upload_part",
         Params={
             "Bucket": RAW_VIDEO_BUCKET,
-            "key": req.key,
+            "Key": req.key,
             "UploadId": req.uploadId,
             "PartNumber": req.partNumber,
         },
         ExpiresIn=3600,
     )
+    print("Generated presigned URL: ", url)
     return {"uploadUrl": url}
 
 @router.post("/complete-upload")
 def complete_upload(req: CompleteRequest):
     s3.complete_multipart_upload(
         Bucket=RAW_VIDEO_BUCKET,
-        key=req.key,
+        Key=req.key,
         UploadId=req.uploadId,
         MultipartUpload={
             "Parts": req.parts,  # [{ETag, PartNumber}]
