@@ -5,6 +5,8 @@
     let file: File | null = $state(null);
     let videoPreviewUrl: string | null = $state(null);
     let uploading: boolean = $state(false);
+    let uploadProgress: number = $state(0);
+    let error: string | null = $state(null);
 
     // Drag events and handlers
     function handleDragEnter(e: DragEvent) {
@@ -69,98 +71,118 @@
     }
 
     async function uploadVideoFile(): Promise<void> {
-        
         if (!file) return;
         
         uploading = true;
+        uploadProgress = 0;
+        error = null;
 
-        console.log("Inside Upload Function");
-        // file = null;
-        // console.log("Initiate Upload Request BODY: ", JSON.stringify({ fileName: file.name, contentType: file.type }));
+        try {
+            // STEP 1: Initiate Upload
+            const res = await fetch("http://localhost:8000/api/upload/initiate-upload", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    fileName: file.name,
+                    contentType: file.type
+                }),
+            });
+            
+            if (!res.ok) {
+                throw new Error(`Upload Initiation Failed: ${res.status}`);
+            }
+            
+            const { uploadId, key } = await res.json();
+            
+            const chunks = splitFileIntoChunks(file);
+            const parts: { ETag: string | null; PartNumber: number }[] = [];
         
-        // Step 1: Initiate Upload
-        // try {
-        const res = await fetch("http://localhost:8000/api/upload/initiate-upload", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ fileName: file.name, contentType: file.type }),
-        });
+            // STEP 2-3: Upload Chunks
+            for (let i=0; i < chunks.length; i++) {
+                const partNumber = i + 1;
 
-        const { uploadId, key } = await res.json();
-        // console.log("Upload ID: ", uploadId, "Key: ", key);
+                // Get Presigned URL
+                console.log("Entering step 2 for part number: ", partNumber);
+                const urlRes = await fetch(
+                    "http://127.0.0.1:8000/api/upload/get-presigned-url",
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ uploadId, key, partNumber }),
+                    }
+                );
 
-        if (!res.ok) {
-            throw new Error("Upload Initiation Failed!");
-        }
-
-        const chunks = splitFileIntoChunks(file);
-
-        const parts = [];
-        
-        for (let i=0; i < chunks.length; i++) {
-            const partNumber = i + 1;
-
-            // Step 2: Get Signed url
-            console.log("Entering step 2 for part number: ", partNumber);
-            const urlRes = await fetch(
-                "http://127.0.0.1:8000/api/upload/get-presigned-url",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        // filename: file.name,
-                        uploadId,
-                        key,
-                        partNumber
-                    }),
+                if (!urlRes.ok) {
+                    throw new Error(`Failed to get URL for part ${partNumber}`);
                 }
-                // filename=${file.name}&upload_id=${uploadId}&part_number=${partNumber}`
-            );
-            const {uploadUrl} = await urlRes.json();
 
-            // Step 3: Upload chunk directly to R2
-            console.log("Entering step 3 for part number: ", partNumber);
+                const {uploadUrl} = await urlRes.json();
 
-            if (!uploadUrl) {
-                throw new Error("Missing upload URL from backend");
+                // Step 3: Upload chunk directly to R2
+                console.log("Entering step 3 for part number: ", partNumber);
+
+                if (!uploadUrl) {
+                    throw new Error(`Missing upload URL for part ${partNumber}`);
+                }
+
+                // Upload Chunk
+                const uploadRes = await fetch(uploadUrl, {
+                    method: "PUT",
+                    body: chunks[i]
+                });
+
+                if (!uploadRes.ok) {
+                    throw new Error(`Upload failed for part ${partNumber}`);
+                }
+
+                const etag = uploadRes.headers.get("ETag");
+
+                console.log(`Uploaded part ${partNumber}, ETag: ${etag}`);
+
+                parts.push({
+                    ETag: etag,
+                    PartNumber: partNumber
+                });  // this needs to be sent to backend as well
+
+                // Update Progress
+                uploadProgress = Math.round(((i + 1) / chunks.length) * 100);
             }
 
-            const uploadRes = await fetch(uploadUrl, {
-                method: "PUT",
-                body: chunks[i]
-            });
-            const etag = uploadRes.headers.get("ETag");
-            console.log(`Uploaded part ${partNumber}, ETag: ${etag}`);
-            parts.push({ ETag: etag, PartNumber: partNumber });  // this needs to be sent to backend as well
+            // Step 4: Complete Upload
+            console.log("Entering step 4 to complete upload");
+            const completeRes = await fetch(
+                "http://127.0.0.1:8000/api/upload/complete-upload",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        key,
+                        filename: file.name,
+                        uploadId,
+                        parts
+                    })
+                }
+            );
+
+            if (!completeRes.ok) {
+                throw new Error("Failed to complete upload");
+            }
+            
+            console.log("Upload success");
+            file = null;
+        } catch (err: unknown) {
+            if (err instanceof Error) {
+                error = err.message;
+                console.error(err.message);
+            } else {
+                error = "An unknown error occurred during upload.";
+                console.error(error);
+            }
+        } finally {
+            uploading = false;
         }
-
-        // Step 4: Complete Upload
-        console.log("Entering step 4 to complete upload");
-        await fetch("http://127.0.0.1:8000/api/upload/complete-upload", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                key,
-                filename: file.name,
-                uploadId,
-                parts
-            })
-        });
-
-        console.log("Upload success");
-        file = null;
-        uploading = false;
-        // } catch (err) {
-        //     console.error(err);
-        // } finally {
-        //     uploading = false;
-        // }
     }
 
     // effect for video preview
