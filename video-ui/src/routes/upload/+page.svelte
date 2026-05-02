@@ -8,6 +8,11 @@
     let uploadProgress: number = $state(0);
     let error: string | null = $state(null);
 
+    let totalUploadedBytes = 0;
+    let startTime = Date.now();
+    let uploadSpeed = $state(0);  // bytes per second
+    let uploadETA = $state(0);  // seconds remaining
+
     // Drag events and handlers
     function handleDragEnter(e: DragEvent) {
         e.preventDefault();
@@ -70,9 +75,64 @@
         return chunks;
     }
 
+
+    function formatSpeed(bytesPerSec: number): string {
+        if (bytesPerSec < 1024) return `${bytesPerSec.toFixed(0)} B/s`;
+        if (bytesPerSec < 1024 * 1024) {
+            return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+        }
+
+        return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+    }
+
+
+    function formatETA(seconds: number): string {
+        if (!isFinite(seconds)) return "Calculating...";
+        if (seconds < 60) return `${Math.ceil(seconds)}s`;
+
+        const min = Math.floor(seconds / 60);
+        const sec = Math.ceil(seconds % 60);
+        return `${min}m ${sec}s`;
+    }
+
+
+    function uploadChunkWithProgress(
+        url: string,
+        chunk: Blob,
+        onProgress: ( loaded: number, total: number ) => void
+    ): Promise<{ etag: string | null }> {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+
+            xhr.open("PUT", url, true);
+
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    // const percent = (event.loaded / event.total) * 100;
+                    onProgress(event.loaded, event.total);
+                }
+            };
+
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    const etag = xhr.getResponseHeader("ETag");
+                    resolve({ etag });
+                } else {
+                    reject(new Error(`XHR upload failed: ${xhr.status}`));
+                }
+            };
+
+            xhr.onerror = () => reject(new Error("XHR network error"));
+
+            xhr.send(chunk);
+        });
+    }
+
+
     async function uploadVideoFile(): Promise<void> {
         if (!file) return;
-        
+        const currentFile = file; // stable reference
+
         uploading = true;
         uploadProgress = 0;
         error = null;
@@ -85,8 +145,8 @@
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    fileName: file.name,
-                    contentType: file.type
+                    fileName: currentFile.name,
+                    contentType: currentFile.type
                 }),
             });
             
@@ -96,7 +156,7 @@
             
             const { uploadId, key } = await res.json();
             
-            const chunks = splitFileIntoChunks(file);
+            const chunks = splitFileIntoChunks(currentFile);
             const parts: { ETag: string | null; PartNumber: number }[] = [];
         
             // STEP 2-3: Upload Chunks
@@ -128,16 +188,50 @@
                 }
 
                 // Upload Chunk
-                const uploadRes = await fetch(uploadUrl, {
-                    method: "PUT",
-                    body: chunks[i]
-                });
+                
+                // const uploadRes = await fetch(uploadUrl, {
+                //     method: "PUT",
+                //     body: chunks[i]
+                // });
 
-                if (!uploadRes.ok) {
-                    throw new Error(`Upload failed for part ${partNumber}`);
-                }
+                // const chunkIndex = i;
+                let previousLoaded = 0;
 
-                const etag = uploadRes.headers.get("ETag");
+                const { etag } = await uploadChunkWithProgress(
+                    uploadUrl,
+                    chunks[i],
+                    (loaded, _total) => {
+                        // Combine chunk progress + completed chunks
+                        // const overall = ((chunkIndex + chunkPercent / 100) / chunks.length) * 100;
+                        // uploadProgress = Math.round(overall);
+
+                        // Increment only the delta
+                        const delta = loaded - previousLoaded;
+                        previousLoaded = loaded;
+
+                        totalUploadedBytes += delta;
+
+                        const elapsedSeconds = (Date.now() - startTime) / 1000;
+
+                        // Speed (bytes/seconds)
+                        uploadSpeed = totalUploadedBytes / elapsedSeconds;
+
+                        // ETA (seconds)
+                        const remainingBytes = currentFile.size - totalUploadedBytes;
+                        uploadETA = remainingBytes / uploadSpeed;
+
+                        // Progress %
+                        uploadProgress = Math.round(
+                            (totalUploadedBytes / currentFile.size) * 100
+                        );
+                    }
+                );
+
+                // if (!uploadRes.ok) {
+                //     throw new Error(`Upload failed for part ${partNumber}`);
+                // }
+
+                // const etag = uploadRes.headers.get("ETag");
 
                 console.log(`Uploaded part ${partNumber}, ETag: ${etag}`);
 
@@ -147,7 +241,7 @@
                 });  // this needs to be sent to backend as well
 
                 // Update Progress
-                uploadProgress = Math.round(((i + 1) / chunks.length) * 100);
+                // uploadProgress = Math.round(((i + 1) / chunks.length) * 100);
             }
 
             // Step 4: Complete Upload
@@ -159,7 +253,7 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         key,
-                        filename: file.name,
+                        filename: currentFile.name,
                         uploadId,
                         parts
                     })
@@ -184,6 +278,7 @@
             uploading = false;
         }
     }
+
 
     // effect for video preview
     $effect(() => {
@@ -271,10 +366,23 @@
                 </div>
             </div>
          </div>
+         <!-- Video Upload Progress -->
+         {#if uploading}
+             <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                 <div class="bg-blue-500 h-2.5 rounded-full" style="width: {uploadProgress}%" ></div>
+                 <p>Progress: {uploadProgress}%</p>
+                 <p>Speed: {formatSpeed(uploadSpeed)}</p>
+                 <p>ETA: {formatETA(uploadETA)}</p>
+             </div>
+         {/if}
+         {#if error}
+             <p class="text-red-500 mt-2">{error}</p>
+         {/if}
+
          <!-- Thumbnail -->
-         <div class="flex-1 bg-blue-400 flex items-center justify-center">
+         <!-- <div class="flex-1 bg-blue-400 flex items-center justify-center">
             Box 2
-         </div>
+         </div> -->
      </section>
 
      <!-- Right Column -- Form -->
