@@ -1,4 +1,6 @@
 <script lang="ts">
+    import { splitFileIntoChunks, formatSpeed, formatETA, uploadChunkWithProgress } from './helpers';
+
     let isDragging = $state(false);
     let file: File | null = $state(null);
     let videoPreviewUrl: string | null = $state(null);
@@ -69,91 +71,6 @@
             fileInputEl.value = "";
         }
     }
-
-    // ---------------- Utils ----------------
-    
-    function splitFileIntoChunks(file: File, chunkSizeMB: number = 5): Blob[] {
-        const chunkSize = chunkSizeMB * 1024 * 1024; // Convert MB to bytes
-        const chunks: Blob[] = [];
-        let offset = 0;
-
-        while (offset < file.size) {
-            const chunk = file.slice(offset, offset + chunkSize);
-            chunks.push(chunk);
-            offset += chunkSize;
-        }
-
-        return chunks;
-    }
-
-    function formatSpeed(bytesPerSec: number): string {
-        if (bytesPerSec < 1024) return `${bytesPerSec.toFixed(0)} B/s`;
-        if (bytesPerSec < 1024 * 1024) {
-            return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
-        }
-
-        return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
-    }
-
-    function formatETA(seconds: number): string {
-        if (!isFinite(seconds)) return "Calculating...";
-        if (seconds < 60) return `${Math.ceil(seconds)}s`;
-
-        const min = Math.floor(seconds / 60);
-        const sec = Math.ceil(seconds % 60);
-        return `${min}m ${sec}s`;
-    }
-
-
-    // ---------------- XHR Upload ----------------
-
-    function uploadChunkWithProgress(
-        url: string,
-        chunk: Blob,
-        onProgress: ( loaded: number, total: number ) => void,
-        signal: AbortSignal
-    ): Promise<{ etag: string | null }> {
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            activeXHR = xhr;  // track current XHR
-
-            xhr.open("PUT", url, true);
-
-            xhr.upload.onprogress = (event) => {
-                if (event.lengthComputable) {
-                    onProgress(event.loaded, event.total);
-                }
-            };
-
-            xhr.onload = () => {
-                activeXHR = null;
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    const etag = xhr.getResponseHeader("ETag");
-                    resolve({ etag });
-                } else {
-                    reject(new Error(`XHR upload failed: ${xhr.status}`));
-                }
-            };
-
-            xhr.onerror = () => {
-                activeXHR = null;
-                reject(new Error("XHR network error"));
-            };
-
-            xhr.onabort = () => {
-                activeXHR = null;
-                reject(new Error("Upload Cancelled"));
-            };
-
-            // Link AbortController --> XHR
-            signal.addEventListener("abort", () => xhr.abort());
-
-            xhr.send(chunk);
-        });
-    }
-
-
-    // ---------------- Upload ----------------
 
     async function uploadVideoFile(): Promise<void> {
         if (!file) return;
@@ -227,23 +144,12 @@
                 }
 
                 // Upload Chunk
-                
-                // const uploadRes = await fetch(uploadUrl, {
-                //     method: "PUT",
-                //     body: chunks[i]
-                // });
-
-                // const chunkIndex = i;
                 let previousLoaded = 0;
 
                 const { etag } = await uploadChunkWithProgress(
                     uploadUrl,
                     chunks[i],
                     (loaded) => {
-                        // Combine chunk progress + completed chunks
-                        // const overall = ((chunkIndex + chunkPercent / 100) / chunks.length) * 100;
-                        // uploadProgress = Math.round(overall);
-
                         // Increment only the delta
                         const delta = loaded - previousLoaded;
                         previousLoaded = loaded;
@@ -267,10 +173,6 @@
                     signal
                 );
 
-                // if (!uploadRes.ok) {
-                //     throw new Error(`Upload failed for part ${partNumber}`);
-                // }
-
                 // const etag = uploadRes.headers.get("ETag");
 
                 console.log(`Uploaded part ${partNumber}, ETag: ${etag}`);
@@ -278,10 +180,7 @@
                 parts.push({
                     ETag: etag,
                     PartNumber: partNumber
-                });  // this needs to be sent to backend as well
-
-                // Update Progress
-                // uploadProgress = Math.round(((i + 1) / chunks.length) * 100);
+                });
             }
 
             // Step 4: Complete Upload
@@ -331,7 +230,6 @@
         }
     }
 
-    
     // ---------------- Cancel Upload ----------------
     
     async function cancelUpload() {
@@ -377,9 +275,6 @@
             fileInputEl.value = "";
         }
     }
-
-
-    // ---------------- Preview ----------------
 
     // effect for video preview
     $effect(() => {

@@ -72,17 +72,50 @@ def get_presigned_url(req: PartRequest):
     print("Generated presigned URL: ", url)
     return {"uploadUrl": url}
 
+
+def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
+    response = s3.list_parts(
+        Bucket=bucket,
+        Key=key,
+        UploadId=uploadId
+    )
+    
+    return response.get("Parts", [])
+
 @router.post("/complete-upload")
 def complete_upload(req: CompleteRequest):
-    s3.complete_multipart_upload(
-        Bucket=RAW_VIDEO_BUCKET,
-        Key=req.key,
-        UploadId=req.uploadId,
-        MultipartUpload={
-            "Parts": req.parts,  # [{ETag, PartNumber}]
-        },
-    )
-    return {"success": True}
+    
+    # Later Additions:
+        # Ordering check
+        # ETag validation
+        # Storage verification
+        
+    try:
+        # Verify actual uploaded parts with R2
+        uploaded_parts = get_uploaded_parts(
+            s3,
+            RAW_VIDEO_BUCKET,
+            req.key,
+            req.uploadId
+        )
+        
+        if len(uploaded_parts) != len(req.parts):
+            raise ValueError("Mismatch between uploaded parts and client parts")
+        
+        # Complete upload
+        s3.complete_multipart_upload(
+            Bucket=RAW_VIDEO_BUCKET,
+            Key=req.key,
+            UploadId=req.uploadId,
+            MultipartUpload={
+                "Parts": req.parts,  # [{ETag, PartNumber}]
+            },
+        )
+        
+        return {"success": True}
+    
+    except Exception as e:
+        return {"error": str(e)}
 
 @router.post("/abort-upload")
 def abort_upload(req: AbortRequest):
