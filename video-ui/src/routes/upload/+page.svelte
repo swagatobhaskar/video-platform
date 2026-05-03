@@ -1,8 +1,4 @@
 <script lang="ts">
-	import { sign } from "crypto";
-
-	// import { preview } from "vite";
-
     let isDragging = $state(false);
     let file: File | null = $state(null);
     let videoPreviewUrl: string | null = $state(null);
@@ -17,6 +13,12 @@
 
     let abortController: AbortController | null = null;
     let activeXHR: XMLHttpRequest | null = null;
+
+    // GLOBAL upload session tracking
+    let currentUploadId: string | null = null;
+    let currentKey: string | null = null;
+
+    // ---------------- Drag & Drop ----------------
 
     // Drag events and handlers
     function handleDragEnter(e: DragEvent) {
@@ -43,6 +45,8 @@
         }
     }
 
+    // ---------------- File Input ----------------
+
     // File selection handler
     let fileInputEl = $state<HTMLInputElement | null>(null);
 
@@ -66,6 +70,8 @@
         }
     }
 
+    // ---------------- Utils ----------------
+    
     function splitFileIntoChunks(file: File, chunkSizeMB: number = 5): Blob[] {
         const chunkSize = chunkSizeMB * 1024 * 1024; // Convert MB to bytes
         const chunks: Blob[] = [];
@@ -98,6 +104,9 @@
         return `${min}m ${sec}s`;
     }
 
+
+    // ---------------- XHR Upload ----------------
+
     function uploadChunkWithProgress(
         url: string,
         chunk: Blob,
@@ -112,7 +121,6 @@
 
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable) {
-                    // const percent = (event.loaded / event.total) * 100;
                     onProgress(event.loaded, event.total);
                 }
             };
@@ -127,25 +135,25 @@
                 }
             };
 
-            xhr.onabort = () => {
-                activeXHR = null;
-                reject(new Error("Upload Cancelled"));
-            };
-
             xhr.onerror = () => {
                 activeXHR = null;
                 reject(new Error("XHR network error"));
             };
 
+            xhr.onabort = () => {
+                activeXHR = null;
+                reject(new Error("Upload Cancelled"));
+            };
+
             // Link AbortController --> XHR
-            signal.addEventListener("abort", () => {
-                xhr.abort();
-            });
+            signal.addEventListener("abort", () => xhr.abort());
 
             xhr.send(chunk);
         });
     }
 
+
+    // ---------------- Upload ----------------
 
     async function uploadVideoFile(): Promise<void> {
         if (!file) return;
@@ -157,6 +165,10 @@
 
         abortController = new AbortController();
         const signal = abortController.signal;
+
+        // reset timing each upload
+        startTime = Date.now();
+        totalUploadedBytes = 0;
 
         try {
             // STEP 1: Initiate Upload
@@ -177,6 +189,10 @@
             }
             
             const { uploadId, key } = await res.json();
+            
+            // store globally for cancel access
+            currentUploadId = uploadId;
+            currentKey = key;
             
             const chunks = splitFileIntoChunks(currentFile);
             const parts: { ETag: string | null; PartNumber: number }[] = [];
@@ -223,7 +239,7 @@
                 const { etag } = await uploadChunkWithProgress(
                     uploadUrl,
                     chunks[i],
-                    (loaded, _total) => {
+                    (loaded) => {
                         // Combine chunk progress + completed chunks
                         // const overall = ((chunkIndex + chunkPercent / 100) / chunks.length) * 100;
                         // uploadProgress = Math.round(overall);
@@ -291,6 +307,7 @@
             
             console.log("Upload success");
             file = null;
+        
         } catch (err: unknown) {
             if (err instanceof Error) {
                 if (err.message === "Upload Cancelled") {
@@ -307,17 +324,45 @@
             }
         } finally {
             uploading = false;
+            
+            // cleanup session
+            currentUploadId = null;
+            currentKey = null;
         }
     }
 
-    function cancelUpload() {
+    
+    // ---------------- Cancel Upload ----------------
+    
+    async function cancelUpload() {
         // abort all fetch requests
         abortController?.abort();
-        abortController = null;
-
         // abort current XHR if running
         activeXHR?.abort();
+
+        try {
+            // Only call if XHR started
+            if (currentUploadId && currentKey) {
+                await fetch("http://127.0.0.1:8000/api/upload/abort-upload", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        uploadId: currentUploadId,
+                        key: currentKey
+                    })
+                });
+            }
+        } catch (e) {
+            console.warn("Abort cleanup failed", e)
+        }
+
+        // Reset controllers and trackers
+        abortController = null;
         activeXHR = null;
+
+        // Reset upload session tracking
+        currentUploadId = null;
+        currentKey = null;
 
         // Reset state
         uploading = false;
@@ -333,12 +378,13 @@
         }
     }
 
+
+    // ---------------- Preview ----------------
+
     // effect for video preview
     $effect(() => {
         if (!file) return;
-        
         const url = URL.createObjectURL(file);
-        console.log("Inside effect, video url: ", url);
         videoPreviewUrl = url;
         
         // clean-up when file changes

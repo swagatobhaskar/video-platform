@@ -2,7 +2,7 @@ import os
 import shutil
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException
 
-from app.schemas.r2_upload_schema import CompleteRequest, PartRequest, InitiateUploadRequest
+from app.schemas.r2_upload_schema import CompleteRequest, PartRequest, InitiateUploadRequest, AbortRequest
 from app.utils.r2_helper import s3
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
@@ -83,3 +83,16 @@ def complete_upload(req: CompleteRequest):
         },
     )
     return {"success": True}
+
+@router.post("/abort-upload")
+def abort_upload(req: AbortRequest):
+    try:
+        s3.abort_multipart_upload(
+            Bucket=RAW_VIDEO_BUCKET,
+            Key=req.key,
+            UploadId=req.uploadId,
+        )
+        return {"success": True, "status": "aborted"}
+    except Exception as e:
+        return {"error": str(e)}
+    
