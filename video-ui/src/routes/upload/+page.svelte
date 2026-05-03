@@ -1,5 +1,12 @@
 <script lang="ts">
-    import { splitFileIntoChunks, formatSpeed, formatETA, uploadChunkWithProgress } from './helpers';
+    import {
+        splitFileIntoChunks,
+        formatSpeed,
+        formatETA,
+        uploadChunkWithProgress
+    } from './helpers';
+
+    import { createDragAndDropHandlers } from './dragAndDrop';
 
     let isDragging = $state(false);
     let file: File | null = $state(null);
@@ -20,33 +27,18 @@
     let currentUploadId: string | null = null;
     let currentKey: string | null = null;
 
-    // ---------------- Drag & Drop ----------------
+    // ---------------- File Input ----------------
+    const {
+        handleDragEnter,
+        handleDragOver,
+        handleDragLeave,
+        handleDrop
+    } = createDragAndDropHandlers(
+        (dragging) => isDragging = dragging,
+        (droppedFile) => file = droppedFile
+    );
 
-    // Drag events and handlers
-    function handleDragEnter(e: DragEvent) {
-        e.preventDefault();
-        isDragging = true;
-    }
-
-    function handleDragOver(e: DragEvent) {
-        e.preventDefault();
-    }
-
-    function handleDragLeave() {
-        isDragging = false;
-    }
-
-    function handleDrop(e: DragEvent) {
-        e.preventDefault();
-        isDragging = false;
-
-        const files = e.dataTransfer?.files;
-        if (files && files.length > 0) {
-            file = files[0];
-            console.log("Dropped file: ", file);
-        }
-    }
-
+    
     // ---------------- File Input ----------------
 
     // File selection handler
@@ -294,7 +286,6 @@
         <!-- Video Drop -->
          <div
             class="my-10 mx-20 flex-1 flex items-center justify-center border-gray-400 border-2 rounded-2xl relative"
-            // ARIA role
             role="region"
             // Apply the drag event handlers
             ondragenter={handleDragEnter}
