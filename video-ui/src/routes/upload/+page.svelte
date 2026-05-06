@@ -6,9 +6,7 @@
         uploadChunkWithProgress
     } from './helpers';
 
-    import { createDragAndDropHandlers } from './dragAndDrop';
-
-    let isDragging = $state(false);
+    // let isDragging = $state(false);
     let file: File | null = $state(null);
     let videoPreviewUrl: string | null = $state(null);
     let uploading: boolean = $state(false);
@@ -28,35 +26,33 @@
     let currentKey: string | null = null;
 
     // ---------------- File Input ----------------
-    const {
-        handleDragEnter,
-        handleDragOver,
-        handleDragLeave,
-        handleDrop
-    } = createDragAndDropHandlers(
-        (dragging) => isDragging = dragging,
-        (droppedFile) => file = droppedFile
-    );
-
-    
-    // ---------------- File Input ----------------
+    import { createFileInputController } from '$lib/controller/inputController';
+    let videoFile: File | null = $state<File | null>(null);
+    let isVideoDragging = $state(false);
 
     // File selection handler
     let fileInputEl = $state<HTMLInputElement | null>(null);
+
+    const videoController = createFileInputController({
+        accept: "video/*",
+
+        onDragStateChange: (dragging) => {
+            isVideoDragging = dragging;
+        },
+
+        onFilesSelected: ([file]) => {
+            if (!file) return;
+            videoFile = file;
+            console.log("Selected video:", file.name);
+        }
+    });
 
     function openFileDialog() {
         fileInputEl?.click();
     }
 
-    function handleFileChange(e: Event) {
-        const target = e.target as HTMLInputElement;
-        if (target.files?.length) {
-            file = target.files[0];
-        }
-    }
-
-    function cancelFile() {
-        file = null;
+    function cancelVideoFile() {
+        videoFile = null;
 
         // also reset input so same file can be re-selected
         if (fileInputEl) {
@@ -65,8 +61,8 @@
     }
 
     async function uploadVideoFile(): Promise<void> {
-        if (!file) return;
-        const currentFile = file; // stable reference
+        if (!videoFile) return;
+        const currentVideoFile = videoFile; // stable reference
 
         uploading = true;
         uploadProgress = 0;
@@ -87,8 +83,8 @@
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    fileName: currentFile.name,
-                    contentType: currentFile.type
+                    fileName: currentVideoFile.name,
+                    contentType: currentVideoFile.type
                 }),
                 signal
             });
@@ -103,7 +99,7 @@
             currentUploadId = uploadId;
             currentKey = key;
             
-            const chunks = splitFileIntoChunks(currentFile);
+            const chunks = splitFileIntoChunks(currentVideoFile);
             const parts: { ETag: string | null; PartNumber: number }[] = [];
         
             // STEP 2-3: Upload Chunks
@@ -154,12 +150,12 @@
                         uploadSpeed = totalUploadedBytes / elapsedSeconds;
 
                         // ETA (seconds)
-                        const remainingBytes = currentFile.size - totalUploadedBytes;
+                        const remainingBytes = currentVideoFile.size - totalUploadedBytes;
                         uploadETA = remainingBytes / uploadSpeed;
 
                         // Progress %
                         uploadProgress = Math.round(
-                            (totalUploadedBytes / currentFile.size) * 100
+                            (totalUploadedBytes / currentVideoFile.size) * 100
                         );
                     },
                     signal
@@ -184,7 +180,7 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         key,
-                        filename: currentFile.name,
+                        filename: currentVideoFile.name,
                         uploadId,
                         parts
                     }),
@@ -197,7 +193,7 @@
             }
             
             console.log("Upload success");
-            file = null;
+            videoFile = null;
         
         } catch (err: unknown) {
             if (err instanceof Error) {
@@ -224,7 +220,7 @@
 
     // ---------------- Cancel Upload ----------------
     
-    async function cancelUpload() {
+    async function cancelVideoUpload() {
         // abort all fetch requests
         abortController?.abort();
         // abort current XHR if running
@@ -261,7 +257,7 @@
         uploadETA = 0;
         totalUploadedBytes = 0;
 
-        file = null;
+        videoFile = null;
 
         if (fileInputEl) {
             fileInputEl.value = "";
@@ -270,8 +266,11 @@
 
     // effect for video preview
     $effect(() => {
-        if (!file) return;
-        const url = URL.createObjectURL(file);
+        if (!videoFile) {
+            videoPreviewUrl = null;
+            return;
+        };
+        const url = URL.createObjectURL(videoFile);
         videoPreviewUrl = url;
         
         // clean-up when file changes
@@ -287,25 +286,23 @@
          <div
             class="my-10 mx-20 flex-1 flex items-center justify-center border-gray-400 border-2 rounded-2xl relative"
             role="region"
-            // Apply the drag event handlers
-            ondragenter={handleDragEnter}
-            ondragover={handleDragOver}
-            ondragleave={handleDragLeave}
-            ondrop={handleDrop}
-            // Add conditional visual cues
-            class:border-blue-500={isDragging}
-            class:bg-blue-50={isDragging}
+            ondragenter={videoController.handleDragEnter}
+            ondragover={videoController.handleDragOver}
+            ondragleave={videoController.handleDragLeave}
+            ondrop={videoController.handleDrop}
+            class:border-blue-500={isVideoDragging}
+            class:bg-blue-50={isVideoDragging}
         >
             <input
                 type="file"
                 accept="video/*"
                 class="hidden"
                 bind:this={fileInputEl}
-                onchange={handleFileChange}
+                onchange={videoController.handleFileChange}
             />
             <div id="inner-border" class="absolute inset-3 border-2 border-dashed border-gray-400 rounded-xl pointer-events-none">
                 <div class="relative z-10 w-full h-full flex items-center justify-center text-center gap-2">
-                    {#if file}
+                    {#if videoFile}
                         <div class="flex flex-col items-center gap-3">
 
                             <!-- Video Preview -->
@@ -318,13 +315,13 @@
                                 ></video>
                             {/if}
                             <!-- Video file name -->
-                            <p class="text-gray-700">{file.name}</p>
+                            <p class="text-gray-700">{videoFile.name}</p>
 
                             <!-- Upload & Cancel Buttons -->
                             <div class="flex gap-3 pointer-events-auto">
                                 <button
                                     class="bg-gray-500 text-white py-2 px-4 rounded cursor-pointer"
-                                    onclick={ uploading ? cancelUpload : cancelFile}
+                                    onclick={ uploading ? cancelVideoUpload : cancelVideoFile}
                                 >
                                     Cancel
                                 </button>
