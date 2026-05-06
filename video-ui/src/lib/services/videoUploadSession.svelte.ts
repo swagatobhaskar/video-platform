@@ -1,4 +1,4 @@
-// Upload workflow + state
+
 import {
     initiateUpload,
     getPresignedUrl,
@@ -10,26 +10,15 @@ import {
 
 import { splitFileIntoChunks } from '$lib/helpers/helpers';
 
-interface UploadState {
-    uploading: boolean;
-    progress: number;
-    speed: number;
-    eta: number;
-    error: string | null;
-}
-
 export function createVideoUploadSession() {
-    
-    const state: UploadState = {
-        uploading: false,
-        progress: 0,
-        speed: 0,
-        eta: 0,
-        error: null
-    };
+    // Reactive state (runes)
+    let uploading = $state(false);
+    let progress = $state(0);
+    let speed = $state(0);
+    let eta = $state(0);
+    let error = $state<string | null>(null);
 
     let abortController: AbortController | null = null;
-
     let currentUploadId: string | null = null;
     let currentKey: string | null = null;
 
@@ -37,11 +26,11 @@ export function createVideoUploadSession() {
     let startTime = 0;
 
     async function upload(file: File) {
-        state.uploading = true;
-        state.progress = 0;
-        state.speed = 0;
-        state.eta = 0;
-        state.error = null;
+        uploading = true;
+        error = null;
+        progress = 0;
+        speed = 0;
+        eta = 0;
 
         totalUploadedBytes = 0;
         startTime = Date.now();
@@ -61,7 +50,6 @@ export function createVideoUploadSession() {
             currentKey = key;
 
             const chunks = splitFileIntoChunks(file);
-
             const parts: UploadedPart[] = [];
 
             // STEP 2-3: Upload Parts
@@ -82,24 +70,18 @@ export function createVideoUploadSession() {
                     chunks[i],
                     (loaded) => {
                         const delta = loaded - previousLoaded;
-
                         previousLoaded = loaded;
-
                         totalUploadedBytes += delta;
 
-                        const elapsedSeconds =
-                            (Date.now() - startTime) / 1000;
+                        const elapsedSeconds = (Date.now() - startTime) / 1000;
 
-                        state.speed =
-                            totalUploadedBytes / elapsedSeconds;
+                        speed = elapsedSeconds > 0 ? ( totalUploadedBytes / elapsedSeconds ) : 0;
 
-                        const remainingBytes =
-                            file.size - totalUploadedBytes;
+                        const remainingBytes = file.size - totalUploadedBytes;
 
-                        state.eta =
-                            remainingBytes / state.speed;
+                        eta = speed > 0 ? (remainingBytes / speed) : 0;
 
-                        state.progress = Math.round(
+                        progress = Math.round(
                             (totalUploadedBytes / file.size) * 100
                         );
                     },
@@ -114,62 +96,92 @@ export function createVideoUploadSession() {
 
             // Step 4: Complete Upload
             await completeUpload(
-                key,
+                currentKey!,
                 file.name,
-                uploadId,
+                currentUploadId!,
                 parts,
                 signal
             );
         } catch (err: unknown) {
             if (err instanceof Error) {
-
                 if (err.name === "AbortError") {
                     console.log("Upload cancelled");
                 } else {
-                    state.error = err.message;
+                    console.error(err);
+                    error = err.message;
                 }
-
             } else {
-                state.error = "Unknown upload error";
+                console.error(err);
+                error = 'Unknown error occurred';
             }
         } finally {
-            state.uploading = false;
+            uploading = false;
             currentUploadId = null;
             currentKey = null;
         }
     }
 
     async function cancel() {
+        // Cancel in-flight requests
         abortController?.abort();
+
         try {
             if (currentUploadId && currentKey) {
-                await abortUpload(
-                    currentUploadId,
-                    currentKey
-                );
+                await abortUpload(currentUploadId, currentKey);
             }
         } catch (err) {
             console.warn("Abort cleanup failed", err);
         } finally {
+            uploading = false;
+
             // Reset controllers and trackers
             abortController = null;
-            // activeXHR = null;
 
             // Reset upload session tracking
             currentUploadId = null;
             currentKey = null;
 
-            // Reset state
-            state.uploading = false;
-            state.progress = 0;
-            state.speed = 0;
-            state.eta = 0;
+            // reset metrics
+            progress = 0;
+            speed = 0;
+            eta = 0;
+
+            totalUploadedBytes = 0;
+            startTime = 0;
         }
     }
 
     return {
-        state,
+        // actions
         upload,
-        cancel
+        cancel,
+
+        // reactive state (auto-tracked in Svelte)
+        // uploading,
+        // progress,
+        // speed,
+        // eta,
+        // error
+        
+        // reactive state
+        get uploading() {
+            return uploading;
+        },
+
+        get progress() {
+            return progress;
+        },
+
+        get speed() {
+            return speed;
+        },
+
+        get eta() {
+            return eta;
+        },
+
+        get error() {
+            return error;
+        }
     };
 }

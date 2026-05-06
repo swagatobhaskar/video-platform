@@ -1,17 +1,14 @@
 <script lang="ts">
-
-    import {
-        formatETA,
-        formatSpeed,
-    } from '$lib/helpers/helpers'
-
-    import { createVideoUploadSession } from '$lib/services/videoUploadSession';
-    let uploader = createVideoUploadSession();
+    import { formatETA, formatSpeed } from '$lib/helpers/helpers';
+    import { createFileInputController } from '$lib/controller/inputController';
+    import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte';
+    
+    const uploader = createVideoUploadSession();
 
     async function uploadVideoFile() {
         if (!videoFile) return;
 
-        await uploader.upload(videoFile);
+        uploader.upload(videoFile);
 
         videoFile = null;
     }
@@ -21,9 +18,7 @@
     }
 
     let videoPreviewUrl: string | null = $state(null);
-
-    // ---------------- File Input ----------------
-    import { createFileInputController } from '$lib/controller/inputController';
+    
     let videoFile: File | null = $state<File | null>(null);
     let isVideoDragging = $state(false);
 
@@ -114,7 +109,10 @@
                             <div class="flex gap-3 pointer-events-auto">
                                 <button
                                     class="bg-gray-500 text-white py-2 px-4 rounded cursor-pointer"
-                                    onclick={ uploader.state.uploading ? cancelUpload : cancelVideoFile}
+                                    onclick={() => {
+                                        if (uploader.uploading) cancelUpload();
+                                        else cancelVideoFile();
+                                    }}
                                 >
                                     Cancel
                                 </button>
@@ -122,7 +120,7 @@
                                     class="bg-blue-500 text-white py-2 px-4 rounded cursor-pointer"
                                     onclick={uploadVideoFile}
                                 >
-                                    { uploader.state.uploading ? 'Uploading...' : 'Upload' }
+                                    { uploader.uploading ? 'Uploading...' : 'Upload' }
                                 </button>
                             </div>
                         </div>
@@ -142,16 +140,16 @@
             </div>
          </div>
          <!-- Video Upload Progress -->
-         {#if uploader.state.uploading}
+         {#if uploader.uploading}
              <div class="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                 <div class="bg-blue-500 h-2.5 rounded-full" style="width: {uploader.state.progress}%" ></div>
-                 <p>Progress: {uploader.state.progress}%</p>
-                 <p>Speed: {formatSpeed(uploader.state.speed)}</p>
-                 <p>ETA: {formatETA(uploader.state.eta)}</p>
+                 <div class="bg-blue-500 h-2.5 rounded-full" style="width: {uploader.progress}%" ></div>
+                 <p>Progress: {uploader.progress}%</p>
+                 <p>Speed: {formatSpeed(uploader.speed)}</p>
+                 <p>ETA: {formatETA(uploader.eta)}</p>
              </div>
          {/if}
-         {#if uploader.state.error}
-             <p class="text-red-500 mt-2">{uploader.state.error}</p>
+         {#if uploader.error}
+             <p class="text-red-500 mt-2">{uploader.error}</p>
          {/if}
 
          <!-- Thumbnail -->
