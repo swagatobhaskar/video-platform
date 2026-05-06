@@ -108,7 +108,14 @@ def complete_upload(req: CompleteRequest):
             Key=req.key,
             UploadId=req.uploadId,
             MultipartUpload={
-                "Parts": req.parts,  # [{ETag, PartNumber}]
+                # "Parts": req.parts,  # [{ETag, PartNumber}]
+                "Parts": [
+                    {
+                        "ETag": part.ETag,
+                        "PartNumber": part.PartNumber
+                    }
+                    for part in req.parts
+                ]
             },
         )
         
