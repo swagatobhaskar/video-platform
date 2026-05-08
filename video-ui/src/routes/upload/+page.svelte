@@ -1,6 +1,6 @@
 <script lang="ts">
     import { formatETA, formatSpeed } from '$lib/helpers/helpers';
-    import { createFileInputController } from '$lib/controller/inputController';
+    import { createFileInputController } from '$lib/controllers/inputController';
     import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte';
     
     const uploader = createVideoUploadSession();
