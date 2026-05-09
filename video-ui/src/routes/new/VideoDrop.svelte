@@ -1,5 +1,11 @@
 <script lang="ts">
     
+    import {
+        createUploadWorkflowController
+    } from "$lib/controllers/uploadWorkflow.svelte";
+
+    const workflow = createUploadWorkflowController();
+
     // Video file selection handler
     let videoFileInputEl = $state<HTMLInputElement | null>(null);
 
