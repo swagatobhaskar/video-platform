@@ -17,31 +17,31 @@
         uploader.cancel();
     }
 
-    let videoPreviewUrl: string | null = $state(null);
+    // let videoPreviewUrl: string | null = $state(null);
     
-    let videoFile: File | null = $state<File | null>(null);
-    let isVideoDragging = $state(false);
+    // let videoFile: File | null = $state<File | null>(null);
+    // let isVideoDragging = $state(false);
 
     // File selection handler
-    let fileInputEl = $state<HTMLInputElement | null>(null);
+    // let fileInputEl = $state<HTMLInputElement | null>(null);
 
-    const videoController = createFileInputController({
-        accept: "video/*",
+    // const videoController = createFileInputController({
+    //     accept: "video/*",
 
-        onDragStateChange: (dragging) => {
-            isVideoDragging = dragging;
-        },
+    //     onDragStateChange: (dragging) => {
+    //         isVideoDragging = dragging;
+    //     },
 
-        onFilesSelected: ([file]) => {
-            if (!file) return;
-            videoFile = file;
-            console.log("Selected video:", file.name);
-        }
-    });
+    //     onFilesSelected: ([file]) => {
+    //         if (!file) return;
+    //         videoFile = file;
+    //         console.log("Selected video:", file.name);
+    //     }
+    // });
 
-    function openFileDialog() {
-        fileInputEl?.click();
-    }
+    // function openFileDialog() {
+    //     fileInputEl?.click();
+    // }
 
     function cancelVideoFile() {
         videoFile = null;
@@ -53,17 +53,17 @@
     }
 
     // effect for video preview
-    $effect(() => {
-        if (!videoFile) {
-            videoPreviewUrl = null;
-            return;
-        };
-        const url = URL.createObjectURL(videoFile);
-        videoPreviewUrl = url;
+    // $effect(() => {
+    //     if (!videoFile) {
+    //         videoPreviewUrl = null;
+    //         return;
+    //     };
+    //     const url = URL.createObjectURL(videoFile);
+    //     videoPreviewUrl = url;
         
-        // clean-up when file changes
-        return () => URL.revokeObjectURL(url);
-    });
+    //     // clean-up when file changes
+    //     return () => URL.revokeObjectURL(url);
+    // });
 
 </script>
 
@@ -72,38 +72,38 @@
      <section class="w-1/2 flex flex-col">
         <!-- Video Drop -->
          <div
-            class="my-10 mx-20 flex-1 flex items-center justify-center border-gray-400 border-2 rounded-2xl relative"
-            role="region"
-            ondragenter={videoController.handleDragEnter}
-            ondragover={videoController.handleDragOver}
-            ondragleave={videoController.handleDragLeave}
-            ondrop={videoController.handleDrop}
-            class:border-blue-500={isVideoDragging}
-            class:bg-blue-50={isVideoDragging}
+            // class="my-10 mx-20 flex-1 flex items-center justify-center border-gray-400 border-2 rounded-2xl relative"
+            // role="region"
+            // ondragenter={videoController.handleDragEnter}
+            // ondragover={videoController.handleDragOver}
+            // ondragleave={videoController.handleDragLeave}
+            // ondrop={videoController.handleDrop}
+            // class:border-blue-500={isVideoDragging}
+            // class:bg-blue-50={isVideoDragging}
         >
-            <input
+            <!-- <input
                 type="file"
                 accept="video/*"
                 class="hidden"
                 bind:this={fileInputEl}
                 onchange={videoController.handleFileChange}
-            />
+            /> -->
             <div id="inner-border" class="absolute inset-3 border-2 border-dashed border-gray-400 rounded-xl pointer-events-none">
                 <div class="relative z-10 w-full h-full flex items-center justify-center text-center gap-2">
                     {#if videoFile}
                         <div class="flex flex-col items-center gap-3">
 
                             <!-- Video Preview -->
-                            {#if videoPreviewUrl }
+                            <!-- {#if videoPreviewUrl } -->
                                 <!-- svelte-ignore a11y_media_has_caption -->
-                                <video
+                                <!-- <video
                                     src={videoPreviewUrl}
                                     controls
                                     class="max-h-64 rounded-lg shadow-xl pointer-events-auto"
                                 ></video>
-                            {/if}
+                            {/if} -->
                             <!-- Video file name -->
-                            <p class="text-gray-700">{videoFile.name}</p>
+                            <!-- <p class="text-gray-700">{videoFile.name}</p> -->
 
                             <!-- Upload & Cancel Buttons -->
                             <div class="flex gap-3 pointer-events-auto">
@@ -125,7 +125,7 @@
                             </div>
                         </div>
                     {:else}
-                        <p class="text-2xl text-gray-700">Drag and drop your video here or</p>
+                        <!-- <p class="text-2xl text-gray-700">Drag and drop your video here or</p>
                         <div class="flex items-center gap-2">            
                             <button
                                 class="bg-blue-500 text-white py-2 px-4 rounded pointer-events-auto cursor-pointer"
@@ -134,7 +134,7 @@
                                 Click
                             </button>
                             <p class="text-2xl text-gray-700">to select</p>
-                        </div>
+                        </div> -->
                     {/if}
                 </div>
             </div>
@@ -159,7 +159,7 @@
      </section>
 
      <!-- Right Column -- Form -->
-    <section class="w-1/2 flex items-center justify-center">
+    <!-- <section class="w-1/2 flex items-center justify-center">
         <form class="w-3/4">
             <h2 class="text-xl mb-4">Video Details </h2>
             <label class="" for="title">Title</label>
@@ -168,5 +168,5 @@
             <input class="w-full mb-2 p-2 border" id="description" placeholder="Description" type="text" />
             <button type="submit" class="w-full bg-blue-500 text-white p-2">Submit</button>
         </form>
-    </section>
+    </section> -->
 </main>
