@@ -1,4 +1,5 @@
 <script lang="ts">
+
     // Video file selection handler
     let videoFileInputEl = $state<HTMLInputElement | null>(null);
 
@@ -6,94 +7,23 @@
         videoFileInputEl?.click();
     }
 
-    type UploadFileType = "video" | "image";
-
-    type FileInputPreference = {
-        uploadFileType: UploadFileType;
-    }
-    
-    function fileInputController({uploadFileType}: FileInputPreference) {
-        const state = $state({
-            isDragging: false,
-            dragCounter: 0,
-            error: null,
-        });
-
-        const handleDragEnter = (e: DragEvent) => {
-            e.preventDefault();
-            state.dragCounter ++;
-            state.isDragging = true;
-            console.log("on drag enter");
-        }
-
-        const handleDragLeave = (e: DragEvent) => {
-            e.preventDefault();
-            // state.isDragging = false;
-            state.dragCounter --;
-    
-            if (state.dragCounter <= 0) {
-                state.dragCounter = 0;
-                state.isDragging = false;
-            }
-            
-            console.log("on drag leave");
-        }
-
-        const handleDragOver = (e: DragEvent) => {
-            e.preventDefault();
-            console.log("on drag over");
-        }
-
-        const handleDrop = (e: DragEvent) => {
-            e.preventDefault();
-            state.isDragging = false;
-            state.dragCounter = 0;
-            const files = Array.from(e.dataTransfer?.files ?? [])
-            handleProcessFile(files[0]);
-        }
-
-        const validateVideoFile = (file: File) => {}
-        const validateImageFile = (file: File) => {}
-
-        const validateFile = (file: File) => {
-            if (uploadFileType === "video") {
-                const validatedVideoFile = validateVideoFile(file);
-                // return file or error
-            } else if (uploadFileType === "image") {
-                const validatedImageFile = validateImageFile(file);
-                // return file or error
-            }
-        }
-
-        const handleProcessFile = (file: File) => {
-            validateFile(file);
-            console.log(file);
-        }
-
-        const handleFileSelect = (e: Event) => {
-            const input = e.currentTarget as HTMLInputElement;
-            const files = Array.from(input.files ?? []);
-            // handle the selected file
-            const file = files[0];
-
-            // Allow re-selecting same file
-            input.value = "";
-
-            // handle selected file
-            handleProcessFile(file);
-        }
-
-        return {
-            state,
-            handleDragEnter,
-            handleDragLeave,
-            handleDragOver,
-            handleDrop,
-            handleFileSelect,
-        }
-    }
-
+    import { fileInputController } from "$lib/controllers/ui/fileInputController.svelte";
     const videoInput = fileInputController({uploadFileType: "video"});
+    
+    let videoPreviewUrl: string | null = $state(null);
+    
+    $effect(() => {
+        const videoFile = videoInput.state.selectedFile;
+        if (!videoFile) {
+            videoPreviewUrl = null;
+            return;
+        };
+        const url = URL.createObjectURL(videoFile);
+        videoPreviewUrl = url;
+        
+        // clean-up when file changes
+        return () => URL.revokeObjectURL(url);
+    })
  
 </script>
 
@@ -123,29 +53,77 @@
                 }
             }}
         >
-            <div class="flex flex-col items-center gap-3">
-                <p>
-                    Drop video here
-                    <br />
-                    or
-                </p>
+            <!-- Show input options if file isn't selcted -->
+            {#if !videoInput.state.selectedFile}
+                <div class="flex flex-col items-center gap-3">
+                    <p>
+                        Drop video here
+                        <br />
+                        or
+                    </p>
 
-                <button
-                    type="button"
-                    onclick={openVideoFileDialog}
-                    class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                >
-                    Browse from device
-                </button>
+                    <button
+                        type="button"
+                        onclick={openVideoFileDialog}
+                        class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                        Browse from device
+                    </button>
 
-                <input
-                    type="file"
-                    accept="video/*"
-                    class="hidden"
-                    bind:this={videoFileInputEl}
-                    onchange={videoInput.handleFileSelect}
-                />
-            </div>
+                    <input
+                        type="file"
+                        accept="video/*"
+                        class="hidden"
+                        bind:this={videoFileInputEl}
+                        onchange={videoInput.handleFileSelect}
+                    />
+                </div>
+            {:else}
+                {#if videoPreviewUrl }
+                    <!-- Show video preview -->
+                    <div class="flex flex-col items-center gap-3">
+                        <!-- Video Preview -->
+                        
+                        <!-- svelte-ignore a11y_media_has_caption -->
+                        <video
+                            src={videoPreviewUrl}
+                            controls
+                            class="max-h-64 rounded-lg shadow-xl pointer-events-auto"
+                        ></video>
+                        <!-- Video metadata -->
+                        <div class="text-left text-sm text-gray-700">
+                            <p class="text-gray-700">{videoInput.state.selectedFile.name}</p>
+                            {#if videoInput.state.videoMetadata}
+                                <p>Type: {videoInput.state.videoMetadata.mimeType}</p>
+                                <p>Size: {(videoInput.state.videoMetadata.size / (1024 * 1024)).toFixed(2)} MB</p>
+                                <p>Duration: {(videoInput.state.videoMetadata.duration / 60).toFixed(2)} mins</p>
+                                <p>Resolution: {videoInput.state.videoMetadata.width}x{videoInput.state.videoMetadata.height}</p>
+                            {/if}
+                        </div>
+
+                        <!-- Upload & Cancel Buttons -->
+                        <div class="flex gap-3 pointer-events-auto">
+                            <button
+                                class="bg-gray-500 text-white py-2 px-4 rounded cursor-pointer"
+                                onclick={() => {
+                                    // if (uploader.uploading) cancelUpload();
+                                    // else
+                                    videoInput.cancelSelectedFile();
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                class="bg-blue-500 text-white py-2 px-4 rounded cursor-pointer"
+                                // onclick={uploadVideoFile}
+                            >
+                                <!-- { uploader.uploading ? 'Uploading...' : 'Upload' } -->
+                                Upload
+                            </button>
+                        </div>
+                    </div>
+                {/if}
+            {/if}
         </div>
         {#if videoInput.state.error}
             <p class="error">{videoInput.state.error}</p>
