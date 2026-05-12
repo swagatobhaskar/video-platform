@@ -1,10 +1,7 @@
 <script lang="ts">
     
-    import {
-        createUploadWorkflowController
-    } from "$lib/controllers/uploadWorkflow.svelte";
-
-    const workflow = createUploadWorkflowController();
+    // Parent owns the workflow and passes it downward as props.
+    let { workflow } = $props();
 
     // Video file selection handler
     let videoFileInputEl = $state<HTMLInputElement | null>(null);
@@ -18,6 +15,13 @@
     
     let videoPreviewUrl: string | null = $state(null);
     
+    const handleVideoUploadClick = (e: Event) => {
+        e.preventDefault();
+        console.log("Upload clicked");
+        // change UI via workflow state
+        workflow.goToStep("upload-dashboard");
+    }
+
     $effect(() => {
         const videoFile = videoInput.state.selectedFile;
         if (!videoFile) {
@@ -122,6 +126,7 @@
                             <button
                                 class="bg-blue-500 text-white py-2 px-4 rounded cursor-pointer"
                                 // onclick={uploadVideoFile}
+                                onclick={handleVideoUploadClick}
                             >
                                 <!-- { uploader.uploading ? 'Uploading...' : 'Upload' } -->
                                 Upload

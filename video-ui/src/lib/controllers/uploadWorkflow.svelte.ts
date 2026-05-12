@@ -1,7 +1,7 @@
 
-export type UploadWorkflowStep =
+export type workflowSubStep =
     | "idle"
-    | "upload-video"
+    | "video-upload"
     | "video-uploading"
     | "video-processing"
     | "upload-thumbnail"
@@ -11,15 +11,26 @@ export type UploadWorkflowStep =
     | "published"
     | "failed";
 
-export function createUploadWorkflowController() {
-    let currentStep = $state<UploadWorkflowStep>("idle");
+type LayoutState = 
+    | "video-drop"
+    | "upload-dashboard"
+    | "ready-to-publish"
+    | "publishing"
+    | "published"
+    | "draft"
+    | "error";
 
-    function goToStep(step: UploadWorkflowStep) {
+export function createUploadWorkflowController() {
+    let currentStep = $state<LayoutState>("video-drop");
+
+    let videoSessionId: string | null = $state(null); // const?
+
+    function goToStep(step: LayoutState) {
         currentStep = step;
     }
 
     function resetStep() {
-        currentStep = "idle";
+        currentStep = "video-drop";
     }
 
     return {
