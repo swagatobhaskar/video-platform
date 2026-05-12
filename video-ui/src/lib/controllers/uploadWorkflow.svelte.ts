@@ -23,7 +23,19 @@ type LayoutState =
 export function createUploadWorkflowController() {
     let currentStep = $state<LayoutState>("video-drop");
 
-    let videoSessionId: string | null = $state(null); // const?
+    const workflowProgress = $state({
+        videoUploaded: false,
+        videoProcessing: false,
+        thumbnailUploaded: false,
+        metadataFilled: false,
+        readyToPublish: false,
+        publishing: false,
+        published: false,
+        failed: false,
+        draft: true,
+    });
+
+    const videoSessionId: string | null = $state(null);
 
     function goToStep(step: LayoutState) {
         currentStep = step;
@@ -38,6 +50,8 @@ export function createUploadWorkflowController() {
             return currentStep;
         },
         goToStep,
-        resetStep
+        resetStep,
+        workflowProgress,
+        videoSessionId,
     }
 }

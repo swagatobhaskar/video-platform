@@ -49,7 +49,7 @@
             }
         } finally {
             uploading = false;
-            // workflow.
+            workflow.workflowProgress.thumbnailUploaded = true;
         }
     }
 
@@ -132,6 +132,7 @@
                         {thumbnailPreviewUrl}
                         {thumbnailInput}
                         {uploading}
+                        {error}
                         {handleThumbnailUpload}
                     />
                 {/if}

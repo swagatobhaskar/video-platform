@@ -3,6 +3,7 @@
         thumbnailPreviewUrl,
         thumbnailInput,
         uploading,
+        error,
         handleThumbnailUpload
     } = $props();
 </script>
@@ -23,6 +24,15 @@
             <p>Resolution: {thumbnailInput.state.thumbnailMetadata.width}x{thumbnailInput.state.thumbnailMetadata.height}</p>
         {/if}
     </div>
+
+    {#if error}
+        <p class="text-red-500">{error}</p>
+    {/if}
+
+     <!-- Uploading state -->
+     {#if uploading}
+        <p class="text-blue-500">Uploading thumbnail...</p>
+     {/if}
 
     <!-- Upload & Cancel Buttons -->
     <div class="flex gap-3 pointer-events-auto">
