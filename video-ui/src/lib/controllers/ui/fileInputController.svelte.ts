@@ -13,12 +13,11 @@ type VideoMetadata = {
     mimeType: string;
 }
 
-type ImageMetadata = {
-    duration: number;
+type ThumbnailMetadata = {
     width: number;
     height: number;
     size: number;
-    type: string;
+    format: string;
 }
 
 export function fileInputController({uploadFileType}: FileInputPreference) {
@@ -28,7 +27,7 @@ export function fileInputController({uploadFileType}: FileInputPreference) {
         error: null as string | null,
         selectedFile: null as File | null,
         videoMetadata: null as VideoMetadata | null,
-        imageMetadata: null as ImageMetadata | null,
+        thumbnailMetadata: null as ThumbnailMetadata | null,
     });
 
     const handleDragEnter = (e: DragEvent) => {
@@ -103,6 +102,31 @@ export function fileInputController({uploadFileType}: FileInputPreference) {
         });
     }
 
+    const getThumbnailMetadata = async (file: File): Promise<ThumbnailMetadata> => {
+        return new Promise((resolve, reject) => {
+            // const image = document.createElement("img");
+            const objectURL = URL.createObjectURL(file);
+
+            const img = new Image();
+
+            img.onload = () => {
+                URL.revokeObjectURL(objectURL);                                                                                                                                                                                                                                                                         
+                resolve({
+                    width: img.width,
+                    height: img.height,
+                    size: file.size,
+                    format: file.type,
+                });
+                
+            };
+            img.onerror = () => {
+                URL.revokeObjectURL(objectURL);
+                reject(new Error("Failed to load image metadata"));
+            };
+            img.src = objectURL;
+        });
+    }
+
     const handleProcessFile = async (file?: File) => {
         if (!file) return;
 
@@ -119,6 +143,16 @@ export function fileInputController({uploadFileType}: FileInputPreference) {
             } catch (err) {
                 console.error(err);
                 state.error = "Could not read video metadata";
+            }
+        }
+
+        if (uploadFileType === "image") {
+            try {
+                state.thumbnailMetadata = await getThumbnailMetadata(file);
+                console.log(state.thumbnailMetadata);
+            } catch (err) {
+                console.error(err);
+                state.error = "Could not read thumbnail metadata";
             }
         }
     }
