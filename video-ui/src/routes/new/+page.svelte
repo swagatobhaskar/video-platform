@@ -8,8 +8,7 @@
     } from "$lib/controllers/uploadWorkflow.svelte";
 
     const workflow = createUploadWorkflowController();
-    console.log("Workflow step: ", workflow.currentStep);
- 
+
 </script>
 
 {#if workflow.currentStep == "video-drop"}
