@@ -8,31 +8,33 @@
     } = $props();
 </script>
 
-<!-- <div class="flex flex-col items-center gap-3"> -->
-<div class="w-full max-w-xl mx-auto">
+<!-- <div class="w-full max-w-xl mx-auto"> -->
+<div class="h-full flex flex-col">
 
     <!-- Preview Card -->
-    <div class="group overflow-hidden transition-all duration-300">
+    <!-- <div class="group overflow-hidden transition-all duration-300"> -->
 
         <!-- Image -->
-        <div class="relative p-4">
-            <div class="overflow-hidden rounded-2xl bg-gray-100 aspect-video">
+        <!-- <div class="relative p-4"> -->
+        <div class="flex-1 min-h-0 p-4">
+            <div class="h-full w-full overflow-hidden rounded-2xl bg-gray-100">
                 <img
                     src={thumbnailPreviewUrl}
                     alt="thumbnail-preview"
-                    class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    class="w-full h-full object-cover"
                 />
             </div>
         </div>
-        
-            <!-- class="max-h-64 rounded-lg shadow-xl pointer-events-auto" -->
 
         <!-- Thumbnail info -->
-        <div class="relative px-5 pb-5 space-y-4">
+        <!-- <div class="relative px-5 pb-5 space-y-4"> -->
+            <div class="px-5 pb-5 space-y-4 flex-0">
 
-            <div class="pl-3">
+            <div class="">
                 <!-- File name -->
-                <p class="font-semibold text-gray-800">{thumbnailInput.state?.selectedFile?.name}</p>
+                <p class="font-semibold text-gray-800">
+                    {thumbnailInput.state?.selectedFile?.name}
+                </p>
                 
                 {#if thumbnailInput.state.thumbnailMetadata}
                     <div class="mt-2 flex flex-wrap gap-2 text-xs">
@@ -50,7 +52,6 @@
                     </div>
                 {/if}
             </div>
-        
 
             <!-- Error -->
             {#if error}
@@ -65,6 +66,7 @@
                     <div class="h-2 overflow-hidden rounded-full bg-gray-200">
                         <div class="h-full w-1/2 animate-pulse rounded-full bg-blue-500"></div>
                     </div>
+
                     <p class="text-sm text-blue-600">
                         Uploading thumbnail...
                     </p>
@@ -72,9 +74,8 @@
             {/if}
 
             <!-- Upload & Cancel Buttons -->
-            <div class="flex gap-3 pt-2 pointer-events-auto">
+            <div class="flex gap-3">
                 <button
-                    // class="bg-gray-500 text-white py-2 px-4 rounded cursor-pointer"
                     class="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3
                         font-medium text-gray-700 transition hover:bg-gray-50 cursor-pointer"
                     onclick={() => {
@@ -86,7 +87,6 @@
                     Cancel
                 </button>
                 <button
-                    // class="bg-blue-500 text-white py-2 px-4 rounded cursor-pointer"
                     class="flex-1 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white shadow-lg
                         shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
                     // onclick={uploadVideoFile}
@@ -96,5 +96,5 @@
                 </button>
             </div>
         </div>
-    </div>
+    <!-- </div> -->
 </div>
