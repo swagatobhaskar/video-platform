@@ -70,7 +70,9 @@
 
 </script>
 
-<div class="flex-1 border-2 border-gray-200 rounded-lg shadow-md shadow-gray-200 p-12 relative">
+<div class="flex-1 shadow-gray-200 p-12 relative border border-gray-200 bg-white/90
+    backdrop-blur-sm rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.06)]"
+>
     <!-- If uploaded, show thumbnail from R2 link -->
     {#if thumbnailR2Url}
         <div class=" inset-5 rounded-3xl pointer-events-auto

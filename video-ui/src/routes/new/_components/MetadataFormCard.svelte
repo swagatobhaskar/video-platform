@@ -133,53 +133,50 @@
     </div>
 
     <!-- SEO Tags -->
-    <div class="relative w-full">
-        <label for="seoTags" class="block mb-0.5 font-semibold text-lg">SEO Tags</label>
+    <div class="space-y-3">
+    
+        <div>
+            <label
+                for="seoTags"
+                class="block text-sm font-semibold tracking-wide text-gray-700"
+            >
+                SEO Tags
+            </label>
 
-        <div class="flex gap-2 items-stretch">
+            <p class="mt-1 text-xs text-gray-500">
+                Add keywords to improve discoverability
+            </p>
+        </div>
+
+        <div class="flex gap-3">
             <input
                 type="text"
                 name="seoTag"
                 bind:value={seoTagEntry}
-                placeholder="Add an item for SEO"
-                class="flex-1 border-2 border-gray-300 rounded-md p-2 pr-36 mt-1 focus:outline-none
-                    focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                onkeydown={(e) => e.key === 'Enter' && addItemToSEOList()}
+                placeholder="Add a SEO keyword..."
+                onkeydown={(e) =>
+                    e.key === 'Enter' && addItemToSEOList()
+                }
+                class="flex-1 rounded-xl border border-gray-300 bg-gray-50
+                px-4 py-3 text-gray-800 placeholder:text-gray-400
+                transition-all duration-200
+                focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
+                focus:outline-none"
             />
+
             <button
                 type="button"
-                class="px-3 py-1 bg-blue-500 text-white rounded-md text-sm
-                    hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 onclick={addItemToSEOList}
                 disabled={!seoTagEntry.trim()}
-                onkeydown={(e) => e.key === 'Enter' && addItemToSEOList()}
+                class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white
+                shadow-lg shadow-blue-200 transition-all duration-200
+                hover:bg-blue-700 hover:shadow-blue-300
+                disabled:cursor-not-allowed disabled:opacity-40"
             >
-                Add tag
+                Add
             </button>
         </div>
-       
-        <!-- <div class="mt-2 flex flex-wrap items-start gap-2 border border-gray-200 rounded-md p-2 min-h-32 max-h-max">
-            {#if selectedSEOTagsList.length === 0}
-                <p class="text-gray-500">No SEO tags added yet.</p>
-            {:else}
-                
-                {#each selectedSEOTagsList as tag (tag.id)}
-                    <div class="flex items-center bg-indigo-200 rounded-sm p-1.5">
-                        <span>{tag.value}</span>
-
-                        <button
-                            type="button"
-                            class="ml-2 text-gray-500 hover:text-gray-700 text-2xl"
-                            onclick={() => removeItemFromSEOList(tag.id)}
-                        >
-                            &times;
-                        </button>
-                    </div>
-                {/each}
-
-            {/if}
-        </div> -->
-        
+               
         <!-- Tags Container -->
         <div
             class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
