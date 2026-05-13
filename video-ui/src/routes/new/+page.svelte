@@ -1,7 +1,7 @@
 <script lang="ts">
 
-    import VideoDrop from "./VideoDrop.svelte";
-    import UploadDashboard from "./UploadDashboard.svelte";
+    import VideoDrop from "./_components/VideoDrop.svelte";
+    import UploadDashboard from "./_components/UploadDashboard.svelte";
     
     import {
         createUploadWorkflowController
