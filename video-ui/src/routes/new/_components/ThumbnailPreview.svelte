@@ -8,50 +8,93 @@
     } = $props();
 </script>
 
-<div class="flex flex-col items-center gap-3">
-    <!-- Thumbnail Preview -->
-    <img
-        src={thumbnailPreviewUrl}
-        alt="thumbnail-preview"
-        class="max-h-64 rounded-lg shadow-xl pointer-events-auto"
-    />
-    <!-- Thumbnail metadata -->
-    <div class="text-left text-sm text-gray-700">
-        <p class="text-gray-700">{thumbnailInput.state?.selectedFile?.name}</p>
-        {#if thumbnailInput.state.thumbnailMetadata}
-            <p>format: {thumbnailInput.state.thumbnailMetadata.format}</p>
-            <p>Size: {(thumbnailInput.state.thumbnailMetadata.size / (1024 * 1024)).toFixed(2)} MB</p>
-            <p>Resolution: {thumbnailInput.state.thumbnailMetadata.width}x{thumbnailInput.state.thumbnailMetadata.height}</p>
-        {/if}
-    </div>
+<!-- <div class="flex flex-col items-center gap-3"> -->
+<div class="w-full max-w-xl mx-auto">
 
-    {#if error}
-        <p class="text-red-500">{error}</p>
-    {/if}
+    <!-- Preview Card -->
+    <div class="group overflow-hidden transition-all duration-300">
 
-     <!-- Uploading state -->
-     {#if uploading}
-        <p class="text-blue-500">Uploading thumbnail...</p>
-     {/if}
+        <!-- Image -->
+        <div class="relative p-4">
+            <div class="overflow-hidden rounded-2xl bg-gray-100 aspect-video">
+                <img
+                    src={thumbnailPreviewUrl}
+                    alt="thumbnail-preview"
+                    class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+            </div>
+        </div>
+        
+            <!-- class="max-h-64 rounded-lg shadow-xl pointer-events-auto" -->
 
-    <!-- Upload & Cancel Buttons -->
-    <div class="flex gap-3 pointer-events-auto">
-        <button
-            class="bg-gray-500 text-white py-2 px-4 rounded cursor-pointer"
-            onclick={() => {
-                // if (uploader.uploading) cancelUpload();
-                // else
-                thumbnailInput.cancelSelectedFile();
-            }}
-        >
-            Cancel
-        </button>
-        <button
-            class="bg-blue-500 text-white py-2 px-4 rounded cursor-pointer"
-            // onclick={uploadVideoFile}
-            onclick={handleThumbnailUpload}
-        >
-            { uploading ? 'Uploading...' : 'Upload' }
-        </button>
+        <!-- Thumbnail info -->
+        <div class="relative px-5 pb-5 space-y-4">
+
+            <div class="pl-3">
+                <!-- File name -->
+                <p class="font-semibold text-gray-800">{thumbnailInput.state?.selectedFile?.name}</p>
+                
+                {#if thumbnailInput.state.thumbnailMetadata}
+                    <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                        <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">
+                            {thumbnailInput.state.thumbnailMetadata.format}
+                        </span>
+
+                        <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">
+                            {(thumbnailInput.state.thumbnailMetadata.size / (1024 * 1024)).toFixed(2)} MB
+                        </span>
+
+                        <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">
+                            {thumbnailInput.state.thumbnailMetadata.width}x{thumbnailInput.state.thumbnailMetadata.height}
+                        </span>
+                    </div>
+                {/if}
+            </div>
+        
+
+            <!-- Error -->
+            {#if error}
+                <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {error}
+                </div>
+            {/if}
+
+            <!-- Uploading -->
+            {#if uploading}
+                <div class="space-y-2">
+                    <div class="h-2 overflow-hidden rounded-full bg-gray-200">
+                        <div class="h-full w-1/2 animate-pulse rounded-full bg-blue-500"></div>
+                    </div>
+                    <p class="text-sm text-blue-600">
+                        Uploading thumbnail...
+                    </p>
+                </div>
+            {/if}
+
+            <!-- Upload & Cancel Buttons -->
+            <div class="flex gap-3 pt-2 pointer-events-auto">
+                <button
+                    // class="bg-gray-500 text-white py-2 px-4 rounded cursor-pointer"
+                    class="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3
+                        font-medium text-gray-700 transition hover:bg-gray-50 cursor-pointer"
+                    onclick={() => {
+                        // if (uploader.uploading) cancelUpload();
+                        // else
+                        thumbnailInput.cancelSelectedFile();
+                    }}
+                >
+                    Cancel
+                </button>
+                <button
+                    // class="bg-blue-500 text-white py-2 px-4 rounded cursor-pointer"
+                    class="flex-1 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white shadow-lg
+                        shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+                    // onclick={uploadVideoFile}
+                    onclick={handleThumbnailUpload}
+                >
+                    { uploading ? 'Uploading...' : 'Upload' }
+                </button>
+            </div>
+        </div>
     </div>
 </div>

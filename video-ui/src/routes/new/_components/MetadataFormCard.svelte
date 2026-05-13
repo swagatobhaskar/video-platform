@@ -31,58 +31,110 @@
     const removeItemFromSEOList = (id: string) => {
         selectedSEOTagsList = selectedSEOTagsList.filter(tag => tag.id !== id);
     }
+
+    // Periodically sync formController's data with DB and switch step
+    // $effect(() => {
+
+    // });
 </script>
 
-<div class="h-full border-2 border-gray-200 rounded-lg shadow-md shadow-gray-200 p-8 flex flex-col justify-evenly">
+<div class="h-full border border-gray-200 bg-white/90 backdrop-blur-sm rounded-2xl
+    shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-8 space-y-8"
+>
+ <!-- shadow-md shadow-gray-200 p-8 flex flex-col justify-evenly"> -->
+
+    <!-- Header -->
+    <div>
+        <h2 class="text-2xl font-bold text-gray-900">
+            Video Details
+        </h2>
+
+        <p class="mt-1 text-sm text-gray-500">
+            Fill out information for your upload
+        </p>
+    </div>
 
     <!-- Video Title -->
-    <label for="title" class="">
-        Title
+    <div class="space-y-2">
+        <label
+            for="title"
+            class="block text-sm font-semibold tracking-wide text-gray-700"
+        >
+            Video Title
+        </label>
+        
         <input
             type="text"
             name="title"
-            placeholder="Video title"
+            placeholder="Enter the video title"
             required
-            class="w-full border-2 border-gray-300 rounded-md p-2 mt-1 focus:outline-none
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             bind:value={formController.formData.title}
+            class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
+                transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
+                focus:outline-none"
         />
-    </label>
+    
+    </div>
 
     <!-- Video Description -->
-    <label for="title" class="">
-        Description
+    <div class="space-y-2">
+        <div class="flex items-center justify-between">
+            <label
+                for="description"        
+                class="block text-sm font-semibold tracking-wide text-gray-700"
+            >
+                Description
+            </label>
+
+            <span class="text-xs text-gray-400">
+                {formController.formData.description.length}/400
+            </span>
+        </div>
+
         <textarea
             name="description"
-            placeholder="Video description"
+            placeholder="Tell viewers about your video..."
+            bind:value={formController.formData.description}
             maxlength="400"
             required
-            class="w-full h-32 overflow-y-auto resize-none border-2 border-gray-300
-                rounded-md p-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            bind:value={formController.formData.description}
+            class="w-full h-36 resize-none rounded-xl border border-gray-300
+                bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
+                transition-all duration-200 focus:border-blue-500 focus:bg-white
+                focus:ring-4 focus:ring-blue-100 focus:outline-none"
+            // class="w-full h-32 overflow-y-auto resize-none border-2 border-gray-300
+            //     rounded-md p-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         ></textarea>
-    </label>
+    </div>
+
 
     <!-- Video Category -->
-    <label for="title" class="">
-        Category
+    <div class="space-y-2">
+        <label
+            for="category"
+            class="block text-sm font-semibold tracking-wide text-gray-700"
+        >
+            Category
+        </label>
+
         <select
             name="category"
-            required
-            class="w-full border-2 border-gray-300 rounded-md p-2 mt-1 focus:outline-none
-                focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             bind:value={formController.formData.category}
+            required
+            class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
+            text-gray-800 transition-all duration-200
+            focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
+            focus:outline-none"
         >
             <option value="">Select a category</option>
             <option value="technology">Technology</option>
             <option value="music">Music</option>
             <option value="gaming">Gaming</option>
         </select>
-    </label>
+    </div>
 
     <!-- SEO Tags -->
     <div class="relative w-full">
-        <label for="seoTags" class="block mb-1">SEO Tags</label>
+        <label for="seoTags" class="block mb-0.5 font-semibold text-lg">SEO Tags</label>
 
         <div class="flex gap-2 items-stretch">
             <input
@@ -96,7 +148,7 @@
             />
             <button
                 type="button"
-                class="px-3 py-2 bg-blue-500 text-white rounded-md text-sm
+                class="px-3 py-1 bg-blue-500 text-white rounded-md text-sm
                     hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 onclick={addItemToSEOList}
                 disabled={!seoTagEntry.trim()}
@@ -106,7 +158,7 @@
             </button>
         </div>
        
-        <div class="mt-2 flex flex-wrap items-start gap-2 border border-gray-200 rounded-md p-2 min-h-32 max-h-max">
+        <!-- <div class="mt-2 flex flex-wrap items-start gap-2 border border-gray-200 rounded-md p-2 min-h-32 max-h-max">
             {#if selectedSEOTagsList.length === 0}
                 <p class="text-gray-500">No SEO tags added yet.</p>
             {:else}
@@ -126,7 +178,38 @@
                 {/each}
 
             {/if}
+        </div> -->
+        
+        <!-- Tags Container -->
+        <div
+            class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
+            border border-dashed border-gray-300 bg-gray-50 p-4"
+        >
+            {#if selectedSEOTagsList.length === 0}
+                <div class="flex items-center text-sm text-gray-400">
+                    No SEO tags added yet
+                </div>
+            {:else}
+                {#each selectedSEOTagsList as tag (tag.id)}
+                    <div
+                        class="group flex items-center gap-2 rounded-lg
+                        bg-linear-to-r from-indigo-500 to-blue-500
+                        px-4 py-2 text-sm font-medium text-white
+                        shadow-md transition-transform duration-200
+                        hover:scale-105"
+                    >
+                        <span>{tag.value}</span>
+
+                        <button
+                            type="button"
+                            onclick={() => removeItemFromSEOList(tag.id)}
+                            class="text-white/80 transition hover:text-white"
+                        >
+                            &times;
+                        </button>
+                    </div>
+                {/each}
+            {/if}
         </div>
     </div>
-
 </div>

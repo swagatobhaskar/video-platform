@@ -3,7 +3,9 @@
 </script>
 
 <!-- Categories Buttons -->
-<section id="category-buttons" class="w-full h-16 py-4 flex flex-row items-center justify-evenly bg-mauve-500 text-white/60 font-medium">
+<section id="category-buttons" class="w-full h-16 py-4 flex flex-row items-center
+    justify-evenly bg-mauve-500 text-white/60 font-medium"
+>
     <p class="py-2 px-3 bg-gray-400/40 rounded-sm">Hindi</p>
     <p class="py-2 px-3 bg-gray-400/40 rounded-sm">Bengali</p>
     <p class="py-2 px-3 bg-gray-400/40 rounded-sm">English</p>

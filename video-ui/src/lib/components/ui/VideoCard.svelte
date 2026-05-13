@@ -2,7 +2,9 @@
     import Crab from "$lib/assets/crab-cool.jpeg";
 </script>
 
-<div class="w-90 border border-gray-300 rounded-sm shadow-md overflow-hidden bg-white">
+<div class="w-90 border border-gray-300 rounded-sm shadow-md overflow-hidden bg-white
+    transition hover:shadow-xl hover:-translate-y-1"
+>
     <!-- Video Thumbnail -->
     <div class="h-52 w-full overflow-hidden">
         <img 

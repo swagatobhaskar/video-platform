@@ -6,7 +6,8 @@
     import MetadataFormCard from './MetadataFormCard.svelte'
 </script>
 
-<div class="h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] flex">
+<!-- <div class="h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] flex"> -->
+<div class="h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] max-h-max flex">
 
     <main class="w-11/12 h-[95%] m-auto p-10">
 
@@ -18,7 +19,7 @@
             </div>
 
             <!-- Right Column - Form -->
-             <MetadataFormCard />
+             <MetadataFormCard {workflow} />
         </section>
 
     </main>
