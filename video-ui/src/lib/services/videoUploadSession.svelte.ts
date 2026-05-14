@@ -8,7 +8,7 @@ import {
     type UploadedPart
 } from './multipartUploadService';
 
-import { splitFileIntoChunks } from '$lib/helpers/helpers';
+import { splitFileIntoChunks } from '$lib/helpers/multipartUploadHelper';
 
 export function createVideoUploadSession() {
     // Reactive state (runes)
