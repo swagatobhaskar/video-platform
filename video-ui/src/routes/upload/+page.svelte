@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { formatETA, formatSpeed } from '$lib/helpers/helpers';
+    import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
     import { createFileInputController } from '$lib/controllers/inputController';
     import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte';
     

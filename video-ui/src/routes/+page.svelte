@@ -1,13 +1,14 @@
 <script lang="ts">
     import VideoCard from "$lib/components/ui/VideoCard.svelte";
+    import {resolve} from "$app/paths";
 </script>
 
 <!-- Categories Buttons -->
 <section id="category-buttons" class="w-full md:w-1/6 h-10 ml-auto mr-5 my-2">
     <div class="flex flex-row items-center gap-2 text-white font-medium py-1">
-        <p class="flex-1 text-center py-2 px-3 bg-mauve-400/90 hover:bg-mauve-500 rounded-sm">Hindi</p>
-        <p class="flex-1 text-center py-2 px-3 bg-mauve-400/90 hover:bg-mauve-500 rounded-sm">Bengali</p>
-        <p class="flex-1 text-center py-2 px-3 bg-mauve-400/90 hover:bg-mauve-500 rounded-sm">All</p>
+        <a href={resolve("#")} class="flex-1 text-center py-2 px-3 bg-mauve-400/90 hover:bg-mauve-500 rounded-sm">Hindi</a>
+        <a href={resolve("#")} class="flex-1 text-center py-2 px-3 bg-mauve-400/90 hover:bg-mauve-500 rounded-sm">Bengali</a>
+        <a href={resolve("#")} class="flex-1 text-center py-2 px-3 bg-mauve-400/90 hover:bg-mauve-500 rounded-sm">All</a>
     </div>
 </section>
 
