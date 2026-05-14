@@ -11,7 +11,7 @@
     
     import {
         MetadataFormController
-    } from "$lib/controllers/ui/metadataFormController.svelte";
+    } from "$lib/controllers/metadataFormController.svelte";
 
     const formController = MetadataFormController();
 
