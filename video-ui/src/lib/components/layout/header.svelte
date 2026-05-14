@@ -11,9 +11,9 @@
 		<div class="p-6">
 			<a
                 href={resolve('/')}
-                class="inline-block text-4xl font-semibold font-sans bg-linear-to-r
+                class="inline-block text-4xl font-semibold font-sans tracking-wider bg-linear-to-r
                 from-blue-700 via-indigo-600 to-fuchsia-900 bg-clip-text text-transparent">
-                Upload & Scram
+                Cartoon Dikhao
             </a>
 		</div>
 		<!-- Menu Buttons -->
