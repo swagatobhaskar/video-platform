@@ -12,10 +12,9 @@
 </script>
 
 {#if workflow.currentStep == "video-drop"}
-    <!-- <VideoDrop {workflow}/> -->
-    <UploadDashboard {workflow} />
+    <VideoDrop {workflow}/>
 {/if}
-<!-- 
+
 {#if workflow.currentStep == "upload-dashboard"}
     <UploadDashboard {workflow} />
-{/if} -->
+{/if}
