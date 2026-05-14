@@ -13,7 +13,7 @@
         <section class="grid grid-cols-2 gap-16 h-full min-h-0">
             <!-- Left Column -->
             <div class="flex flex-col gap-8 h-full min-h-0">
-                <VideoUploadProgressCard />
+                <VideoUploadProgressCard {workflow} />
                 <ThumbnailCard {workflow} />
             </div>
 
