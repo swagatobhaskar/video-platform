@@ -19,9 +19,13 @@
     
     const handleVideoUploadClick = (e: Event) => {
         e.preventDefault();
-        console.log("Upload clicked");
+
+        const videoSessionUuid = crypto.randomUUID();
+        workflow.workflowProgress.videoSessionId = videoSessionUuid;
+        // console.log("Upload clicked");
         // change UI via workflow state
         initiatingUpload = true;
+        workflow.workflowProgress.selectedVideoFile = videoInput.state.selectedFile;
         workflow.goToStep("upload-dashboard");
     }
 
@@ -44,7 +48,6 @@
 
 <div class="h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] flex items-center justify-center">
     <!-- Video Drop -->
-    <!-- <div class="w-screen md:w-3/5 h-4/5 md:h-3/5 bg-white rounded-4xl shadow-2xl relative"> -->
     <div
         class={`w-screen md:w-3/5 bg-white rounded-4xl shadow-2xl relative transition-all duration-300
         ${
@@ -55,8 +58,6 @@
     >
         <!-- Inner border -->
         <div
-            // class="absolute inset-5 border-2 border-dashed border-gray-400 rounded-3xl pointer-events-auto
-            //     flex items-center justify-center text-center p-10"
             class={`absolute inset-5 rounded-3xl p-5 transition-all duration-300
                 ${
                     videoInput.state.selectedFile
@@ -108,7 +109,6 @@
             {:else}
                 {#if videoPreviewUrl }
                     <!-- Show video preview -->
-                    <!-- <div class="flex flex-col items-center gap-3"> -->
                     <div class="w-full h-full flex flex-col">
 
                         <!-- Large video preview -->
@@ -117,7 +117,6 @@
                             <video
                                 src={videoPreviewUrl}
                                 controls
-                                // class="max-h-64 rounded-lg shadow-xl pointer-events-auto"
                                 class="w-full h-full object-contain bg-black"
                             ></video>
                         </div>
@@ -125,7 +124,6 @@
                         <!-- Bottom info panel / Video metadata -->
                         <div class="pt-5 flex flex-col gap-4">
                             <!-- Metadata -->
-                            <!-- <div class="text-left text-sm text-gray-700"> -->
                             <div class="text-sm text-gray-700 space-y-1 w-2/4 text-left">
                                 <p class="font-medium text-gray-900 break-all">
                                     {videoInput.state.selectedFile.name}
@@ -142,7 +140,6 @@
                             </div>
 
                             <!-- Actions - Upload & Cancel Buttons -->
-                            <!-- <div class="flex gap-3 pointer-events-auto"> -->
                             <div class="flex justify-end gap-3">
                                 <button
                                     class="bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-5 rounded-xl transition cursor-pointer"
@@ -157,9 +154,7 @@
                                     class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-5 rounded-xl transform shadow cursor-pointer"
                                     onclick={handleVideoUploadClick}
                                 >
-                                    <!-- { uploader.uploading ? 'Uploading...' : 'Upload' } -->
                                     { initiatingUpload ? 'Processing...' : 'Upload' }
-                                    <!-- Upload -->
                                 </button>
                             </div>
                         </div>
