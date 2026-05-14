@@ -18,11 +18,11 @@
 		</div>
 		<!-- Menu Buttons -->
 		<nav class="">
-			{#if isActive('/upload')}
+			{#if isActive('/new')}
 				<span class="disabled text-gray-700">New Upload</span>
 			{:else}
 				<a
-					href={resolve('/upload')}
+					href={resolve('/new')}
 					class="hover:text-violet-700 text-lg"
 				>
 					New Upload
