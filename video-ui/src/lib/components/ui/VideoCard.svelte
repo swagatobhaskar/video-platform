@@ -17,7 +17,7 @@
     <!-- Content -->
     <div class="p-4 flex flex-col gap-2">
         <!-- Title -->
-        <h2 class="text-lg font-sans font-semibold leading-snug text-black ">
+        <h2 class="text-lg font-sans font-semibold leading-snug text-black tracking-wide">
             Himalayan Crab Building A Concrete House By The Mediterrainean
         </h2>
 
