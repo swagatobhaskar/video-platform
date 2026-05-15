@@ -28,7 +28,7 @@
 
         <!-- Thumbnail info -->
         <!-- <div class="relative px-5 pb-5 space-y-4"> -->
-            <div class="px-5 pb-5 space-y-4 flex-0">
+        <div class="px-5 pb-5 space-y-4 flex-0">
 
             <div class="">
                 <!-- File name -->
