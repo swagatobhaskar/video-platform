@@ -16,6 +16,7 @@ export function createVideoUploadSession() {
     let progress = $state(0);
     let speed = $state(0);
     let eta = $state(0);
+    let complete = $state(false);
     let error = $state<string | null>(null);
 
     let abortController: AbortController | null = null;
@@ -31,6 +32,7 @@ export function createVideoUploadSession() {
         progress = 0;
         speed = 0;
         eta = 0;
+        complete = false;
 
         totalUploadedBytes = 0;
         startTime = Date.now();
@@ -118,6 +120,7 @@ export function createVideoUploadSession() {
             uploading = false;
             currentUploadId = null;
             currentKey = null;
+            complete = true;
         }
     }
 
@@ -182,6 +185,10 @@ export function createVideoUploadSession() {
 
         get error() {
             return error;
+        },
+
+        get complete() {
+            return complete;
         }
     };
 }
