@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import FastAPI, APIRouter, Depends, status
+from fastapi import FastAPI, Depends, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -10,6 +10,7 @@ from app.database.session import engine, Base
 from app.routes.user import router as UserRouter
 from app.routes.auth import router as AuthRouter
 from app.routes.upload import router as UploadRouter
+from app.routes.tasks import router as TaskRouter
 
 settings = get_settings()
 
@@ -39,8 +40,7 @@ app.add_middleware(
 app.include_router(UserRouter)
 app.include_router(AuthRouter)
 app.include_router(UploadRouter)
-
-router = APIRouter()
+app.include_router(TaskRouter)
 
 # Use settings as Dependency Injection
 @app.get("/")
