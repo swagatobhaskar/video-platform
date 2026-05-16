@@ -1,6 +1,7 @@
 from fastapi import APIRouter
-# from celery.result import AsyncResult
+from celery.result import AsyncResult
 
+from app.celery_worker import celery
 from app.tasks.sample_task import long_task
 
 router = APIRouter(prefix="/api/task", tags=["tasks"])
@@ -16,8 +17,8 @@ def start_task(name: str):
     
 @router.get('/{task_id}')
 def get_task(task_id: str):
-    task_result = long_task.AsyncResult(task_id)
-    # task_result = AsyncResult(task_id)
+    # task_result = long_task.AsyncResult(task_id)
+    task_result = AsyncResult(task_id, app=celery)
 
     return {
         "task_id": task_id,

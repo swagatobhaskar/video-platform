@@ -83,7 +83,7 @@ def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
     return response.get("Parts", [])
 
 @router.post("/complete-upload")
-def complete_upload(req: CompleteRequest):
+async def complete_upload(req: CompleteRequest):
     
     # Later Additions:
         # Ordering check
@@ -118,6 +118,9 @@ def complete_upload(req: CompleteRequest):
                 ]
             },
         )
+        
+        # start a celery task
+        
         
         return {"success": True}
     
