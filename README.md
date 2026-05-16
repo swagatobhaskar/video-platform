@@ -10,3 +10,6 @@ $ docker run -d --name redis -p 6379:6379 redis
 
 $ docker exec -it redis redis-cli ping
 PONG
+
+
+Run celery with queue name: `celery -A app.celery_worker.celery worker -Q default --loglevel=info`

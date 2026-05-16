@@ -1,11 +1,11 @@
 from fastapi import APIRouter
-from celery.result import AsyncResult
+# from celery.result import AsyncResult
 
 from app.tasks.sample_task import long_task
 
 router = APIRouter(prefix="/api/task", tags=["tasks"])
 
-@router.post('/start-task')
+@router.post('/start')
 def start_task(name: str):
     task = long_task.delay(name) #type: ignore
     
@@ -14,7 +14,7 @@ def start_task(name: str):
         "status": "processing"
     }
     
-@router.get('/tasks/{task_id}')
+@router.get('/{task_id}')
 def get_task(task_id: str):
     task_result = long_task.AsyncResult(task_id)
     # task_result = AsyncResult(task_id)
