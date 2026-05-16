@@ -205,8 +205,7 @@
 
         <UploadCompleteBar {workflow} />
 
-        <TranscodeProgress {workflow} />
-
+        <!-- <TranscodeProgress {workflow} /> -->
     {/if}
 
 </div>
