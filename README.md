@@ -4,4 +4,9 @@
 3. Resume after page refresh.
 
 4. Show seeked thumbnail/preview after upload completion
-5. 
+
+
+$ docker run -d --name redis -p 6379:6379 redis
+
+$ docker exec -it redis redis-cli ping
+PONG
