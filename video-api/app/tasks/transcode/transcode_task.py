@@ -3,6 +3,6 @@ import time
 import asyncio
 
 @celery.task
-def inititate_transcoding(video_url: str):
+def process_video_transcoding(key: str):
     
     pass

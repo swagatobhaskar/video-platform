@@ -1,9 +1,13 @@
 import os
 import shutil
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException
+from celery.result import AsyncResult
 
 from app.schemas.r2_upload_schema import CompleteRequest, PartRequest, InitiateUploadRequest, AbortRequest
 from app.utils.r2_helper import s3
+
+from app.celery_worker import celery
+from app.tasks.transcode.transcode_task import process_video_transcoding
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
@@ -45,9 +49,14 @@ RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
 
 @router.post('/initiate-upload')
 def initiate_upload(req: InitiateUploadRequest):
+    
+    # Use {UUID}-{filename} instead of just filename
+    import uuid
+    unique_filename_key = f"{uuid.uuid4()}-{req.fileName}"
+    
     response = s3.create_multipart_upload(
         Bucket=RAW_VIDEO_BUCKET,
-        Key=req.fileName,
+        Key=unique_filename_key, # req.fileName,
         ContentType=req.contentType
     )
     print("Initiate Upload Response: ", response)
@@ -83,7 +92,7 @@ def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
     return response.get("Parts", [])
 
 @router.post("/complete-upload")
-async def complete_upload(req: CompleteRequest):
+def complete_upload(req: CompleteRequest):
     
     # Later Additions:
         # Ordering check
@@ -120,9 +129,16 @@ async def complete_upload(req: CompleteRequest):
         )
         
         # start a celery task
+        task = process_video_transcoding.delay( # type: ignore
+            key=req.key,
+            bucket=RAW_VIDEO_BUCKET    
+        )
         
-        
-        return {"success": True}
+        return {
+            "success": True,
+            "taskId": task.id,
+            "status": "upload completed",
+        }
     
     except Exception as e:
         return {"error": str(e)}
@@ -138,4 +154,14 @@ def abort_upload(req: AbortRequest):
         return {"success": True, "status": "aborted"}
     except Exception as e:
         return {"error": str(e)}
-    
+
+
+@router.get("/processing-status/{transcode_task_id}")
+def get_transcode_processing_status(transcode_task_id: str):
+    status = AsyncResult(transcode_task_id, app=celery)
+        
+    return {
+        "task_id": transcode_task_id,
+        "status": status.status,
+        "result": status.result
+    }
