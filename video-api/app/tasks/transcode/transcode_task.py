@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
     retry_backoff=True,
     max_retries=3,
     )
-def transcode_video(self, file_path: str):
+def transcode_video(self, file_path: str): #file_path will be the video name as kept in R2
     
     import subprocess
         

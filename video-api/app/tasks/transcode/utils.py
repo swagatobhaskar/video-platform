@@ -153,10 +153,7 @@ def build_ffmpeg_command(
 
     cmd = [
 
-        "ffmpeg",
-
-        # Overwrite existing files
-        "-y",
+        "ffmpeg", "-y", # Overwrite existing files
 
         # Cleaner logs
         "-hide_banner",
