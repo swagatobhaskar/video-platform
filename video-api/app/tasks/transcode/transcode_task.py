@@ -52,7 +52,7 @@ def upload_output_directory_to_r2_bucket(
     video_file_name: str,
 ):
     
-    BUCKET: str = 'processed-video-bucket'
+    BUCKET: str = 'processed-videos-bucket'
         
     local_dir = Path(local_dir)
     remote_prefix = Path(video_file_name).stem
@@ -157,6 +157,8 @@ def process_video_worker_operations(self, file_name: str):
     4. cleanup
     """
     
+    print("INSIDE PROCESS_VIDEO_WORKER_OPERATIONS TASK FUNCTION.")
+    
     # Celery task state
     self.update_state(
         state="DOWNLOADING",
@@ -222,3 +224,26 @@ def process_video_worker_operations(self, file_name: str):
         meta={"step": "cleanup"}
     )
     
+    # 1. Delete local tmp files: downloaded video as well as processed video segments and manifests
+    # 2. Remove the actual video from R2 bucket (optional, depending on your retention needs)
+    try:
+        # Delete local output directory (processed segments and manifests)
+        if output_dir.exists():
+            for item in output_dir.rglob("*"):
+                if item.is_file():
+                    item.unlink()
+            output_dir.rmdir()
+            logger.info("Deleted local output directory: %s", output_dir)
+
+        # Delete the downloaded source video
+        if video.exists():
+            video.unlink()
+            logger.info("Deleted local source video: %s", video)
+
+        # Optionally, delete the original uploaded file from R2
+        # s3.delete_object(Bucket=RAW_VIDEO_BUCKET, Key=file_name)
+        # logger.info("Deleted source file from R2: %s", file_name)
+
+    except Exception as e:
+        logger.warning("Cleanup failed: %s", e)
+             

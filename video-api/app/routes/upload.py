@@ -1,5 +1,6 @@
 import os
 import shutil
+import logging
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException
 from celery.result import AsyncResult
 
@@ -10,6 +11,8 @@ from app.celery_worker import celery
 from app.tasks.transcode.transcode_task import process_video_worker_operations
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
+
+logger = logging.getLogger(__name__)
 
 # @router.post('/video')
 # async def upload_video(file: UploadFile = File(...), title: str = Form(...)):
@@ -128,10 +131,14 @@ def complete_upload(req: CompleteRequest):
             },
         )
         
+        # print(f"File name/key: {req.key}")
+        
+        logger.info("Sending transcode task for %s", req.key)
         # start a celery task
         task = process_video_worker_operations.delay( # type: ignore
             file_name=req.key
         )
+        logger.info("Task queued: %s", task.id)
         
         return {
             "success": True,
