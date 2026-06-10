@@ -10,7 +10,7 @@ from app.database.session import engine, Base
 from app.routes.user import router as UserRouter
 from app.routes.auth import router as AuthRouter
 from app.routes.upload import router as UploadRouter
-from app.routes.task_routes import router as TaskRouter
+from app.routes._task_routes import router as TaskRouter
 
 settings = get_settings()
 

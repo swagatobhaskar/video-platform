@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from celery.result import AsyncResult
 
 from app.celery_worker import celery
-from app.tasks.sample_task import long_task
+from app.tasks._sample_task import long_task
 
 router = APIRouter(prefix="/api/task", tags=["tasks"])
 
