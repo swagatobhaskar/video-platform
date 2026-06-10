@@ -1,7 +1,7 @@
 <script lang="ts">
     import { createVideoUploadSession } from "$lib/services/videoUploadSession.svelte";
-    import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
-	import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
+    // import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
+	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
 	import UploadCompleteBar from "$lib/components/ui/uploadCompleteBar.svelte";
 
     let { workflow } = $props();
@@ -29,31 +29,31 @@
     }
 
 
-    let progress = $state(0);
-	let uploading = $state(false);
-	let speed = $state(0);
-	let eta = $state(0);
-    let complete = $state(false);
-
-    const mockUploader = () => {
-        progress = 0;
-        uploading = true;
-
-        const interval = setInterval(() => {
-            if (progress >= 100) {
-                clearInterval(interval);
-                uploading = false;
-                progress = 100;
-                speed = 0;
-				eta = 0;
-                complete = true;
-                return;
-            }
-            progress += 10;
-            speed = +(Math.random() * 5 + 1).toFixed(2); // Mock speed between 1-6 MB/s
-            eta = +(((100 - progress) / 10) * (Math.random() * 2 + 1)).toFixed(1); // Mock ETA
-        }, 500);
-    };
+    // let progress = $state(0);
+	// let uploading = $state(false);
+	// let speed = $state(0);
+	// let eta = $state(0);
+    // let complete = $state(false);
+    // 
+    // const mockUploader = () => {
+    //     progress = 0;
+    //     uploading = true;
+    // 
+    //     const interval = setInterval(() => {
+    //         if (progress >= 100) {
+    //             clearInterval(interval);
+    //             uploading = false;
+    //             progress = 100;
+    //             speed = 0;
+	// 			eta = 0;
+    //             complete = true;
+    //             return;
+    //         }
+    //         progress += 10;
+    //         speed = +(Math.random() * 5 + 1).toFixed(2); // Mock speed between 1-6 MB/s
+    //         eta = +(((100 - progress) / 10) * (Math.random() * 2 + 1)).toFixed(1); // Mock ETA
+    //     }, 500);
+    // };
 
     // console.log("Selected file: ", workflow.workflowProgress.selectedVideoFile);
     // console.log("Video Session UUID: ", workflow.workflowProgress.videoSessionId);
@@ -62,8 +62,8 @@
     $effect(() => {
         const timer = setTimeout(() => {
             if (workflow.workflowProgress.selectedVideoFile) {
-                // uploadVideoFile();
-                mockUploader();
+                uploadVideoFile();
+                // mockUploader();
             }
         }, 500); // slight delay to ensure UI has updated
 
@@ -77,8 +77,8 @@
     backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] p-6"
 >
 
-    <!-- {#if uploader.uploading} -->
-    {#if uploading}
+    {#if uploader.uploading}
+    <!-- {#if uploading} -->
         
         <div class="space-y-5">
 
@@ -107,13 +107,13 @@
                 </div>
 
                 <!-- Percentage badge -->
-                <!-- <div
+                <div
                     class="shrink-0 rounded-full bg-blue-50 border border-blue-100
                     px-3 py-1 text-sm font-medium texxt-blue-600"
                 >
                     {uploader.progress}%
-                     {progress}%
-                </div> -->
+                     <!-- {progress}% -->
+                </div>
             </div>
 
             <!-- Progress bar -->
@@ -123,7 +123,7 @@
                     <!-- Filled Portion -->
                     <div
                         class="relative h-full overflow-hidden rounded-full transition-all duration-500 ease-out"
-                        style={`width:${progress}%`}
+                        style={`width:${uploader.progress}%`}
                     >
                         <!-- Gradient fill -->
                         <div class="absolute inset-0 bg-linear-to-r from-value-500 via-indigo-500 to-purple-500"
@@ -145,7 +145,7 @@
                             <span class="text-gray-400">Speed</span>
                             <span class="ml-1 font-medium text-gray-700">
                                 <!-- {formatSpeed(uploader.speed)} MB/s -->
-                                {speed} MB/s
+                                {uploader.speed} MB/s
                             </span>
                         </div>
 
@@ -153,14 +153,14 @@
                             <span class="text-gray-400">ETA</span>
                             <span class="ml-1 font-medium text-gray-700">
                                 <!-- {formatETA(uploader.eta)}s -->
-                                {eta}s
+                                {uploader.eta}s
                             </span>
                         </div>
                     </div>
 
                     <p class="font-medium text-gray-700">
                         <!-- {uploader.progress}% uploaded -->
-                        {progress}% uploaded
+                        {uploader.progress}% uploaded
                     </p>
                 </div>
             </div>
@@ -201,7 +201,7 @@
         <UploadProgressSkleton />
     {/if} -->
 
-    {#if complete}
+    {#if uploader.complete}
 
         <UploadCompleteBar {workflow} />
 
