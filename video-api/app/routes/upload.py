@@ -7,7 +7,7 @@ from app.schemas.r2_upload_schema import CompleteRequest, PartRequest, InitiateU
 from app.utils.r2_helper import s3
 
 from app.celery_worker import celery
-from app.tasks.transcode.transcode_task import process_video_transcoding
+from app.tasks.transcode.transcode_task import process_video_worker_operations
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
@@ -129,9 +129,8 @@ def complete_upload(req: CompleteRequest):
         )
         
         # start a celery task
-        task = process_video_transcoding.delay( # type: ignore
-            key=req.key,
-            bucket=RAW_VIDEO_BUCKET    
+        task = process_video_worker_operations.delay( # type: ignore
+            file_name=req.key
         )
         
         return {

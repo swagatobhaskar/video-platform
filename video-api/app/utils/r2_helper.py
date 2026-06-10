@@ -1,4 +1,3 @@
-import os
 import boto3
 
 from app.config import get_settings
