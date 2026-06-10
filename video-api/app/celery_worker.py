@@ -9,7 +9,7 @@ celery = Celery(
     backend="redis://localhost:6379/0",
     # broker="redis://redis:6379/0",  # when using docker-compose
     # backend="redis://redis:6379/0",
-    include=["app.tasks.sample_task"],
+    include=["app.tasks.transcode.transcode_task"],
 )
 
 celery.conf.task_routes = {
