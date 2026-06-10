@@ -47,41 +47,23 @@ def download_from_r2(file_name: str, local_download_path: str):
 #
 # Helper function to upload .mpd, .m3u8, and .m4s chunks to Cloudflare R2 bucket
 #
-def upload_output_chunks_directory_to_r2_bucket(
+def upload_output_directory_to_r2_bucket(
     local_dir: str | Path,
-    remote_prefix: str,
+    video_file_name: str,
 ):
-    """
-    Upload an entire DASH/HLS directory to Cloudflare R2.
-
-    Example:
-
-    local_dir:
-        /tmp/job123/dash
-
-    remote_prefix:
-        processed/video123
-
-    Result:
-        processed/video123/master.m3u8
-        processed/video123/manifest.mpd
-        processed/video123/init_0.mp4
-        processed/video123/chunk-stream0-00001.m4s
-        ...
-    """
     
     BUCKET: str = 'processed-video-bucket'
         
     local_dir = Path(local_dir)
+    remote_prefix = Path(video_file_name).stem
     
     failed = []
     
-    for file_path in Path(local_dir).rglob("*"):
+    for file_path in local_dir.rglob("*"):
         if not file_path.is_file():
             continue
     
-        key = f"{remote_prefix}/{file_path.relative_to(local_dir)}"
-        key = key.replace("\\", "/")
+        key = f"{remote_prefix}/{file_path.relative_to(local_dir)}".replace("\\", "/")
     
         try:
             s3.upload_file(
@@ -91,27 +73,23 @@ def upload_output_chunks_directory_to_r2_bucket(
             )
     
         except Exception as e:
-            failed.append((key, str(e)))
+            failed.append(
+                {
+                    "file": str(file_path),
+                    "key": key,
+                    "error": str(e),
+                }
+            )
     
     return failed
 
-
-def transcode_video(video: Path, probe_result: dict):
+#
+# Transcode helper function.
+# 
+def transcode_video(video: Path, probe_result: dict, output_dir: Path, dash_dir: Path):
     
     import subprocess
-    
-    # Use the stem (filename without extension) as the folder name
-    output_dir = video.parent / "processed" / video.stem
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Now you can use output_dir to store DASH/HLS segments
-    # Example:
-    dash_dir = output_dir / "dash"
-    dash_dir.mkdir(parents=True, exist_ok=True)
         
-    # output_file = output_dir / f"{video.stem}.mp4"
-    # manifest_path = output_dir / "dash" / "manifest.mpd"
-    
     # generate renditions
     renditions = generate_renditions(
         probe_result["height"]
@@ -122,7 +100,6 @@ def transcode_video(video: Path, probe_result: dict):
         OUTPUT_ROOT=output_dir
     )
 
-    # Build FFmpeg command
     cmd = build_ffmpeg_command(
         input_file=str(video),
         output_dir=dash_dir,
@@ -158,8 +135,8 @@ def transcode_video(video: Path, probe_result: dict):
         "status": "completed",
         # "input": str(video),
         # "output": str(manifest_path),
-        "manifest": str(dash_dir / "manifest.mpd"), # "uploads/processed/dash/manifest.mpd",
-        "hls_master": str(dash_dir / "master.m3u8"), # "uploads/processed/dash/master.m3u8",
+        "manifest": str(dash_dir / "manifest.mpd"),
+        "hls_master": str(dash_dir / "master.m3u8"),
         "metadata": probe_result,
     }
     
@@ -190,6 +167,20 @@ def process_video_worker_operations(self, file_name: str):
     local_download_path = f"/tmp/{Path(file_name)}" # f"/tmp/{Path(file_path).name}"
     download_from_r2(file_name, local_download_path)
 
+    video = Path(local_download_path)
+
+    # Use the stem (filename without extension) as the folder name
+    output_dir = video.parent / "processed" / video.stem
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Now you can use output_dir to store DASH/HLS segments
+    # Example:
+    dash_dir = output_dir / "dash"
+    dash_dir.mkdir(parents=True, exist_ok=True)
+        
+    # output_file = output_dir / f"{video.stem}.mp4"
+    # manifest_path = output_dir / "dash" / "manifest.mpd"
+
     # Celery task state
     self.update_state(
         state="PROBING",
@@ -206,7 +197,7 @@ def process_video_worker_operations(self, file_name: str):
         meta={"step": "ffmpeg"}
     )
     
-    transcode_video(video, probe_result)
+    transcode_video(video, probe_result, output_dir, dash_dir)
     
     # Celery task state: Upload processed files
     self.update_state(
@@ -214,6 +205,17 @@ def process_video_worker_operations(self, file_name: str):
         meta={"step": "uploading"}
     )
 
+    upload_errors = upload_output_directory_to_r2_bucket(
+        local_dir=output_dir,
+        video_file_name=video.stem,
+    )
+    
+    if upload_errors:
+        logger.error("Errors occurred during upload: %s", upload_errors)
+        raise RuntimeError(
+            f"{len(upload_errors)} files failed to upload"
+        )
+    
     # Celery task state: Clean up
     self.update_state(
         state="CLEANUP",
