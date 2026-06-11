@@ -3,10 +3,9 @@ from datetime import datetime
 
 from sqlalchemy import String, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, declarative_base
+from sqlalchemy.orm import Mapped, mapped_column
 
-Base = declarative_base()
-
+from app.database.session import Base
 class User(Base):
     __tablename__ = "users"
 
