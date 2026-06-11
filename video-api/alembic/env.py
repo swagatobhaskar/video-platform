@@ -2,24 +2,40 @@ import asyncio
 import os
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
+# from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
 
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
+# from sqlalchemy.ext.asyncio import async_engine_from_config
 from dotenv import load_dotenv
 load_dotenv()
 
 from app.database.session import Base
-import app.database.models
+
+from app.database.models import User
 
 DATABASE_URL = os.environ['DATABASE_URL']
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# some Alembic setups behave more predictably when the URL is converted to sync form
+# probably for offline mode
+# sync_url = DATABASE_URL.replace(
+#     "postgresql+asyncpg",
+#     "postgresql"
+# )
+
+# And then we set the URL to the sync version for Alembic to use
+# This is not strictly required, but some prefer it.
+# config.set_main_option("sqlalchemy.url", sync_url)
+
+# Use it unless you add sqlalchemy.url to alembic.ini.
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -85,27 +101,37 @@ def run_migrations_offline() -> None:
 #         with context.begin_transaction():
 #             context.run_migrations()
 
+
 def do_run_migrations(connection: Connection) -> None:
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
+        compare_server_default=True,  # Changes to server defaults can then be detected.
     )
     
     with context.begin_transaction():
         context.run_migrations()
 
-def run_migrations_online():
+
+async def run_async_migrations():
+    
     engine = create_async_engine(
         DATABASE_URL,
         poolclass=pool.NullPool,
     )
     
-    async def run_migrations():
+    try:
         async with engine.connect() as connection:
             await connection.run_sync(do_run_migrations)
-            
-    asyncio.run(run_migrations())
+    finally:    
+        await engine.dispose()
+
+def run_migrations_online() -> None:
+    """Run migrations in 'online' mode."""
+
+    asyncio.run(run_async_migrations())
+
 
 if context.is_offline_mode():
     run_migrations_offline()
