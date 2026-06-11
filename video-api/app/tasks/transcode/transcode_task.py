@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from pathlib import Path
 from botocore.exceptions import ClientError, BotoCoreError
 import os
+from tempfile import TemporaryDirectory
 import logging
 
 from .utils import probe_video, generate_renditions, create_output_directories, build_ffmpeg_command
@@ -140,7 +141,7 @@ def transcode_video(video: Path, probe_result: dict, output_dir: Path, dash_dir:
         "metadata": probe_result,
     }
     
-    
+"""
 @celery.task(
     bind=True,
     # for long tasks
@@ -149,17 +150,9 @@ def transcode_video(video: Path, probe_result: dict, output_dir: Path, dash_dir:
     max_retries=3,
     )
 def process_video_worker_operations(self, file_name: str):
-    """
-    This function handles:
-    1. video downloading
-    2. video transcoding
-    3. output uploading
-    4. cleanup
-    """
     
     print("INSIDE PROCESS_VIDEO_WORKER_OPERATIONS TASK FUNCTION.")
     
-    # Celery task state
     self.update_state(
         state="DOWNLOADING",
         meta={"step": "downloading"}
@@ -246,4 +239,72 @@ def process_video_worker_operations(self, file_name: str):
 
     except Exception as e:
         logger.warning("Cleanup failed: %s", e)
-             
+"""
+
+@celery.task(
+    bind=True,
+    # for long tasks
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
+    )
+def process_video_worker_operations(self, file_name: str):
+    
+    with TemporaryDirectory(prefix="transcode_") as temp_dir:
+        
+        temp_dir = Path(temp_dir)
+        
+        # Celery task state
+        self.update_state(
+            state="DOWNLOADING",
+            meta={"step": "downloading"}
+        )
+        
+        video = temp_dir / Path(file_name).name
+        download_from_r2(file_name, str(video))
+        
+        output_dir = temp_dir / "processed" / video.stem
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        dash_dir = output_dir / "dash"
+        dash_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.update_state(
+            state="PROBING",
+            meta={"step": "ffprobe"}
+        )
+        
+        # ffprobe
+        probe_result = probe_video(str(video))
+        
+        self.update_state(
+            state="TRANSCODING",
+            meta={"step": "ffmpeg"}
+        )
+        
+        transcode_video(video, probe_result, output_dir, dash_dir)
+        
+        # Celery task state: Upload processed files
+        self.update_state(
+            state="UPLOADING",
+            meta={"step": "uploading"}
+        )
+
+        upload_errors = upload_output_directory_to_r2_bucket(
+            local_dir=output_dir,
+            video_file_name=video.stem,
+        )
+        
+        if upload_errors:
+            logger.error("Errors occurred during upload: %s", upload_errors)
+            raise RuntimeError(
+                f"{len(upload_errors)} files failed to upload"
+            )
+        
+        # Cleanup not required here
+        
+        self.update_state(
+            state="SUCCESS",
+            meta={"step": "completed"}
+        )
+        
