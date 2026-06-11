@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from pathlib import Path
-from botocore.exceptions import ClientError, BotoCoreError
+from botocore.exceptions import ClientError, BotoCoreError, EndpointConnectionError, NoCredentialsError
 import os
 from tempfile import TemporaryDirectory
 import logging
@@ -83,6 +83,21 @@ def upload_output_directory_to_r2_bucket(
             )
     
     return failed
+
+
+#
+# Delete from R2 bucket after successful processing and upload
+# 
+def delete_original_video_from_bucket(file_name: str) -> None:
+    RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
+    
+    s3.delete_object(
+        Bucket=RAW_VIDEO_BUCKET,
+        Key=file_name
+    )
+    
+    logger.info("Deleted source file '%s' from RAW bucket.", file_name)
+
 
 #
 # Transcode helper function.
@@ -260,7 +275,9 @@ def process_video_worker_operations(self, file_name: str):
             meta={"step": "downloading"}
         )
         
+        # temporary video file path
         video = temp_dir / Path(file_name).name
+        
         download_from_r2(file_name, str(video))
         
         output_dir = temp_dir / "processed" / video.stem
@@ -301,7 +318,23 @@ def process_video_worker_operations(self, file_name: str):
                 f"{len(upload_errors)} files failed to upload"
             )
         
-        # Cleanup not required here
+        self.update_state(
+            state="SOURCE_CLEANUP",
+            meta={"step": "source_cleanup"}
+        )
+        
+        # Delete from RAW bucket after successful processing and upload
+        
+        
+        try:
+            delete_original_video_from_bucket(file_name)
+        except Exception as e:
+            logger.exception("Failed deleting source file '%s' from RAW bucket", file_name)
+            # Not raising any exception because:
+            # Celery should not re-transcode if source file deletion fails
+            # Storage management will be handled later
+        
+        # Cleanup of tmp files not required
         
         self.update_state(
             state="SUCCESS",
