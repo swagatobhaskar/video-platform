@@ -87,6 +87,8 @@ class Video(Base):
     
     title: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    
     description: Mapped[str] = mapped_column(Text, nullable=True)
     
     language: Mapped[LanguageEnum] = mapped_column(Enum(LanguageEnum), nullable=False, default=LanguageEnum.BENGALI)
@@ -95,10 +97,31 @@ class Video(Base):
     
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
 
-    duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)
+    duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)  # convert to ISO 8601 duration format when returning in API response
 
     # Many videos -> one category
     category: Mapped["Category"] = relationship("Category", back_populates="videos")
+    
+    # focus_keyword
+    # secondary_keywords
+    # series_name
+    # episode_number
+    # transcript
+    # transcript_hindi
+    # transcript_bengali
+    # transcript_english
+    # transcript_native
+    # seo_summary_en
+    # keywords
+    # meta_title
+    # meta_description
+    # thumbnail_alt_text
+    # view_count
+    # like_count
+    # search_intent
+    # content_rating (G, PG, PG-13, R)
+    # age_restriction (0, 7, 13, 18)
+    
     
     # r2_video_url: Mapped[str] = mapped_column(String(255), nullable=True)
     
@@ -127,6 +150,19 @@ class Video(Base):
         nullable=False,
     )
     
+    
+    # VideoObject
+    # {
+    #     "@context": "https://schema.org",
+    #     "@type": "VideoObject",
+    #     "name": "The Haunted House Cartoon Story in Hindi",
+    #     "description": "...",
+    #     "thumbnailUrl": "...",
+    #     "uploadDate": "2026-06-15",
+    #     "duration": "PT12M30S",
+    #     "contentUrl": "...",
+    #     "embedUrl": "..."
+    # }
     
     def __repr__(self) -> str:
         return f"<Video(id={self.id}, title='{self.title}', language='{self.language.value}')>"
@@ -169,6 +205,8 @@ class UploadSession(Base):
     r2_upload_url: Mapped[str] = mapped_column(String(255), nullable=False)
     
     r2_thumbnail_upload_url: Mapped[str] = mapped_column(String(255), nullable=False)
+    
+    # parts: Mapped[list["UploadParts"]] = relationship()
         
     video_upload_status: Mapped[VideoUploadStatusEnum] = mapped_column(
         Enum(VideoUploadStatusEnum),
@@ -230,6 +268,8 @@ class UploadParts(Base):
     
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     
+    # total_parts INTEGER,
+    
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -239,6 +279,16 @@ class UploadParts(Base):
     def __repr__(self) -> str:
         return f"<UploadParts(id={self.id}, video_id={self.video_id}, upload_session_id={self.upload_session_id})>"
     
+
+# Transcoding Progress
+# Status          Progress
+# queued          0
+# downloading     10
+# processing      30
+# transcoding     70
+# uploading       90
+# cleanup         95
+# completed       100
 
 class VideoProcessingStatusEnum(enum.Enum):
     IDLE = "idle"
@@ -280,12 +330,14 @@ class TranscodeTask(Base):
     
     # retry_count:
 
-class ProcessingEvent(Base):
+class VideoEvent(Base):
     __tablename__ = "processing_events"
     
     # id UUID PK
 
     # transcode_job_id UUID FK transcode_jobs(id)
+    
+    # video_id UUID FK videos(id)
 
     # event_type VARCHAR
 
@@ -294,7 +346,14 @@ class ProcessingEvent(Base):
     # payload JSONB
 
     # created_at TIMESTAMP
+    
     # Examples:
+    # CHUNKS_UPLOADED
+    # CHUNKS_UPLOAD_PAUSED
+    # CHUNKS_UPLOAD_RESUMED
+    # CHUNKS_UPLOAD_RETRY
+    # CHUNKS_UPLOAD_FAILED
+    # CHUNKS_UPLOAD_ABORTED
     # DOWNLOAD_STARTED
     # FFPROBE_COMPLETED
     # TRANSCODE_720P_DONE
