@@ -254,31 +254,31 @@ class VideoProcessingStatusEnum(enum.Enum):
 class TranscodeTask(Base):
     __tablename__ = "transcode_tasks"
     
-    id: 
+    # id: 
         
-    video_id:
+    # video_id:
         
-    upload_session_id:
+    # upload_session_id:
         
-    status:
+    # status:
         
-    progress_percent:
+    # progress_percent:
         
-    worker_id: / transcode_job_id:
+    # worker_id: / transcode_job_id:
         
-    error_message:
+    # error_message:
         
-    started_at:
+    # started_at:
         
-    finished_at:
+    # finished_at:
         
-    created_at:
+    # created_at:
         
-    updated_at:
+    # updated_at:
         
-    heartbeat_at:
+    # heartbeat_at:
     
-    retry_count:
+    # retry_count:
 
 class ProcessingEvent(Base):
     __tablename__ = "processing_events"
