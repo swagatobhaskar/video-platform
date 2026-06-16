@@ -3,11 +3,12 @@ import uuid
 from datetime import datetime
 import enum
 
-from sqlalchemy import String, DateTime, func, Text, Enum, ForeignKey, Boolean
+from sqlalchemy import String, DateTime, func, Text, Enum, ForeignKey, Boolean, Integer, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.session import Base
+
 class User(Base):
     __tablename__ = "users"
 
@@ -94,10 +95,15 @@ class Video(Base):
     
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
 
+    duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)
+
     # Many videos -> one category
     category: Mapped["Category"] = relationship("Category", back_populates="videos")
     
-    r2_video_url: Mapped[str] = mapped_column(String(255), nullable=True)
+    # r2_video_url: Mapped[str] = mapped_column(String(255), nullable=True)
+    
+    r2_video_dash_url: Mapped[str] = mapped_column(String(255), nullable=True)
+    r2_video_hls_url: Mapped[str] = mapped_column(String(255), nullable=True)
     
     r2_thumbnail_url: Mapped[str] = mapped_column(String(255), nullable=True)
     
@@ -113,6 +119,14 @@ class Video(Base):
         onupdate=func.now(),
         nullable=False,
     )
+    
+    # Admin manually clicks publish button to make the video live
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        # server_default=func.now(),
+        nullable=False,
+    )
+    
     
     def __repr__(self) -> str:
         return f"<Video(id={self.id}, title='{self.title}', language='{self.language.value}')>"
@@ -145,19 +159,17 @@ class UploadSession(Base):
     
     video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
     
+    # What is this?
+    object_key: Mapped[str] = mapped_column(String(255), nullable=True)
+    
     # Many upload sessions -> one video
     video: Mapped["Video"] = relationship("Video")
     
+    # It's separate from pre-signed url
     r2_upload_url: Mapped[str] = mapped_column(String(255), nullable=False)
     
     r2_thumbnail_upload_url: Mapped[str] = mapped_column(String(255), nullable=False)
-    
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-    
+        
     video_upload_status: Mapped[VideoUploadStatusEnum] = mapped_column(
         Enum(VideoUploadStatusEnum),
         nullable=False,
@@ -182,13 +194,26 @@ class UploadSession(Base):
         default=UploadSessionStatusEnum.IDLE
     )
     
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+    
     def __repr__(self) -> str:
         return f"<UploadSession(id={self.id}, video_id={self.video_id})>"
     
 
 # pause/resume/retry; ETag, parts management
-class VideoUploadAssets(Base):
-    __tablename__ = "video_upload_assets"
+class UploadParts(Base):
+    __tablename__ = "upload_parts"
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
@@ -203,8 +228,16 @@ class VideoUploadAssets(Base):
     
     etag: Mapped[str] = mapped_column(String(255), nullable=False)
     
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    
     def __repr__(self) -> str:
-        return f"<VideoUploadAssets(id={self.id}, video_id={self.video_id}, upload_session_id={self.upload_session_id})>"
+        return f"<UploadParts(id={self.id}, video_id={self.video_id}, upload_session_id={self.upload_session_id})>"
     
 
 class VideoProcessingStatusEnum(enum.Enum):
@@ -221,8 +254,52 @@ class VideoProcessingStatusEnum(enum.Enum):
 class TranscodeTask(Base):
     __tablename__ = "transcode_tasks"
     
-
+    id: 
+        
+    video_id:
+        
+    upload_session_id:
+        
+    status:
+        
+    progress_percent:
+        
+    worker_id: / transcode_job_id:
+        
+    error_message:
+        
+    started_at:
+        
+    finished_at:
+        
+    created_at:
+        
+    updated_at:
+        
+    heartbeat_at:
+    
+    retry_count:
 
 class ProcessingEvent(Base):
     __tablename__ = "processing_events"
     
+    # id UUID PK
+
+    # transcode_job_id UUID FK transcode_jobs(id)
+
+    # event_type VARCHAR
+
+    # message TEXT
+
+    # payload JSONB
+
+    # created_at TIMESTAMP
+    # Examples:
+    # DOWNLOAD_STARTED
+    # FFPROBE_COMPLETED
+    # TRANSCODE_720P_DONE
+    # UPLOAD_FINISHED
+    
+    
+class Renditions(Base):
+    pass
