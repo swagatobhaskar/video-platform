@@ -226,7 +226,7 @@ class UploadSession(Base):
     
     r2_thumbnail_upload_url: Mapped[str] = mapped_column(String(255), nullable=False)
     
-    # parts: Mapped[list["UploadParts"]] = relationship()
+    # parts: Mapped[list["UploadPart"]] = relationship()
         
     video_upload_status: Mapped[VideoUploadStatusEnum] = mapped_column(
         Enum(VideoUploadStatusEnum),
@@ -270,7 +270,7 @@ class UploadSession(Base):
     
 
 # pause/resume/retry; ETag, parts management
-class UploadParts(Base):
+class UploadPart(Base):
     __tablename__ = "upload_parts"
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -297,7 +297,7 @@ class UploadParts(Base):
     )
     
     def __repr__(self) -> str:
-        return f"<UploadParts(id={self.id}, video_id={self.video_id}, upload_session_id={self.upload_session_id})>"
+        return f"<UploadPart(id={self.id}, video_id={self.video_id}, upload_session_id={self.upload_session_id})>"
     
 
 # Transcoding Progress
