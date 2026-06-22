@@ -12,6 +12,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.session import Base
 
+class UserRole(str, enum.Enum):
+    ADMIN = "admin"
+    USER = "user"
+
 class User(Base):
     __tablename__ = "users"
 
@@ -19,7 +23,13 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.USER, nullable=False)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -115,7 +125,7 @@ class Video(Base):
     # Children
     upload_sessions: Mapped[List[UploadSession]] = relationship("UploadSession", back_populates="video", cascade="all, delete-orphan")
     transcode_tasks: Mapped[List[TranscodeTask]] = relationship("TranscodeTask", back_populates="video", cascade="all, delete-orphan")
-    renditions: Mapped[List[Rendition]] = relationship("Rendition", back_populates="video", cascade="all, delete-orphan")
+    # renditions: Mapped[List[Rendition]] = relationship("Rendition", back_populates="video", cascade="all, delete-orphan")
     video_events: Mapped[List[VideoEvent]] = relationship("VideoEvent", back_populates="video", cascade="all, delete-orphan")
 
     # SEO Fields
@@ -139,7 +149,16 @@ class Video(Base):
     view_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     dislike_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # r2_video_url: Mapped[str] = mapped_column(String(255), nullable=True)
+
+    # e.g.,
+    # If object_prefix = "bucket/abc123"
+    # Then construct:
+    # dash_manifest = f"{prefix}/dash/manifest.mpd"
+    # hls_manifest = f"{prefix}/hls/master.m3u8"
+    video_object_storage_prefix: Mapped[str] = mapped_column(String(255), nullable=True)
+    thumbnail_object_storage_prefix: Mapped[str] = mapped_column(String(255), nullable=True)
+    
+    # These aren't required, since file will be stored in the *_OBJECT_STORAGE_PREFIX above:
     # r2_video_dash_url: Mapped[str] = mapped_column(String(255), nullable=True)
     # r2_video_hls_url: Mapped[str] = mapped_column(String(255), nullable=True)
     # r2_thumbnail_url: Mapped[str] = mapped_column(String(255), nullable=True)
@@ -163,6 +182,14 @@ class Video(Base):
         # server_default=func.now(),
         nullable=True,  # Since the video is not published when it's created, we can't set server_default to now() and nullable to False.
     )
+
+    @property
+    def dash_manifest(self):
+        return f"{self.video_object_storage_prefix}/dash/manifest.mpd"
+
+    @property
+    def hls_manifest(self):
+        return f"{self.video_object_storage_prefix}/hls/master.m3u8"
     
     def __repr__(self) -> str:
         return f"<Video(id={self.id}, title='{self.title}', language='{self.language.value}')>"
@@ -386,44 +413,43 @@ class VideoEvent(Base):
              video_id={self.video_id}, event_type={self.event_type})>"
     
 
-class RenditionTypeEnum(enum.Enum):
-    HLS = "hls"
-    DASH = "dash"
+# class RenditionTypeEnum(enum.Enum):
+#     HLS = "hls"
+#     DASH = "dash"
     # MP4 = "mp4"
 
-class Rendition(Base):
-    __tablename__ = "renditions"
+# class Rendition(Base):
+#     __tablename__ = "renditions"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
-    video: Mapped["Video"] = relationship("Video", back_populates="renditions")
+#     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+#     video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+#     video: Mapped["Video"] = relationship("Video", back_populates="renditions")
     
-    type: Mapped[RenditionTypeEnum] = mapped_column(Enum(RenditionTypeEnum), nullable=False, default=RenditionTypeEnum.HLS)  # hls / dash
-    resolution: Mapped[str] = mapped_column(String)  # 360p / 720p / 1080p
-    object_key: Mapped[str] = mapped_column(String)  # R2 path
-    # url is the public URL to access the rendition, which can be constructed using
-    # the object_key and R2 bucket URL, but we can also store it here for easy access
-    url: Mapped[str] = mapped_column(String)
+#     type: Mapped[RenditionTypeEnum] = mapped_column(Enum(RenditionTypeEnum), nullable=False, default=RenditionTypeEnum.HLS)  # hls / dash
+#     resolution: Mapped[str] = mapped_column(String)  # 360p / 720p / 1080p
+#     object_key: Mapped[str] = mapped_column(String)  # R2 path
+#     # url is the public URL to access the rendition, which can be constructed using
+#     # the object_key and R2 bucket URL, but we can also store it here for easy access
+#     url: Mapped[str] = mapped_column(String)
 
-    bitrate: Mapped[int] = mapped_column(Integer, nullable=True)  # in kbps
-    codec: Mapped[str] = mapped_column(String, nullable=True)  # e.g., h264, vp9, av1
-    width: Mapped[int] = mapped_column(Integer, nullable=True)
-    height: Mapped[int] = mapped_column(Integer, nullable=True)
-    fps: Mapped[float] = mapped_column(Float, nullable=True)  # frames per second
+#     bitrate: Mapped[int] = mapped_column(Integer, nullable=True)  # in kbps
+#     codec: Mapped[str] = mapped_column(String, nullable=True)  # e.g., h264, vp9, av1
+#     width: Mapped[int] = mapped_column(Integer, nullable=True)
+#     height: Mapped[int] = mapped_column(Integer, nullable=True)
+#     fps: Mapped[float] = mapped_column(Float, nullable=True)  # frames per second
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
+#     created_at: Mapped[datetime] = mapped_column(
+#         DateTime(timezone=True),
+#         server_default=func.now(),
+#         nullable=False,
+#     )
 
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
+#     updated_at: Mapped[datetime] = mapped_column(
+#         DateTime(timezone=True),
+#         server_default=func.now(),
+#         onupdate=func.now(),
+#         nullable=False,
+#     )
 
-    def __repr__(self) -> str:
-        return f"<Rendition(id={self.id}, video_id={self.video_id}, type={self.type.value}, resolution={self.resolution})>"
-    
+#     def __repr__(self) -> str:
+#         return f"<Rendition(id={self.id}, video_id={self.video_id}, type={self.type.value}, resolution={self.resolution})>"
