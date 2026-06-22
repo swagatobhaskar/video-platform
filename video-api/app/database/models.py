@@ -100,28 +100,30 @@ class LanguageEnum(enum.Enum):
     HINDI = "hindi"
     BENGALI = "bengali"
 
+class VideoStatusEnum(enum.Enum):
+    DRAFT = "draft"
+    PROCESSING = "processing"
+    READY = "ready"
+    PUBLISHED = "published"
+    FAILED = "failed"
+
 class Video(Base):
     __tablename__ = "videos"
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    
     title: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    
-    language: Mapped[LanguageEnum] = mapped_column(Enum(LanguageEnum), nullable=False, default=LanguageEnum.BENGALI)
-    
-    seo_tags: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
+    language: Mapped[LanguageEnum] = mapped_column(Enum(LanguageEnum), nullable=False, default=LanguageEnum.BENGALI)  
     
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="CASCADE"), nullable=False)
-
-    duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)  # convert to ISO 8601 duration format when returning in API response
-
     # Many videos -> one category
     category: Mapped["Category"] = relationship("Category", back_populates="videos")
     
+    duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)  # convert to ISO 8601 duration format when returning in API response
+    status: Mapped[VideoStatusEnum] = mapped_column(Enum(VideoStatusEnum), nullable=False, default=VideoStatusEnum.DRAFT)
+
+    seo_tags: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
     # focus_keyword
     # secondary_keywords
     # series_name
@@ -145,10 +147,10 @@ class Video(Base):
     
     # r2_video_url: Mapped[str] = mapped_column(String(255), nullable=True)
     
-    r2_video_dash_url: Mapped[str] = mapped_column(String(255), nullable=True)
-    r2_video_hls_url: Mapped[str] = mapped_column(String(255), nullable=True)
+    # r2_video_dash_url: Mapped[str] = mapped_column(String(255), nullable=True)
+    # r2_video_hls_url: Mapped[str] = mapped_column(String(255), nullable=True)
     
-    r2_thumbnail_url: Mapped[str] = mapped_column(String(255), nullable=True)
+    # r2_thumbnail_url: Mapped[str] = mapped_column(String(255), nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -170,6 +172,8 @@ class Video(Base):
         nullable=False,
     )
     
+    def __repr__(self) -> str:
+        return f"<Video(id={self.id}, title='{self.title}', language='{self.language.value}')>"
     
     # VideoObject
     # {
@@ -183,10 +187,6 @@ class Video(Base):
     #     "contentUrl": "...",
     #     "embedUrl": "..."
     # }
-    
-    def __repr__(self) -> str:
-        return f"<Video(id={self.id}, title='{self.title}', language='{self.language.value}')>"
-    
     
 class VideoUploadStatusEnum(enum.Enum):
     IDLE = "idle"
@@ -214,20 +214,22 @@ class UploadSession(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
-    
-    # What is this?
-    object_key: Mapped[str] = mapped_column(String(255), nullable=True)
-    
     # Many upload sessions -> one video
     video: Mapped["Video"] = relationship("Video")
+
+    # object_key = “path in object storage” / what file in R2 this upload session is writing to
+    object_key: Mapped[str] = mapped_column(String(255), nullable=True)
     
-    # It's separate from pre-signed url
-    r2_upload_url: Mapped[str] = mapped_column(String(255), nullable=False)
+    r2_video_upload_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    r2_thumbnail_upload_id: Mapped[str] = mapped_column(String(255), nullable=False)
     
-    r2_thumbnail_upload_url: Mapped[str] = mapped_column(String(255), nullable=False)
+    # total number of parts/chunks the video is divided into for multipart upload
+    total_parts: Mapped[int] = mapped_column(Integer, nullable=False)
+    # number of parts/chunks successfully uploaded so far
+    uploaded_parts_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     
-    # parts: Mapped[list["UploadPart"]] = relationship()
-        
+    # uploaded_parts: Mapped[list["UploadPart"]] = relationship()
+    
     video_upload_status: Mapped[VideoUploadStatusEnum] = mapped_column(
         Enum(VideoUploadStatusEnum),
         nullable=False,
@@ -269,16 +271,10 @@ class UploadSession(Base):
         return f"<UploadSession(id={self.id}, video_id={self.video_id})>"
     
 
-# pause/resume/retry; ETag, parts management
 class UploadPart(Base):
     __tablename__ = "upload_parts"
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    
-    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
-    
-    # Many upload sessions -> one video
-    video: Mapped["Video"] = relationship("Video")
     
     upload_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("upload_sessions.id", ondelete="CASCADE"), nullable=False)
     
@@ -287,8 +283,6 @@ class UploadPart(Base):
     etag: Mapped[str] = mapped_column(String(255), nullable=False)
     
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
-    
-    # total_parts INTEGER,
     
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -300,7 +294,7 @@ class UploadPart(Base):
         return f"<UploadPart(id={self.id}, video_id={self.video_id}, upload_session_id={self.upload_session_id})>"
     
 
-# Transcoding Progress
+class TranscodingProgressEnum(enum.Enum):
 # Status          Progress
 # queued          0
 # downloading     10
@@ -309,6 +303,13 @@ class UploadPart(Base):
 # uploading       90
 # cleanup         95
 # completed       100
+        QUEUED = "queued"
+        DOWNLOADING = "downloading"
+        PROCESSING = "processing"
+        TRANSCODING = "transcoding"
+        UPLOADING = "uploading"
+        CLEANUP = "cleanup"
+        COMPLETED = "completed"
 
 class VideoProcessingStatusEnum(enum.Enum):
     IDLE = "idle"
@@ -324,61 +325,132 @@ class VideoProcessingStatusEnum(enum.Enum):
 class TranscodeTask(Base):
     __tablename__ = "transcode_tasks"
     
-    # id: 
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
         
-    # video_id:
+    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+    # Many upload sessions -> one video
+    video: Mapped["Video"] = relationship("Video")
         
-    # upload_session_id:
+    upload_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("upload_sessions.id", ondelete="CASCADE"), nullable=False)
+    # Many upload sessions -> one video
+    upload_session: Mapped["UploadSession"] = relationship("UploadSession")
+
+    status: Mapped[VideoProcessingStatusEnum] = mapped_column(Enum(VideoProcessingStatusEnum), nullable=False, default=VideoProcessingStatusEnum.IDLE)
         
-    # status:
+    progress_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
         
-    # progress_percent:
+    worker_id: Mapped[str] = mapped_column(String(255), nullable=True)
+    error_message: Mapped[str] = mapped_column(Text, nullable=True)
+    
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        # server_default=func.now(),
+        nullable=True,
+    )
         
-    # worker_id: / transcode_job_id:
-        
-    # error_message:
-        
-    # started_at:
-        
-    # finished_at:
+    finished_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        # server_default=func.now(),
+        nullable=True,
+    )
         
     # created_at:
-        
     # updated_at:
         
-    # heartbeat_at:
+    heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        # server_default=func.now(),
+        nullable=True,
+    )
     
-    # retry_count:
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class VideoEventEnum(enum.Enum):
+    NOT_STARTED = "NOT_STARTED"
+    UPLOAD_STARTED = "UPLOAD_STARTED"
+    CHUNKS_UPLOADED = "CHUNKS_UPLOADED"
+    CHUNKS_UPLOAD_PAUSED = "CHUNKS_UPLOAD_PAUSED"
+    CHUNKS_UPLOAD_RESUMED = "CHUNKS_UPLOAD_RESUMED"
+    CHUNKS_UPLOAD_RETRY = "CHUNKS_UPLOAD_RETRY"
+    CHUNKS_UPLOAD_FAILED = "CHUNKS_UPLOAD_FAILED"
+    CHUNKS_UPLOAD_ABORTED = "CHUNKS_UPLOAD_ABORTED"
+    DOWNLOAD_STARTED = "DOWNLOAD_STARTED"
+    FFPROBE_COMPLETED = "FFPROBE_COMPLETED"
+    TRANSCODE_720P_DONE = "TRANSCODE_720P_DONE"
+    UPLOAD_FINISHED = "UPLOAD_FINISHED"
 
 class VideoEvent(Base):
     __tablename__ = "processing_events"
     
-    # id UUID PK
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    # transcode_job_id UUID FK transcode_jobs(id)
+    transcode_job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("transcode_jobs.id"))
+    transcode_job: Mapped["TranscodeTask"] = relationship("TranscodeTask")
+
+    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+    # Many upload sessions -> one video
+    video: Mapped["Video"] = relationship("Video")
+
+    event_type: Mapped[VideoEventEnum] = mapped_column(Enum(VideoEventEnum), nullable=False, default=VideoEventEnum.NOT_STARTED.value)
+
+    message: Mapped[str] = mapped_column(Text, nullable=True)
+
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
     
-    # video_id UUID FK videos(id)
-
-    # event_type VARCHAR
-
-    # message TEXT
-
-    # payload JSONB
-
-    # created_at TIMESTAMP
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
     
-    # Examples:
-    # CHUNKS_UPLOADED
-    # CHUNKS_UPLOAD_PAUSED
-    # CHUNKS_UPLOAD_RESUMED
-    # CHUNKS_UPLOAD_RETRY
-    # CHUNKS_UPLOAD_FAILED
-    # CHUNKS_UPLOAD_ABORTED
-    # DOWNLOAD_STARTED
-    # FFPROBE_COMPLETED
-    # TRANSCODE_720P_DONE
-    # UPLOAD_FINISHED
+    def __repr__(self) -> str:
+        return f"<VideoEvent(id={self.id}, transcode_job_id={self.transcode_job_id}, \
+             video_id={self.video_id}, event_type={self.event_type.value})>"
     
+
+class RenditionTypeEnum(enum.Enum):
+    HLS = "hls"
+    DASH = "dash"
+    # MP4 = "mp4"
+
+class Rendition(Base):
+    __tablename__ = "renditions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+    video: Mapped["Video"] = relationship("Video")
     
-class Renditions(Base):
-    pass
+    type: Mapped[RenditionTypeEnum] = mapped_column(Enum(RenditionTypeEnum), nullable=False, default=RenditionTypeEnum.HLS)  # hls / dash / mp4
+    resolution: Mapped[str] = mapped_column(String)  # 360p / 720p / 1080p
+
+    object_key: Mapped[str] = mapped_column(String)  # R2 path
+    # url is the public URL to access the rendition, which can be constructed using
+    # the object_key and R2 bucket URL, but we can also store it here for easy access
+    url: Mapped[str] = mapped_column(String)
+
+    bitrate: Mapped[int] = mapped_column(Integer)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    def __repr__(self) -> str:
+        return f"<Rendition(id={self.id}, video_id={self.video_id}, type={self.type.value}, resolution={self.resolution})>"
+    
