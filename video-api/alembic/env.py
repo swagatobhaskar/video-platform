@@ -13,11 +13,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.database.session import Base
+from app.database.models.base import Base
 
-from app.database.models import (
-    User, Series, Category, Video, VideoEvent, UploadPart, UploadSession, TranscodeTask, VideoTranscript
-    )
+from app.database.models import *
 
 DATABASE_URL = os.environ['DATABASE_URL']
 
