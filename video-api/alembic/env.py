@@ -15,7 +15,9 @@ load_dotenv()
 
 from app.database.session import Base
 
-from app.database.models import User
+from app.database.models import (
+    User, Series, Category, Video, VideoEvent, UploadPart, UploadSession, TranscodeTask, VideoTranscript
+    )
 
 DATABASE_URL = os.environ['DATABASE_URL']
 
