@@ -9,8 +9,9 @@ from app.utils.r2_helper import s3
 
 from app.celery_worker import celery
 from app.tasks.transcode.transcode_task import process_video_worker_operations
+from app.database.models import Video
 
-router = APIRouter(prefix="/api/upload", tags=["upload"])
+router = APIRouter(prefix="/api/video/uploads", tags=["video", "upload"])
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ def initiate_upload(req: InitiateUploadRequest):
     
     # Use {UUID}-{filename} instead of just filename
     import uuid
-    unique_filename_key = f"{uuid.uuid4()}-{req.fileName}"
+    unique_filename_key = f"{uuid.uuid4()}" #-{req.fileName}"
     
     response = s3.create_multipart_upload(
         Bucket=RAW_VIDEO_BUCKET,
@@ -69,7 +70,7 @@ def initiate_upload(req: InitiateUploadRequest):
         "key": response["Key"],
     }
 
-@router.post("/get-presigned-url")
+@router.post("/{upload_id}/get-presigned-url")
 def get_presigned_url(req: PartRequest):
     url = s3.generate_presigned_url(
         ClientMethod="upload_part",
@@ -94,7 +95,7 @@ def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
     
     return response.get("Parts", [])
 
-@router.post("/complete-upload")
+@router.post("/{upload_id}/complete-upload")
 def complete_upload(req: CompleteRequest):
     
     # Later Additions:
@@ -149,7 +150,7 @@ def complete_upload(req: CompleteRequest):
     except Exception as e:
         return {"error": str(e)}
 
-@router.post("/abort-upload")
+@router.post("/{upload_id}/abort-upload")
 def abort_upload(req: AbortRequest):
     try:
         s3.abort_multipart_upload(
@@ -162,7 +163,7 @@ def abort_upload(req: AbortRequest):
         return {"error": str(e)}
 
 
-@router.get("/processing-status/{transcode_task_id}")
+@router.get("/{upload_id}/processing-status/{transcode_task_id}")
 def get_transcode_processing_status(transcode_task_id: str):
     status = AsyncResult(transcode_task_id, app=celery)
         

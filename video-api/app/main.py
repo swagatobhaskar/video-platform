@@ -10,7 +10,7 @@ from app.database.models.base import Base
 
 from app.routes.user import router as UserRouter
 from app.routes.auth import router as AuthRouter
-from app.routes.upload import router as UploadRouter
+from app.routes.video_upload import router as VideoUploadRouter
 from app.routes._task_routes import router as TaskRouter
 
 settings = get_settings()
@@ -40,7 +40,7 @@ app.add_middleware(
 
 app.include_router(UserRouter)
 app.include_router(AuthRouter)
-app.include_router(UploadRouter)
+app.include_router(VideoUploadRouter)
 app.include_router(TaskRouter)
 
 # Use settings as Dependency Injection
