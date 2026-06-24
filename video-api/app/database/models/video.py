@@ -72,13 +72,10 @@ class LanguageEnum(enum.Enum):
     HINDI = "hindi"
     BENGALI = "bengali"
 
-class VideoStatusEnum(enum.Enum):
-    IDLE = "idle"
-    FAILED = "failed"
-    ABORTED = "aborted"
-    COMPLETED = "completed"
-    UPLOADING = "uploading"
-    PAUSED = "paused"
+class VideoPublicationStatusEnum(enum.Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
 
 class Video(Base):
     __tablename__ = "videos"
@@ -89,7 +86,12 @@ class Video(Base):
     description: Mapped[str] = mapped_column(Text, nullable=True)
     language: Mapped[LanguageEnum] = mapped_column(Enum(LanguageEnum), nullable=False, default=LanguageEnum.BENGALI)  
     duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)  # convert to ISO 8601 duration format when returning in API response
-    status: Mapped[VideoStatusEnum] = mapped_column(Enum(VideoStatusEnum), nullable=False, default=VideoStatusEnum.IDLE)
+    
+    publication_status: Mapped[VideoPublicationStatusEnum] = mapped_column(
+        Enum(VideoPublicationStatusEnum),
+        nullable=False,
+        default=VideoPublicationStatusEnum.DRAFT
+    )
 
     # Many videos -> one category
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=False)
@@ -129,7 +131,10 @@ class Video(Base):
     # Then construct:
     # dash_manifest = f"{prefix}/dash/manifest.mpd"
     # hls_manifest = f"{prefix}/hls/master.m3u8"
-    video_object_storage_prefix: Mapped[str] = mapped_column(String(255), nullable=True)
+    # Not required for my use case
+    # video_object_storage_prefix: Mapped[str] = mapped_column(String(255), nullable=True)
+
+    # Thumbnail should be prefixed by the video_id
     thumbnail_object_storage_prefix: Mapped[str] = mapped_column(String(255), nullable=True)
     
     bitrate: Mapped[int] = mapped_column(Integer, nullable=True)  # in kbps
