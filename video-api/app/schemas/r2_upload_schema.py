@@ -1,8 +1,15 @@
+from uuid import UUID
 from pydantic import BaseModel, Field
+
+from app.database.models.video import LanguageEnum
 
 class InitiateUploadRequest(BaseModel):
     fileName: str
     contentType: str
+    fileSizeBytes: int
+    totalParts: int
+    categoryId: UUID | None = None
+    language: LanguageEnum = LanguageEnum.BENGALI
     
 class Part(BaseModel):    
     ETag: str = Field(..., min_length=1)

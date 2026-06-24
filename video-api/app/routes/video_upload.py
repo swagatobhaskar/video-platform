@@ -1,15 +1,22 @@
 import os
 import shutil
 import logging
-from fastapi import APIRouter, File, UploadFile, Form, HTTPException
+from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Depends
 from celery.result import AsyncResult
+from sqlalchemy.ext import AsyncSession
+from sqlalchemy import select, Uuid
+from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from fastapi.responses import JSONResponse
 
-from app.schemas.r2_upload_schema import CompleteRequest, PartRequest, InitiateUploadRequest, AbortRequest
 from app.utils.r2_helper import s3
-
+from app.utils.dependencies import get_db
 from app.celery_worker import celery
 from app.tasks.transcode.transcode_task import process_video_worker_operations
-from app.database.models import Video
+
+from app.database.models import Video, UploadSession, UploadSessionStatusEnum
+from app.schemas.r2_upload_schema import CompleteRequest, PartRequest, InitiateUploadRequest, AbortRequest
+from app.database.session import AsyncSession
 
 router = APIRouter(prefix="/api/video/uploads", tags=["video", "upload"])
 
@@ -52,7 +59,7 @@ logger = logging.getLogger(__name__)
 RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
 
 @router.post('/initiate-upload')
-def initiate_upload(req: InitiateUploadRequest):
+async def initiate_upload(req: InitiateUploadRequest, db: AsyncSession = Depends(get_db)):
     
     # Use {UUID}-{filename} instead of just filename
     import uuid
@@ -63,8 +70,27 @@ def initiate_upload(req: InitiateUploadRequest):
         Key=unique_filename_key, # req.fileName,
         ContentType=req.contentType
     )
-    print("Initiate Upload Response: ", response)
+    # print("Initiate Upload Response: ", response)
+
+    video = Video(video_object_storage_prefix="")
+
+    db.add(video)
+    await db.flush()
     
+    upload_session = UploadSession(
+        video_id=video.id,
+        object_key=response['Key'],
+        video_upload_id=response["UploadId"],
+        file_size_bytes=req.fileSizeBytes,
+        mime_type=req.contentType,
+        original_filename=req.fileName,
+        total_parts=req.totalParts,
+        status=UploadSessionStatusEnum.UPLOADING,
+    )
+
+    db.add(upload_session)
+    await db.commit()
+
     return {
         "uploadId": response["UploadId"],
         "key": response["Key"],
@@ -172,3 +198,7 @@ def get_transcode_processing_status(transcode_task_id: str):
         "status": status.status,
         "result": status.result
     }
+
+@router.post("/{upload_id}/pause-upload")
+async def pause_video_upload(upload_id: str, db:AsyncSession = Depends(get_db)):
+    pass
