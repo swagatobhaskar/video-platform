@@ -8,6 +8,7 @@ from sqlalchemy import select, Uuid
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from fastapi.responses import JSONResponse
+from botocore.exceptions import ClientError
 
 from app.utils.r2_helper import s3
 from app.utils.dependencies import get_db
@@ -60,43 +61,69 @@ RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
 
 @router.post('/initiate-upload')
 async def initiate_upload(req: InitiateUploadRequest, db: AsyncSession = Depends(get_db)):
+
+    upload_id = None
+    object_key = None
+
+    try:
+        # Use {UUID}-{filename} instead of just filename
+        import uuid
+        object_key = f"{uuid.uuid4()}" #-{req.fileName}"
+        
+        response = s3.create_multipart_upload(
+            Bucket=RAW_VIDEO_BUCKET,
+            Key=object_key,
+            ContentType=req.contentType
+        )
+        # print("Initiate Upload Response: ", response)
+        upload_id = response["UploadId"]
+
+        video = Video(title=req.fileName)
+
+        db.add(video)
+        await db.flush()
+
+        upload_session = UploadSession(
+            video_id=video.id,
+            object_key=object_key,
+            video_upload_id=upload_id,
+            file_size_bytes=req.fileSizeBytes,
+            mime_type=req.contentType,
+            original_filename=req.fileName,
+            total_parts=req.totalParts,
+            status=UploadSessionStatusEnum.UPLOADING,
+        )
+
+        db.add(upload_session)
+        await db.commit()
+
+        return {
+            "uploadId": upload_id,
+            "key": object_key,
+            "upload_session_id": str(upload_session.id),
+        }
+
+    except Exception as e:
+        await db.rollback()    
     
-    # Use {UUID}-{filename} instead of just filename
-    import uuid
-    unique_filename_key = f"{uuid.uuid4()}" #-{req.fileName}"
-    
-    response = s3.create_multipart_upload(
-        Bucket=RAW_VIDEO_BUCKET,
-        Key=unique_filename_key, # req.fileName,
-        ContentType=req.contentType
-    )
-    # print("Initiate Upload Response: ", response)
+        # Clean up R2 multipart upload if it was created
+        if upload_id and object_key:
+            try:
+                s3.abort_multipart_upload(
+                    Bucket=RAW_VIDEO_BUCKET,
+                    Key=object_key,
+                    UploadId=upload_id
+                )
+            except Exception:
+                pass
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to initiate upload: {str(e)}"
+        )
 
-    video = Video(video_object_storage_prefix="")
 
-    db.add(video)
-    await db.flush()
-    
-    upload_session = UploadSession(
-        video_id=video.id,
-        object_key=response['Key'],
-        video_upload_id=response["UploadId"],
-        file_size_bytes=req.fileSizeBytes,
-        mime_type=req.contentType,
-        original_filename=req.fileName,
-        total_parts=req.totalParts,
-        status=UploadSessionStatusEnum.UPLOADING,
-    )
-
-    db.add(upload_session)
-    await db.commit()
-
-    return {
-        "uploadId": response["UploadId"],
-        "key": response["Key"],
-    }
-
-@router.post("/{upload_id}/get-presigned-url")
+@router.post("/get-presigned-url")
 def get_presigned_url(req: PartRequest):
     url = s3.generate_presigned_url(
         ClientMethod="upload_part",
@@ -112,6 +139,8 @@ def get_presigned_url(req: PartRequest):
     return {"uploadUrl": url}
 
 
+# POST /part-completed 
+
 def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
     response = s3.list_parts(
         Bucket=bucket,
@@ -120,6 +149,7 @@ def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
     )
     
     return response.get("Parts", [])
+
 
 @router.post("/{upload_id}/complete-upload")
 def complete_upload(req: CompleteRequest):
