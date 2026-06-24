@@ -81,10 +81,10 @@ class Video(Base):
     __tablename__ = "videos"
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title: Mapped[str] = mapped_column(String(255), unique=False, index=True, nullable=False)
-    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), unique=False, index=True, nullable=True)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    language: Mapped[LanguageEnum] = mapped_column(Enum(LanguageEnum), nullable=False, default=LanguageEnum.BENGALI)  
+    language: Mapped[LanguageEnum] = mapped_column(Enum(LanguageEnum), nullable=True, default=LanguageEnum.BENGALI)  
     duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)  # convert to ISO 8601 duration format when returning in API response
     
     publication_status: Mapped[VideoPublicationStatusEnum] = mapped_column(
@@ -94,7 +94,7 @@ class Video(Base):
     )
 
     # Many videos -> one category
-    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=False)
+    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     category: Mapped["Category"] = relationship("Category", back_populates="videos")
     
     # Many videos -> one series
@@ -143,7 +143,9 @@ class Video(Base):
     height: Mapped[int] = mapped_column(Integer, nullable=True)
     fps: Mapped[float] = mapped_column(Float, nullable=True)  # frames per second
 
-    # These aren't required, since file will be stored in the *_OBJECT_STORAGE_PREFIX above:
+    # These aren't required, since file URL will be derived from:
+    # <CDN URL>/<video_id>/dash/manifest.mpd
+    # or, <CDN URL>/<video_id>/hls/master.m3u8
     # video_dash_url: Mapped[str] = mapped_column(String(255), nullable=True)
     # video_hls_url: Mapped[str] = mapped_column(String(255), nullable=True)
     # thumbnail_url: Mapped[str] = mapped_column(String(255), nullable=True)
@@ -169,16 +171,28 @@ class Video(Base):
     )
 
     @property
-    def dash_manifest(self):
-        return f"{self.video_object_storage_prefix}/dash/manifest.mpd"
+    def dash_manifest_key(self):
+        return f"{self.id}/dash/manifest.mpd"
 
     @property
-    def hls_manifest(self):
-        return f"{self.video_object_storage_prefix}/hls/master.m3u8"    # correction required here
+    def hls_manifest_key(self):
+        return f"{self.id}/hls/master.m3u8"    # correction required here
 
     @property
     def thumbnail_uploaded(self) -> bool:
         return bool(self.thumbnail_object_storage_prefix)
+    
+    # @property
+    # def hls_url(self):
+    #     return f"{settings.CDN_BASE_URL}/{self.hls_manifest_key}"
+
+    # @property
+    # def dash_url(self):
+    #     return f"{settings.CDN_BASE_URL}/{self.dash_manifest_key}"
+
+    # @property
+    # def thumbnail_key(self):
+    #     return f"{self.id}/thumbnails/thumbnail.jpg"
     
     @property
     def transcript_uploaded(self) -> bool:
