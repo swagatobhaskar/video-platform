@@ -1,6 +1,9 @@
 from fastapi import HTTPException
 from pathlib import Path
-from botocore.exceptions import ClientError, BotoCoreError, EndpointConnectionError, NoCredentialsError
+from botocore.exceptions import (
+    ClientError, BotoCoreError, EndpointConnectionError, NoCredentialsError
+)
+
 import os
 from tempfile import TemporaryDirectory
 import logging
@@ -8,7 +11,13 @@ import logging
 from .utils import probe_video, generate_renditions, create_output_directories, build_ffmpeg_command
 from app.celery_worker import celery
 from app.utils.r2_helper import s3
-    
+
+from app.database.session import AsyncSessionLocal
+from app.database.models import (
+    Video, VideoEvent, VideoProcessingStatusEnum, TranscodeTask
+)
+from app.utils.dependencies import get_db
+
 logger = logging.getLogger(__name__)
 
 #
@@ -263,7 +272,14 @@ def process_video_worker_operations(self, file_name: str):
     retry_backoff=True,
     max_retries=3,
     )
-def process_video_worker_operations(self, file_name: str):
+async def process_video_worker_operations(
+    self,
+    file_name: str,
+    video_id: str,
+    upload_session_id: str,
+    upload_id: str,
+    # db: AsyncSession = Depends(get_db),
+):
     
     with TemporaryDirectory(prefix="transcode_") as temp_dir:
         
@@ -275,11 +291,28 @@ def process_video_worker_operations(self, file_name: str):
             meta={"step": "downloading"}
         )
         
+        async with AsyncSessionLocal() as db:
+            # Add a record of the task to the DB
+            transcode_task = TranscodeTask(
+                video_id=video_id,
+                upload_session_id=upload_session_id,
+                status=VideoProcessingStatusEnum.DOWNLOADING_VIDEO,
+                task_id=self.request.id,
+                worker_id=self.request.hostname, # AKA hostname; the worker currently executing the task
+                progress_percent=0
+            )
+
+            db.add(transcode_task)
+            await db.flush(transcode_task)
+
         # temporary video file path
         video = temp_dir / Path(file_name).name
         
         download_from_r2(file_name, str(video))
         
+        # Update task progress percent in DB
+        transcode_task.progress_percent = 20
+
         output_dir = temp_dir / "processed" / video.stem
         output_dir.mkdir(parents=True, exist_ok=True)
         

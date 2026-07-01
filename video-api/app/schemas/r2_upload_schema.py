@@ -22,7 +22,9 @@ class PartRequest(BaseModel):
     
 class CompleteRequest(BaseModel):
     key: str
-    uploadId: str
+    uploadId: str | None = None
+    videoId: str | None = None
+    uploadSessionId: str | None = None
     parts: list[Part]
     
 class AbortRequest(BaseModel):

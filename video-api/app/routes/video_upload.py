@@ -15,7 +15,10 @@ from app.utils.dependencies import get_db
 from app.celery_worker import celery
 from app.tasks.transcode.transcode_task import process_video_worker_operations
 
-from app.database.models import Video, UploadSession, UploadSessionStatusEnum, UploadPart
+from app.database.models import (
+    Video, UploadSession, UploadSessionStatusEnum,
+    UploadPart, VideoEvent, VideoPublicationStatusEnum, VideoTranscript
+)
 from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
 from app.database.session import AsyncSession
 
@@ -135,7 +138,7 @@ def get_presigned_url(req: PartRequest):
         },
         ExpiresIn=3600,
     )
-    print("Generated presigned URL: ", url)
+    # print("Generated presigned URL: ", url)
     return {"uploadUrl": url}
 
 
@@ -150,7 +153,7 @@ def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
 
 
 @router.post("/{upload_id}/complete-upload")
-def complete_upload(req: CompleteRequest):
+def complete_upload(req: CompleteRequest, upload_id: str):
     
     # Later Additions:
         # Ordering check
@@ -189,10 +192,14 @@ def complete_upload(req: CompleteRequest):
         # print(f"File name/key: {req.key}")
         
         logger.info("Sending transcode task for %s", req.key)
-        # start a celery task
+        # start celery transcode task
         task = process_video_worker_operations.delay( # type: ignore
-            file_name=req.key
+            file_name=req.key,
+            video_id=req.videoId,
+            upload_id=upload_id, # from function argument
+            upload_session_id=req.uploadSessionId
         )
+
         logger.info("Task queued: %s", task.id)
         
         return {
