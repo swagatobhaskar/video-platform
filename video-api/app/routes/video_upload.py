@@ -15,8 +15,8 @@ from app.utils.dependencies import get_db
 from app.celery_worker import celery
 from app.tasks.transcode.transcode_task import process_video_worker_operations
 
-from app.database.models import Video, UploadSession, UploadSessionStatusEnum
-from app.schemas.r2_upload_schema import CompleteRequest, PartRequest, InitiateUploadRequest, AbortRequest
+from app.database.models import Video, UploadSession, UploadSessionStatusEnum, UploadPart
+from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
 from app.database.session import AsyncSession
 
 router = APIRouter(prefix="/api/video/uploads", tags=["video", "upload"])
@@ -139,8 +139,6 @@ def get_presigned_url(req: PartRequest):
     return {"uploadUrl": url}
 
 
-# POST /part-completed 
-
 def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
     response = s3.list_parts(
         Bucket=bucket,
@@ -206,6 +204,7 @@ def complete_upload(req: CompleteRequest):
     except Exception as e:
         return {"error": str(e)}
 
+
 @router.post("/{upload_id}/abort-upload")
 def abort_upload(req: AbortRequest):
     try:
@@ -219,6 +218,79 @@ def abort_upload(req: AbortRequest):
         return {"error": str(e)}
 
 
+@router.post("/{upload_id}/pause-upload")
+async def pause_video_upload(upload_id: str, db:AsyncSession = Depends(get_db)):
+    upload_session = await db.get(UploadSession, upload_id)
+
+    if not upload_session:
+        raise HTTPException(status=404, detail="Upload session not found")
+    
+    if upload_session.status != UploadSessionStatusEnum.UPLOADING:
+        raise HTTPException(status=400, detail="Upload session is not in UPLOADING state")
+    
+    upload_session.status = UploadSessionStatusEnum.PAUSED
+    await db.commit()
+
+    return { "success": True, "status": "paused"}
+
+
+@router.post("/{upload_id}/resume-upload")
+async def resume_video_upload(upload_id: str, db:AsyncSession = Depends(get_db)):
+    upload_session = await db.get(UploadSession, upload_id)
+
+    if not upload_session:
+        raise HTTPException(status=404, detail="Upload session not found")
+    
+    if upload_session.status != UploadSessionStatusEnum.PAUSED:
+        raise HTTPException(status=400, detail="Upload session is not in PAUSED state")
+    
+    upload_session.status = UploadSessionStatusEnum.UPLOADING
+
+    # Frontend asks which parts already exist.
+    result = await db.execute(
+        select(UploadPart).where(UploadPart.upload_session_id == upload_session.id)
+    )
+
+    uploaded_parts = result.scalars().all()
+
+    await db.commit()
+
+    return {
+        "success": True,
+        "status": "resumed",
+        "upload_id": upload_id,
+        "uploaded_parts": uploaded_parts,
+    }
+
+
+# Record Uploaded Part
+# After a successful chunk upload, frontend sends ETag.
+@router.post("/{upload_id}/record-uploaded-part")
+async def record_uploaded_part(
+    upload_id: str,
+    part: Part,
+    db: AsyncSession = Depends(get_db)
+):
+    new_part = UploadPart(
+        upload_id=upload_id,
+        part_number=part.PartNumber,
+        etag=part.ETag
+    )
+
+    try:
+        db.add(new_part)
+        await db.commit()
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status=500, detail=str(e))
+
+    return {
+        "success": "True",
+        "message": "uploaded part recorded successfully"
+    }
+
+
 @router.get("/{upload_id}/processing-status/{transcode_task_id}")
 def get_transcode_processing_status(transcode_task_id: str):
     status = AsyncResult(transcode_task_id, app=celery)
@@ -229,6 +301,32 @@ def get_transcode_processing_status(transcode_task_id: str):
         "result": status.result
     }
 
-@router.post("/{upload_id}/pause-upload")
-async def pause_video_upload(upload_id: str, db:AsyncSession = Depends(get_db)):
-    pass
+
+@router.post("/{upload_id}/retry-upload")
+async def retry_failed_upload(
+    upload_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    upload_session = await db.get(UploadSession, upload_id)
+
+    if not upload_session:
+        raise HTTPException(status=404, detail="Upload session not found")
+    
+    if upload_session.status != UploadSessionStatusEnum.FAILED:
+        raise HTTPException(status=400, detail="Upload session is not in FAILED state")
+    
+    # get the chunks already uploaded
+    stmt = select(
+        UploadPart.where(UploadPart.upload_session_id == upload_session.id)
+    )
+
+    result = db.execute(stmt)
+
+    uploaded_parts = result.scalars().all()
+
+    return {
+        "status": "retrying",
+        "upload_id": upload_id,
+        "uploaded_parts": uploaded_parts,
+    }
+
