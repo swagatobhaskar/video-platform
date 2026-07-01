@@ -51,8 +51,8 @@ class TranscodeTask(Base):
     # though, required if you eventually run multiple dedicated transcoding machines.
     worker_id: Mapped[str] = mapped_column(String(255), nullable=True)
     
-    # The ID assigned by the queue system.
-    job_external_id: Mapped[str] = mapped_column(String(255), nullable=True)
+    # The ID assigned by the queue system. Celery's unique ID for the task execution
+    task_id: Mapped[str] = mapped_column(String(255), nullable=True)
     error_message: Mapped[str] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     
