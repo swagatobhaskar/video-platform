@@ -310,9 +310,10 @@ async def _process_video_worker_operations(
             await db.commit()
             await db.refresh(transcode_task)
 
-            transcode_task.status=VideoProcessingStatusEnum.PENDING
-            transcode_task.progress_percent = 0
-            await db.commit()
+            # transcode_task.status=VideoProcessingStatusEnum.PENDING
+            # transcode_task.progress_percent = 0
+            # await db.commit()
+            await update_task(db, transcode_task, VideoProcessingStatusEnum.PENDING, 0)
 
             temp_dir = Path(temp_dir)
             # temporary video file path
