@@ -79,7 +79,9 @@ def probe_video(input_path: str):
         "width": video_stream["width"],
         "height": video_stream["height"],
         "codec": video_stream["codec_name"],
-        "fps": float(Fraction(video_stream["r_frame_rate"]))
+        "fps": float(Fraction(video_stream["r_frame_rate"])),
+        "bitrate": int(video_stream.get("bit_rate", 0)),
+        "duration": float(video_stream.get("duration", 0.0)),
     }
 
 

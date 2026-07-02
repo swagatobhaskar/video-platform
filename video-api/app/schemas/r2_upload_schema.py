@@ -14,6 +14,7 @@ class InitiateUploadRequest(BaseModel):
 class Part(BaseModel):    
     ETag: str = Field(..., min_length=1)
     PartNumber: int = Field(..., gt=0)
+    SizeBytes: int | None = None
     
 class PartRequest(BaseModel):
     key: str

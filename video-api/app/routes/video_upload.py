@@ -207,18 +207,6 @@ async def complete_upload(
             },
         )
 
-        # Get the video_event for the specific video_id
-        # video_event = select(VideoEvent).where(VideoEvent.video_id == req.videoId)
-        # video_event.event_type = "CHUNKS_UPLOAD_COMPLETED"
-        # video_event.payload = {
-        #     "upload_id": req.uploadId,
-        #     "object_key": req.key,
-        #     "file_name": req.key,  # Assuming the key is the filename
-        #     # "parts": [part.dict() for part in req.parts]
-        # }
-        # db.add(video_event)
-        # await db.commit()
-
         # Create a new VideoEvent instead of updating old events
         video_event = VideoEvent(
             video_id=req.videoId,
@@ -233,9 +221,16 @@ async def complete_upload(
         db.add(video_event)
 
         # Also update UploadSession status to COMPLETED
-        upload_session = select(UploadSession).where(UploadSession.video_id == req.videoId)
+        result = await db.execute(
+            select(UploadSession).where(UploadSession.video_upload_id == req.uploadId) # That's guaranteed unique. A video could theoretically have multiple upload sessions.
+        )
+        upload_session = result.scalar_one_or_none()
+
+        if not upload_session:
+            raise ValueError("Upload session not found for the given video ID")
+        
         upload_session.status = UploadSessionStatusEnum.COMPLETED
-        upload_session.uploaded_parts_count = len(req.parts) # how to get total parts?
+        upload_session.uploaded_parts_count = len(uploaded_parts) # upload_session.total_parts
 
         await db.commit()
 
@@ -259,6 +254,17 @@ async def complete_upload(
         }
     
     except Exception as e:
+        await db.rollback()
+
+        result = await db.execute(
+            select(UploadSession).where(UploadSession.video_id == req.videoId)
+        )
+        upload_session = result.scalar_one_or_none()
+    
+        if upload_session:
+            upload_session.status = UploadSessionStatusEnum.FAILED
+            await db.commit()
+
         return {"error": str(e)}
 
 
@@ -272,17 +278,23 @@ async def abort_upload(req: AbortRequest, upload_id: str, db:AsyncSession = Depe
         )
 
         # get video_id from upload_id
-        upload_session = select(UploadSession).where(UploadSession.upload_id == upload_id)
+        result = await db.execute(
+            select(UploadSession).where(UploadSession.video_upload_id == upload_id)
+        )
+        upload_session = result.scalar_one_or_none()
+
+        if not upload_session:
+            raise ValueError("Upload session not found for the given upload ID")
 
         # Add a VideoEvent to the DB
         video_event = VideoEvent(
-            event_type = "CHUNKS_UPLOAD_ABORTED"
-            video_id=upload_session.video_id
+            event_type = "CHUNKS_UPLOAD_ABORTED",
+            video_id=upload_session.video_id,
             payload = {
                 "upload_id": req.uploadId,
                 "object_key": req.key,
                 "file_name": req.key,  # Assuming the key is the filename
-            }
+            },
         )
         db.add(video_event)
 
@@ -308,14 +320,16 @@ async def pause_video_upload(upload_id: str, db:AsyncSession = Depends(get_db)):
     upload_session.status = UploadSessionStatusEnum.PAUSED
 
     # Add a VideoEvent to the DB
-    video_event = select(VideoEvent).where(VideoEvent.upload_session_id == upload_session)
-    video_event.event_type = "CHUNKS_UPLOAD_PAUSED"
-    video_event.payload = {
-        "upload_id": upload_id,
-        "object_key": upload_session.object_key,
-        "file_name": upload_session.original_filename,  # Assuming the key is the filename
-    }
-    # db.add(video_event)
+    video_event = VideoEvent(
+        event_type = "CHUNKS_UPLOAD_PAUSED",
+        video_id=upload_session.video_id,
+        payload = {
+            "upload_id": upload_id,
+            "object_key": upload_session.object_key,
+            "file_name": upload_session.original_filename,  # Assuming the key is the filename
+        },
+    )
+    db.add(video_event)
         
     await db.commit()
 
@@ -338,18 +352,20 @@ async def resume_video_upload(upload_id: str, db:AsyncSession = Depends(get_db))
     result = await db.execute(
         select(UploadPart).where(UploadPart.upload_session_id == upload_session.id)
     )
-
     uploaded_parts = result.scalars().all()
 
     # Add a VideoEvent to the DB
-    video_event = select(VideoEvent).where(VideoEvent.upload_session_id == upload_session)
-    video_event.event_type = "CHUNKS_UPLOAD_RESUMED"
-    video_event.payload = {
-        "upload_id": upload_id,
-        "object_key": upload_session.object_key,
-        "file_name": upload_session.original_filename,  # Assuming the key is the filename
-    }
-    # db.add(video_event)
+    video_event = VideoEvent(
+        event_type = "CHUNKS_UPLOAD_RESUMED",
+        video_id=upload_session.video_id,
+        payload = {
+            "upload_id": upload_id,
+            "object_key": upload_session.object_key,
+            "file_name": upload_session.original_filename,  # Assuming the key is the filename
+        },
+    )
+    
+    db.add(video_event)
 
     await db.commit()
 
@@ -370,27 +386,48 @@ async def record_uploaded_part(
     part: Part,
     db: AsyncSession = Depends(get_db)
 ):
-    new_part = UploadPart(
-        upload_id=upload_id,
-        part_number=part.PartNumber,
-        etag=part.ETag
-    )
 
     try:
+        result = await db.execute(
+            select(UploadSession).where(UploadSession.video_id == video_id)
+        )
+        upload_session = result.scalar_one_or_none()
+
+        if not upload_session:
+            raise ValueError("Upload session not found for the given video ID")
+
+        new_part = UploadPart(
+            upload_session_id=upload_session.id,
+            part_number=part.PartNumber,
+            etag=part.ETag,
+            size_bytes=part.SizeBytes,
+        )
         db.add(new_part)
+        
+        # Increment uploaded parts count by 1
+        upload_session.uploaded_parts_count += 1
 
         # Add a VideoEvent to the DB
-        video_event = select(VideoEvent).where(VideoEvent.video_id == video_id)
-        video_event.event_type = "CHUNK_UPLOADED"
-        video_event.payload = {
-            "upload_id": upload_id,
-            "video_id": video_id,
-            "partNumber": part.PartNumber,
-            "ETag": part.ETag,
-        }
-        # db.add(video_event)
+        video_event = VideoEvent(
+            event_type = "CHUNK_UPLOADED",
+            video_id=video_id,
+            payload = {
+                "upload_id": upload_id,
+                "partNumber": part.PartNumber,
+                "ETag": part.ETag,
+            }
+        )
+        db.add(video_event)
 
         await db.commit()
+
+    except IntegrityError:
+        # catch it. Then simply return success. Duplicate chunk uploads are perfectly normal.
+        # raise HTTPException(status=400, detail="This part has already been recorded.")
+        return {
+            "success": "True",
+            "message": "uploaded part already recorded"
+        }
 
     except Exception as e:
         await db.rollback()
@@ -427,23 +464,23 @@ async def retry_failed_upload(
         raise HTTPException(status=400, detail="Upload session is not in FAILED state")
     
     # get the chunks already uploaded
-    stmt = select(
-        UploadPart.where(UploadPart.upload_session_id == upload_session.id)
-    )
-
-    result = db.execute(stmt)
-
+    stmt = select(UploadPart).where(UploadPart.upload_session_id == upload_session.id)
+    result = await db.execute(stmt)
     uploaded_parts = result.scalars().all()
 
     # Add a VideoEvent to the DB
-    video_event = select(VideoEvent).where(VideoEvent.upload_session_id == upload_session)
-    video_event.event_type = "CHUNKS_UPLOAD_RETRY"
-    video_event.payload = {
-        "upload_id": upload_id,
-        "object_key": upload_session.object_key,
-        "file_name": upload_session.original_filename,  # Assuming the key is the filename
-    }
-    # db.add(video_event)
+    video_event = VideoEvent(
+        event_type = "CHUNKS_UPLOAD_RETRY",
+        video_id=upload_session.video_id,
+        payload = {
+            "upload_id": upload_id,
+            "object_key": upload_session.object_key,
+            "file_name": upload_session.original_filename,  # Assuming the key is the filename
+        },
+    )
+    db.add(video_event)
+
+    upload_session.status = UploadSessionStatusEnum.UPLOADING
         
     await db.commit()
 

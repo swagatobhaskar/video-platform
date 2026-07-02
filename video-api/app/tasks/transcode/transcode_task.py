@@ -8,6 +8,7 @@ import os
 from tempfile import TemporaryDirectory
 import logging
 import asyncio
+from datetime import datetime, UTC
 from functools import partial
 
 from sqlalchemy import select
@@ -168,16 +169,25 @@ def transcode_video(video: Path, probe_result: dict, output_dir: Path, dash_dir:
 async def update_task(db, task, status, progress):
     task.status = status
     task.progress_percent = progress
-    await db.commit()
+    # no commit here. Commit will be done in the main task function after all operations are completed.
+    # await db.commit() 
 
 
 async def update_video_event_record(db, video_id: str, event_type: str, payload: dict, transcode_task_id: str | None = None):
-    video_event = select(VideoEvent).where(VideoEvent.video_id == video_id)
-    video_event.event_type = event_type
-    video_event.payload = payload
-    if transcode_task_id:
-        video_event.transcode_task_id = transcode_task_id
-    await db.commit()
+    # if transcode_task_id:
+    #     transcode_task_id = transcode_task_id
+
+    video_event = VideoEvent(
+        event_type = event_type,
+        payload = payload,
+        video_id=video_id,
+        transcode_task_id = transcode_task_id if transcode_task_id else None
+    )
+
+    db.add(video_event)    
+    # No commit here. Commit will be done in the main task function after all operations are completed.
+    # await db.commit() 
+
 
 @celery.task(
     bind=True,
@@ -209,21 +219,20 @@ async def _process_video_worker_operations(
                 status=VideoProcessingStatusEnum.IDLE,
                 task_id=self.request.id,
                 worker_id=self.request.hostname, # AKA hostname; the worker currently executing the task
-                progress_percent=10
+                progress_percent=10,
+                started_at = datetime.now(UTC),
+                heartbeat_at = datetime.now(UTC),
             )
 
             db.add(transcode_task)
-            await db.commit()
+            await db.commit()   # is this commit() required here?
             await db.refresh(transcode_task)
 
-            # transcode_task.status=VideoProcessingStatusEnum.PENDING
-            # transcode_task.progress_percent = 0
-            # await db.commit()
             await update_task(db, transcode_task, VideoProcessingStatusEnum.PENDING, 0)
 
             temp_dir = Path(temp_dir)
             # temporary video file path
-            video = temp_dir / Path(file_name).name
+            video_path = temp_dir / Path(file_name).name
 
             # Celery task state
             self.update_state(
@@ -231,10 +240,6 @@ async def _process_video_worker_operations(
                 meta={"step": "downloading", "progress": 10}
             )
 
-            # transcode_task.status=VideoProcessingStatusEnum.DOWNLOADING_VIDEO
-            # transcode_task.progress_percent = 10
-            # await db.commit()
-            
             await update_task(db, transcode_task, VideoProcessingStatusEnum.DOWNLOADING_VIDEO, 10)
 
             # Add a VideoEvent record
@@ -254,9 +259,12 @@ async def _process_video_worker_operations(
             )
 
             # download_from_r2(file_name, str(video))
-            await asyncio.to_thread(download_from_r2, file_name, str(video))
+            await asyncio.to_thread(download_from_r2, file_name, str(video_path))
 
-            output_dir = temp_dir / "processed" / video.stem
+            # Save a heartbeat timestamp to the DB after download is complete
+            transcode_task.heartbeat_at = datetime.now(UTC)
+
+            output_dir = temp_dir / "processed" / video_path.stem
             output_dir.mkdir(parents=True, exist_ok=True)
             
             dash_dir = output_dir / "dash"
@@ -267,21 +275,32 @@ async def _process_video_worker_operations(
                 meta={"step": "ffprobe", "progress": 30}
             )
 
-            # transcode_task.status=VideoProcessingStatusEnum.PROBING
-            # transcode_task.progress_percent = 30
-            # await db.commit()
             await update_task(db, transcode_task, VideoProcessingStatusEnum.PROBING, 30)
 
             # ffprobe
             # probe_result = probe_video(str(video))
-            probe_result = await asyncio.to_thread(probe_video, str(video))
+            probe_result = await asyncio.to_thread(probe_video, str(video_path))
+            
+            # Save a heartbeat timestamp to the DB after ffprobe is complete
+            transcode_task.heartbeat_at = datetime.now(UTC)
+            
+            # Update Video table with FFprobe result
+            result = await db.execute(
+                select(Video).where(Video.id == video_id))
+            video_record = result.scalar_one_or_none()
+            
+            if video_record is None:
+                raise RuntimeError(f"Video with ID {video_id} not found in the database.")
+            
+            video_record.fps = probe_result['fps'] # probe_result['width'] / probe_result['height']
+            video_record.width = probe_result['width']
+            video_record.height = probe_result['height']
+            video_record.codec = probe_result['codec']
+            video_record.bitrate = probe_result['bitrate']
+            video_record.duration_seconds = probe_result['duration']
+            # await db.commit()
 
-            self.update_state(
-                state="TRANSCODING",
-                meta={"step": "ffmpeg", "progress": 50}
-            )
-
-            # Add a VideoEvent record
+          # Add a VideoEvent record
             await update_video_event_record(
                 db,
                 video_id=video_id,
@@ -298,14 +317,27 @@ async def _process_video_worker_operations(
                 }    
             )
 
-            # transcode_task.status=VideoProcessingStatusEnum.TRANSCODING
-            # transcode_task.progress_percent = 50
-            # await db.commit()
+            self.update_state(
+                state="TRANSCODING",
+                meta={"step": "ffmpeg", "progress": 50}
+            )
+
             await update_task(db, transcode_task, VideoProcessingStatusEnum.TRANSCODING, 50)
             
             # transcode_video(video, probe_result, output_dir, dash_dir)
             # await asyncio.to_thread(transcode_video, video, probe_result, output_dir, dash_dir)
-            transcode_result = await asyncio.to_thread(transcode_video, video, probe_result, output_dir, dash_dir)
+
+            try:
+                transcode_result = await asyncio.to_thread(transcode_video, video_path, probe_result, output_dir, dash_dir)
+                # Save a heartbeat timestamp to the DB after ffmpeg is complete
+                transcode_task.heartbeat_at = datetime.now(UTC)
+            except Exception as e:
+                transcode_task.status = VideoProcessingStatusEnum.FAILED
+                transcode_task.error_message = str(e)
+                transcode_task.finished_at = datetime.now(UTC)
+                transcode_task.heartbeat_at = datetime.now(UTC)
+                await db.commit()
+                raise
 
             # Add a VideoEvent record
             await update_video_event_record(
@@ -330,9 +362,6 @@ async def _process_video_worker_operations(
                 meta={"step": "uploading", "progress": 70}
             )
 
-            # transcode_task.status=VideoProcessingStatusEnum.UPLOADING
-            # transcode_task.progress_percent = 70
-            # await db.commit()
             await update_task(db, transcode_task, VideoProcessingStatusEnum.UPLOADING, 70)
 
             # upload_errors = upload_output_directory_to_r2_bucket(
@@ -342,8 +371,11 @@ async def _process_video_worker_operations(
 
             # Use functools.partial with asyncio.to_thread if the function has multiple keyword arguments.
             upload_errors = await asyncio.to_thread(
-                partial(upload_output_directory_to_r2_bucket, local_dir=output_dir, video_file_name=video.stem)
+                partial(upload_output_directory_to_r2_bucket, local_dir=output_dir, video_file_name=video_path.stem)
             )
+
+            # Save a heartbeat timestamp to the DB after upload is complete
+            transcode_task.heartbeat_at = datetime.now(UTC)
 
             if upload_errors:
                 logger.error("Errors occurred during upload: %s", upload_errors)
@@ -372,9 +404,6 @@ async def _process_video_worker_operations(
                 meta={"step": "source_cleanup", "progress": 90}
             )
 
-            # transcode_task.status=VideoProcessingStatusEnum.CLEANUP
-            # transcode_task.progress_percent = 90
-            # await db.commit()
             await update_task(db, transcode_task, VideoProcessingStatusEnum.CLEANUP, 90)
 
             # Delete from RAW bucket after successful processing and upload
@@ -383,6 +412,9 @@ async def _process_video_worker_operations(
                 # delete_original_video_from_bucket(file_name)
                 await asyncio.to_thread(delete_original_video_from_bucket, file_name)
 
+                # Save a heartbeat timestamp to the DB after source file deletion is complete
+                transcode_task.heartbeat_at = datetime.now(UTC)
+                
                 # Add a VideoEvent record
                 await update_video_event_record(
                     db,
@@ -427,9 +459,6 @@ async def _process_video_worker_operations(
                 meta={"step": "completed", "progress": 100}
             )
 
-            # transcode_task.status=VideoProcessingStatusEnum.COMPLETED
-            # transcode_task.progress_percent = 100
-            # await db.commit()
             await update_task(db, transcode_task, VideoProcessingStatusEnum.COMPLETED, 100)
 
             # Add a VideoEvent record
@@ -446,6 +475,11 @@ async def _process_video_worker_operations(
                     "task_id": self.request.id,
                 }    
             )
+
+            # Create a TranscodeTask DB record of finished_at and heartbeat_at timestamps
+            transcode_task.heartbeat_at = datetime.now(UTC)
+            transcode_task.finished_at = datetime.now(UTC)
+            await db.commit()
 
     
 """
