@@ -97,7 +97,20 @@ async def initiate_upload(req: InitiateUploadRequest, db: AsyncSession = Depends
             status=UploadSessionStatusEnum.UPLOADING,
         )
 
-        db.add(upload_session)
+        video_event = VideoEvent(
+            video_id=video.id,
+            event_type="UPLOAD_INITIATED",
+            payload={
+                "upload_id": upload_id,
+                "object_key": object_key,
+                "file_name": req.fileName,
+                "file_size_bytes": req.fileSizeBytes,
+                "content_type": req.contentType,
+                "total_parts": req.totalParts
+            }
+        )
+
+        db.add([upload_session, video_event])
         await db.commit()
 
         return {
@@ -153,7 +166,11 @@ def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
 
 
 @router.post("/{upload_id}/complete-upload")
-def complete_upload(req: CompleteRequest, upload_id: str):
+async def complete_upload(
+    req: CompleteRequest,
+    upload_id: str,
+    db: AsyncSession = Depends(get_db)
+):
     
     # Later Additions:
         # Ordering check
@@ -188,6 +205,18 @@ def complete_upload(req: CompleteRequest, upload_id: str):
                 ]
             },
         )
+
+        # Get the video_event for the specific video_id
+        video_event = select(VideoEvent).where(VideoEvent.video_id == req.videoId)
+        video_event.event_type = "CHUNKS_UPLOAD_COMPLETED"
+        video_event.payload = {
+            "upload_id": req.uploadId,
+            "object_key": req.key,
+            "file_name": req.key,  # Assuming the key is the filename
+            # "parts": [part.dict() for part in req.parts]
+        }
+        # db.add(video_event)
+        await db.commit()
         
         # print(f"File name/key: {req.key}")
         
@@ -213,13 +242,25 @@ def complete_upload(req: CompleteRequest, upload_id: str):
 
 
 @router.post("/{upload_id}/abort-upload")
-def abort_upload(req: AbortRequest):
+async def abort_upload(req: AbortRequest, db:AsyncSession = Depends(get_db)):
     try:
         s3.abort_multipart_upload(
             Bucket=RAW_VIDEO_BUCKET,
             Key=req.key,
             UploadId=req.uploadId,
         )
+
+        # Add a VideoEvent to the DB
+        video_event = select(VideoEvent).where(VideoEvent.video_id == req.videoId)
+        video_event.event_type = "CHUNKS_UPLOAD_ABORTED"
+        video_event.payload = {
+            "upload_id": req.uploadId,
+            "object_key": req.key,
+            "file_name": req.key,  # Assuming the key is the filename
+        }
+        # db.add(video_event)
+        await db.commit()
+
         return {"success": True, "status": "aborted"}
     except Exception as e:
         return {"error": str(e)}
@@ -236,6 +277,17 @@ async def pause_video_upload(upload_id: str, db:AsyncSession = Depends(get_db)):
         raise HTTPException(status=400, detail="Upload session is not in UPLOADING state")
     
     upload_session.status = UploadSessionStatusEnum.PAUSED
+
+    # Add a VideoEvent to the DB
+    video_event = select(VideoEvent).where(VideoEvent.upload_session_id == upload_session)
+    video_event.event_type = "CHUNKS_UPLOAD_PAUSED"
+    video_event.payload = {
+        "upload_id": upload_id,
+        "object_key": upload_session.object_key,
+        "file_name": upload_session.original_filename,  # Assuming the key is the filename
+    }
+    # db.add(video_event)
+        
     await db.commit()
 
     return { "success": True, "status": "paused"}
@@ -260,6 +312,16 @@ async def resume_video_upload(upload_id: str, db:AsyncSession = Depends(get_db))
 
     uploaded_parts = result.scalars().all()
 
+    # Add a VideoEvent to the DB
+    video_event = select(VideoEvent).where(VideoEvent.upload_session_id == upload_session)
+    video_event.event_type = "CHUNKS_UPLOAD_RESUMED"
+    video_event.payload = {
+        "upload_id": upload_id,
+        "object_key": upload_session.object_key,
+        "file_name": upload_session.original_filename,  # Assuming the key is the filename
+    }
+    # db.add(video_event)
+
     await db.commit()
 
     return {
@@ -272,9 +334,10 @@ async def resume_video_upload(upload_id: str, db:AsyncSession = Depends(get_db))
 
 # Record Uploaded Part
 # After a successful chunk upload, frontend sends ETag.
-@router.post("/{upload_id}/record-uploaded-part")
+@router.post("/{upload_id}/{video_id}/record-uploaded-part")
 async def record_uploaded_part(
     upload_id: str,
+    video_id: str,
     part: Part,
     db: AsyncSession = Depends(get_db)
 ):
@@ -286,6 +349,18 @@ async def record_uploaded_part(
 
     try:
         db.add(new_part)
+
+        # Add a VideoEvent to the DB
+        video_event = select(VideoEvent).where(VideoEvent.video_id == video_id)
+        video_event.event_type = "CHUNK_UPLOADED"
+        video_event.payload = {
+            "upload_id": upload_id,
+            "video_id": video_id,
+            "partNumber": part.PartNumber,
+            "ETag": part.ETag,
+        }
+        # db.add(video_event)
+
         await db.commit()
 
     except Exception as e:
@@ -330,6 +405,18 @@ async def retry_failed_upload(
     result = db.execute(stmt)
 
     uploaded_parts = result.scalars().all()
+
+    # Add a VideoEvent to the DB
+    video_event = select(VideoEvent).where(VideoEvent.upload_session_id == upload_session)
+    video_event.event_type = "CHUNKS_UPLOAD_RETRY"
+    video_event.payload = {
+        "upload_id": upload_id,
+        "object_key": upload_session.object_key,
+        "file_name": upload_session.original_filename,  # Assuming the key is the filename
+    }
+    # db.add(video_event)
+        
+    await db.commit()
 
     return {
         "status": "retrying",

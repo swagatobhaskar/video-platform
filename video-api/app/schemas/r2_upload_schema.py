@@ -30,3 +30,4 @@ class CompleteRequest(BaseModel):
 class AbortRequest(BaseModel):
     key: str
     uploadId: str
+    videoId: str

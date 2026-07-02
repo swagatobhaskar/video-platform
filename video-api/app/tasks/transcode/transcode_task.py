@@ -10,6 +10,8 @@ import logging
 import asyncio
 from functools import partial
 
+from sqlalchemy import select
+
 from .utils import probe_video, generate_renditions, create_output_directories, build_ffmpeg_command
 from app.celery_worker import celery
 from app.utils.r2_helper import s3
@@ -166,6 +168,290 @@ def transcode_video(video: Path, probe_result: dict, output_dir: Path, dash_dir:
         "hls_master": str(dash_dir / "master.m3u8"),
         "metadata": probe_result,
     }
+
+
+async def update_task(db, task, status, progress):
+    task.status = status
+    task.progress_percent = progress
+    await db.commit()
+
+
+async def update_video_event_record(db, video_id: str, event_type: str, payload: dict, transcode_task_id: str | None = None):
+    video_event = select(VideoEvent).where(VideoEvent.video_id == video_id)
+    video_event.event_type = event_type
+    video_event.payload = payload
+    if transcode_task_id:
+        video_event.transcode_task_id = transcode_task_id
+    await db.commit()
+
+@celery.task(
+    bind=True,
+    # for long tasks
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
+    )
+def process_video_worker_operations(self, file_name: str, video_id: str, upload_session_id: str, upload_id: str):
+    asyncio.run(_process_video_worker_operations(self, file_name, video_id, upload_session_id, upload_id))
+       
+
+async def _process_video_worker_operations(
+    self,
+    file_name: str,
+    video_id: str,
+    upload_session_id: str,
+    upload_id: str,
+    # can't use Depends(get_db) here because Celery tasks are not FastAPI endpoints,
+    # they are normal Python functions. So, we need to manage the session manually.
+):
+    with TemporaryDirectory(prefix="transcode_") as temp_dir:
+        
+        async with AsyncSessionLocal() as db:
+            # Add a record of the task to the DB
+            transcode_task = TranscodeTask(
+                video_id=video_id,
+                upload_session_id=upload_session_id,
+                status=VideoProcessingStatusEnum.IDLE,
+                task_id=self.request.id,
+                worker_id=self.request.hostname, # AKA hostname; the worker currently executing the task
+                progress_percent=10
+            )
+
+            db.add(transcode_task)
+            await db.commit()
+            await db.refresh(transcode_task)
+
+            # transcode_task.status=VideoProcessingStatusEnum.PENDING
+            # transcode_task.progress_percent = 0
+            # await db.commit()
+            await update_task(db, transcode_task, VideoProcessingStatusEnum.PENDING, 0)
+
+            temp_dir = Path(temp_dir)
+            # temporary video file path
+            video = temp_dir / Path(file_name).name
+
+            # Celery task state
+            self.update_state(
+                state="DOWNLOADING",
+                meta={"step": "downloading", "progress": 10}
+            )
+
+            # transcode_task.status=VideoProcessingStatusEnum.DOWNLOADING_VIDEO
+            # transcode_task.progress_percent = 10
+            # await db.commit()
+            
+            await update_task(db, transcode_task, VideoProcessingStatusEnum.DOWNLOADING_VIDEO, 10)
+
+            # Add a VideoEvent record
+            await update_video_event_record(
+                db,
+                video_id=video_id,
+                event_type="SOURCE_VIDEO_DOWNLOAD_STARTED",
+                transcode_task_id=transcode_task.id,
+                payload={
+                    "upload_id": upload_id,
+                    "object_key": upload_session_id,
+                    "file_name": file_name,
+                    "temp_dir": str(temp_dir),
+                    "worker_id": self.request.hostname,
+                    "task_id": self.request.id,
+                }    
+            )
+
+            # download_from_r2(file_name, str(video))
+            await asyncio.to_thread(download_from_r2, file_name, str(video))
+
+            output_dir = temp_dir / "processed" / video.stem
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            dash_dir = output_dir / "dash"
+            dash_dir.mkdir(parents=True, exist_ok=True)
+            
+            self.update_state(
+                state="PROBING",
+                meta={"step": "ffprobe", "progress": 30}
+            )
+
+            # transcode_task.status=VideoProcessingStatusEnum.PROBING
+            # transcode_task.progress_percent = 30
+            # await db.commit()
+            await update_task(db, transcode_task, VideoProcessingStatusEnum.PROBING, 30)
+
+            # ffprobe
+            # probe_result = probe_video(str(video))
+            probe_result = await asyncio.to_thread(probe_video, str(video))
+
+            self.update_state(
+                state="TRANSCODING",
+                meta={"step": "ffmpeg", "progress": 50}
+            )
+
+            # Add a VideoEvent record
+            await update_video_event_record(
+                db,
+                video_id=video_id,
+                event_type="FFPROBE_COMPLETED",
+                transcode_task_id=transcode_task.id,
+                payload={
+                    "upload_id": upload_id,
+                    "object_key": upload_session_id,
+                    "file_name": file_name,
+                    "temp_dir": str(temp_dir),
+                    "worker_id": self.request.hostname,
+                    "task_id": self.request.id,
+                    "probe_result": probe_result,
+                }    
+            )
+
+            # transcode_task.status=VideoProcessingStatusEnum.TRANSCODING
+            # transcode_task.progress_percent = 50
+            # await db.commit()
+            await update_task(db, transcode_task, VideoProcessingStatusEnum.TRANSCODING, 50)
+            
+            # transcode_video(video, probe_result, output_dir, dash_dir)
+            # await asyncio.to_thread(transcode_video, video, probe_result, output_dir, dash_dir)
+            transcode_result = await asyncio.to_thread(transcode_video, video, probe_result, output_dir, dash_dir)
+
+            # Add a VideoEvent record
+            await update_video_event_record(
+                db,
+                video_id=video_id,
+                event_type="FFMPEG_TRANSCODE_COMPLETED",
+                transcode_task_id=transcode_task.id,
+                payload={
+                    "upload_id": upload_id,
+                    "object_key": upload_session_id,
+                    "file_name": file_name,
+                    "temp_dir": str(temp_dir),
+                    "worker_id": self.request.hostname,
+                    "task_id": self.request.id,
+                    "transcode_result": transcode_result,
+                }    
+            )
+
+            # Celery task state: Upload processed files
+            self.update_state(
+                state="UPLOADING",
+                meta={"step": "uploading", "progress": 70}
+            )
+
+            # transcode_task.status=VideoProcessingStatusEnum.UPLOADING
+            # transcode_task.progress_percent = 70
+            # await db.commit()
+            await update_task(db, transcode_task, VideoProcessingStatusEnum.UPLOADING, 70)
+
+            # upload_errors = upload_output_directory_to_r2_bucket(
+            #     local_dir=output_dir,
+            #     video_file_name=video.stem,
+            # )
+
+            # Use functools.partial with asyncio.to_thread if the function has multiple keyword arguments.
+            upload_errors = await asyncio.to_thread(
+                partial(upload_output_directory_to_r2_bucket, local_dir=output_dir, video_file_name=video.stem)
+            )
+
+            if upload_errors:
+                logger.error("Errors occurred during upload: %s", upload_errors)
+                raise RuntimeError(
+                    f"{len(upload_errors)} files failed to upload"
+                )
+            
+            # Add a VideoEvent record
+            await update_video_event_record(
+                db,
+                video_id=video_id,
+                event_type="OUTPUT_SEGMENTS_UPLOADED",
+                transcode_task_id=transcode_task.id,
+                payload={
+                    "upload_id": upload_id,
+                    "object_key": upload_session_id,
+                    "file_name": file_name,
+                    "worker_id": self.request.hostname,
+                    "task_id": self.request.id,
+                    "transcode_result": transcode_result,
+                }    
+            )
+            
+            self.update_state(
+                state="SOURCE_CLEANUP",
+                meta={"step": "source_cleanup", "progress": 90}
+            )
+
+            # transcode_task.status=VideoProcessingStatusEnum.CLEANUP
+            # transcode_task.progress_percent = 90
+            # await db.commit()
+            await update_task(db, transcode_task, VideoProcessingStatusEnum.CLEANUP, 90)
+
+            # Delete from RAW bucket after successful processing and upload
+            
+            try:
+                # delete_original_video_from_bucket(file_name)
+                await asyncio.to_thread(delete_original_video_from_bucket, file_name)
+
+                # Add a VideoEvent record
+                await update_video_event_record(
+                    db,
+                    video_id=video_id,
+                    event_type="ORIGINAL_VIDEO_DELETED",
+                    transcode_task_id=transcode_task.id,
+                    payload={
+                        "upload_id": upload_id,
+                        "object_key": upload_session_id,
+                        "file_name": file_name,
+                        "worker_id": self.request.hostname,
+                        "task_id": self.request.id,
+                    }    
+                )
+            except Exception as e:
+                # transcode_task.status = VideoProcessingStatusEnum.FAILED
+                # await db.commit()
+                logger.exception("Failed deleting source file '%s' from RAW bucket", file_name)
+                # Not raising any exception because:
+                # Celery should not re-transcode if source file deletion fails
+                # Storage management will be handled later
+                
+                # Add a VideoEvent record
+                await update_video_event_record(
+                    db,
+                    video_id=video_id,
+                    event_type="ORIGINAL_VIDEO_DELETE_FAILED",
+                    transcode_task_id=transcode_task.id,
+                    payload={
+                        "upload_id": upload_id,
+                        "object_key": upload_session_id,
+                        "file_name": file_name,
+                        "worker_id": self.request.hostname,
+                        "task_id": self.request.id,
+                    }    
+                )
+            
+            # Cleanup of tmp files not required
+
+            self.update_state(
+                state="SUCCESS",
+                meta={"step": "completed", "progress": 100}
+            )
+
+            # transcode_task.status=VideoProcessingStatusEnum.COMPLETED
+            # transcode_task.progress_percent = 100
+            # await db.commit()
+            await update_task(db, transcode_task, VideoProcessingStatusEnum.COMPLETED, 100)
+
+            # Add a VideoEvent record
+            await update_video_event_record(
+                db,
+                video_id=video_id,
+                event_type="PROCESSING_COMPLETED",
+                transcode_task_id=transcode_task.id,
+                payload={
+                    "upload_id": upload_id,
+                    "object_key": upload_session_id,
+                    "file_name": file_name,
+                    "worker_id": self.request.hostname,
+                    "task_id": self.request.id,
+                }    
+            )
+
     
 """
 @celery.task(
@@ -266,166 +552,3 @@ def process_video_worker_operations(self, file_name: str):
     except Exception as e:
         logger.warning("Cleanup failed: %s", e)
 """
-
-async def update_task(db, task, status, progress):
-    task.status = status
-    task.progress_percent = progress
-    await db.commit()
-
-
-@celery.task(
-    bind=True,
-    # for long tasks
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    max_retries=3,
-    )
-def process_video_worker_operations(self, file_name: str, video_id: str, upload_session_id: str, upload_id: str):
-    asyncio.run(_process_video_worker_operations(self, file_name, video_id, upload_session_id, upload_id))
-       
-
-async def _process_video_worker_operations(
-    self,
-    file_name: str,
-    video_id: str,
-    upload_session_id: str,
-    upload_id: str,
-    # can't use Depends(get_db) here because Celery tasks are not FastAPI endpoints,
-    # they are normal Python functions. So, we need to manage the session manually.
-):
-    with TemporaryDirectory(prefix="transcode_") as temp_dir:
-        
-        async with AsyncSessionLocal() as db:
-            # Add a record of the task to the DB
-            transcode_task = TranscodeTask(
-                video_id=video_id,
-                upload_session_id=upload_session_id,
-                status=VideoProcessingStatusEnum.IDLE,
-                task_id=self.request.id,
-                worker_id=self.request.hostname, # AKA hostname; the worker currently executing the task
-                progress_percent=10
-            )
-
-            db.add(transcode_task)
-            await db.commit()
-            await db.refresh(transcode_task)
-
-            # transcode_task.status=VideoProcessingStatusEnum.PENDING
-            # transcode_task.progress_percent = 0
-            # await db.commit()
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.PENDING, 0)
-
-            temp_dir = Path(temp_dir)
-            # temporary video file path
-            video = temp_dir / Path(file_name).name
-
-            # Celery task state
-            self.update_state(
-                state="DOWNLOADING",
-                meta={"step": "downloading", "progress": 10}
-            )
-
-            # transcode_task.status=VideoProcessingStatusEnum.DOWNLOADING_VIDEO
-            # transcode_task.progress_percent = 10
-            # await db.commit()
-            
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.DOWNLOADING_VIDEO, 10)
-
-            # download_from_r2(file_name, str(video))
-            await asyncio.to_thread(download_from_r2, file_name, str(video))
-
-            output_dir = temp_dir / "processed" / video.stem
-            output_dir.mkdir(parents=True, exist_ok=True)
-            
-            dash_dir = output_dir / "dash"
-            dash_dir.mkdir(parents=True, exist_ok=True)
-            
-            self.update_state(
-                state="PROBING",
-                meta={"step": "ffprobe", "progress": 30}
-            )
-
-            # transcode_task.status=VideoProcessingStatusEnum.PROBING
-            # transcode_task.progress_percent = 30
-            # await db.commit()
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.PROBING, 30)
-
-
-            # ffprobe
-            # probe_result = probe_video(str(video))
-            probe_result = await asyncio.to_thread(probe_video, str(video))
-
-            self.update_state(
-                state="TRANSCODING",
-                meta={"step": "ffmpeg", "progress": 50}
-            )
-
-            # transcode_task.status=VideoProcessingStatusEnum.TRANSCODING
-            # transcode_task.progress_percent = 50
-            # await db.commit()
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.TRANSCODING, 50)
-            
-            # transcode_video(video, probe_result, output_dir, dash_dir)
-            await asyncio.to_thread(transcode_video, video, probe_result, output_dir, dash_dir)
-
-            # Celery task state: Upload processed files
-            self.update_state(
-                state="UPLOADING",
-                meta={"step": "uploading", "progress": 70}
-            )
-
-            # transcode_task.status=VideoProcessingStatusEnum.UPLOADING
-            # transcode_task.progress_percent = 70
-            # await db.commit()
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.UPLOADING, 70)
-
-            # upload_errors = upload_output_directory_to_r2_bucket(
-            #     local_dir=output_dir,
-            #     video_file_name=video.stem,
-            # )
-
-            # Use functools.partial with asyncio.to_thread if the function has multiple keyword arguments.
-            upload_errors = await asyncio.to_thread(
-                partial(upload_output_directory_to_r2_bucket, local_dir=output_dir, video_file_name=video.stem)
-            )
-
-            if upload_errors:
-                logger.error("Errors occurred during upload: %s", upload_errors)
-                raise RuntimeError(
-                    f"{len(upload_errors)} files failed to upload"
-                )
-            
-            self.update_state(
-                state="SOURCE_CLEANUP",
-                meta={"step": "source_cleanup", "progress": 90}
-            )
-
-            # transcode_task.status=VideoProcessingStatusEnum.CLEANUP
-            # transcode_task.progress_percent = 90
-            # await db.commit()
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.CLEANUP, 90)
-
-            # Delete from RAW bucket after successful processing and upload
-            
-            try:
-                # delete_original_video_from_bucket(file_name)
-                await asyncio.to_thread(delete_original_video_from_bucket, file_name)
-            except Exception as e:
-                # transcode_task.status = VideoProcessingStatusEnum.FAILED
-                # await db.commit()
-                logger.exception("Failed deleting source file '%s' from RAW bucket", file_name)
-                # Not raising any exception because:
-                # Celery should not re-transcode if source file deletion fails
-                # Storage management will be handled later
-            
-            # Cleanup of tmp files not required
-
-            self.update_state(
-                state="SUCCESS",
-                meta={"step": "completed", "progress": 100}
-            )
-
-            # transcode_task.status=VideoProcessingStatusEnum.COMPLETED
-            # transcode_task.progress_percent = 100
-            # await db.commit()
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.COMPLETED, 100)
