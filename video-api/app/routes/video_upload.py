@@ -110,8 +110,9 @@ async def initiate_upload(req: InitiateUploadRequest, db: AsyncSession = Depends
             }
         )
 
-        db.add([upload_session, video_event])
+        db.add_all([upload_session, video_event])
         await db.commit()
+        await db.refresh(upload_session)
 
         return {
             "uploadId": upload_id,
@@ -207,17 +208,37 @@ async def complete_upload(
         )
 
         # Get the video_event for the specific video_id
-        video_event = select(VideoEvent).where(VideoEvent.video_id == req.videoId)
-        video_event.event_type = "CHUNKS_UPLOAD_COMPLETED"
-        video_event.payload = {
-            "upload_id": req.uploadId,
-            "object_key": req.key,
-            "file_name": req.key,  # Assuming the key is the filename
-            # "parts": [part.dict() for part in req.parts]
-        }
+        # video_event = select(VideoEvent).where(VideoEvent.video_id == req.videoId)
+        # video_event.event_type = "CHUNKS_UPLOAD_COMPLETED"
+        # video_event.payload = {
+        #     "upload_id": req.uploadId,
+        #     "object_key": req.key,
+        #     "file_name": req.key,  # Assuming the key is the filename
+        #     # "parts": [part.dict() for part in req.parts]
+        # }
         # db.add(video_event)
+        # await db.commit()
+
+        # Create a new VideoEvent instead of updating old events
+        video_event = VideoEvent(
+            video_id=req.videoId,
+            event_type="CHUNKS_UPLOAD_COMPLETED",
+            payload={
+                "upload_id": req.uploadId,
+                "object_key": req.key,
+                "file_name": req.key,  # Assuming the key is the filename
+            }
+        )
+
+        db.add(video_event)
+
+        # Also update UploadSession status to COMPLETED
+        upload_session = select(UploadSession).where(UploadSession.video_id == req.videoId)
+        upload_session.status = UploadSessionStatusEnum.COMPLETED
+        upload_session.uploaded_parts_count = len(req.parts) # how to get total parts?
+
         await db.commit()
-        
+
         # print(f"File name/key: {req.key}")
         
         logger.info("Sending transcode task for %s", req.key)
@@ -242,7 +263,7 @@ async def complete_upload(
 
 
 @router.post("/{upload_id}/abort-upload")
-async def abort_upload(req: AbortRequest, db:AsyncSession = Depends(get_db)):
+async def abort_upload(req: AbortRequest, upload_id: str, db:AsyncSession = Depends(get_db)):
     try:
         s3.abort_multipart_upload(
             Bucket=RAW_VIDEO_BUCKET,
@@ -250,15 +271,23 @@ async def abort_upload(req: AbortRequest, db:AsyncSession = Depends(get_db)):
             UploadId=req.uploadId,
         )
 
+        # get video_id from upload_id
+        upload_session = select(UploadSession).where(UploadSession.upload_id == upload_id)
+
         # Add a VideoEvent to the DB
-        video_event = select(VideoEvent).where(VideoEvent.video_id == req.videoId)
-        video_event.event_type = "CHUNKS_UPLOAD_ABORTED"
-        video_event.payload = {
-            "upload_id": req.uploadId,
-            "object_key": req.key,
-            "file_name": req.key,  # Assuming the key is the filename
-        }
-        # db.add(video_event)
+        video_event = VideoEvent(
+            event_type = "CHUNKS_UPLOAD_ABORTED"
+            video_id=upload_session.video_id
+            payload = {
+                "upload_id": req.uploadId,
+                "object_key": req.key,
+                "file_name": req.key,  # Assuming the key is the filename
+            }
+        )
+        db.add(video_event)
+
+        upload_session.status = UploadSessionStatusEnum.ABORTED
+
         await db.commit()
 
         return {"success": True, "status": "aborted"}

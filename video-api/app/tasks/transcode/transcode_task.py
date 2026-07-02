@@ -20,13 +20,11 @@ from app.database.session import AsyncSessionLocal
 from app.database.models import (
     Video, VideoEvent, VideoProcessingStatusEnum, TranscodeTask
 )
-from app.utils.dependencies import get_db
 
 logger = logging.getLogger(__name__)
 
-#
+
 # Helper function to download mp4 files from Cloudflare R2 bucket
-#
 def download_from_r2(file_name: str, local_download_path: str):
     
     RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
@@ -58,9 +56,8 @@ def download_from_r2(file_name: str, local_download_path: str):
             detail=f"Unexpected error: {str(e)}"
         )
 
-#
+
 # Helper function to upload .mpd, .m3u8, and .m4s chunks to Cloudflare R2 bucket
-#
 def upload_output_directory_to_r2_bucket(
     local_dir: str | Path,
     video_file_name: str,
@@ -98,9 +95,7 @@ def upload_output_directory_to_r2_bucket(
     return failed
 
 
-#
-# Delete from R2 bucket after successful processing and upload
-# 
+# Delete from R2 bucket after successful processing and upload 
 def delete_original_video_from_bucket(file_name: str) -> None:
     RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
     
@@ -456,19 +451,11 @@ async def _process_video_worker_operations(
 """
 @celery.task(
     bind=True,
-    # for long tasks
     autoretry_for=(Exception,),
     retry_backoff=True,
     max_retries=3,
     )
 def process_video_worker_operations(self, file_name: str):
-    
-    print("INSIDE PROCESS_VIDEO_WORKER_OPERATIONS TASK FUNCTION.")
-    
-    self.update_state(
-        state="DOWNLOADING",
-        meta={"step": "downloading"}
-    )
     
     # Download the file from R2 to local storage.
     local_download_path = f"/tmp/{Path(file_name)}" # f"/tmp/{Path(file_path).name}"
@@ -484,33 +471,13 @@ def process_video_worker_operations(self, file_name: str):
     # Example:
     dash_dir = output_dir / "dash"
     dash_dir.mkdir(parents=True, exist_ok=True)
-        
-    # output_file = output_dir / f"{video.stem}.mp4"
-    # manifest_path = output_dir / "dash" / "manifest.mpd"
-
-    # Celery task state
-    self.update_state(
-        state="PROBING",
-        meta={"step": "ffprobe"}
-    )
     
     video = Path(local_download_path)
     
     # ffprobe
     probe_result = probe_video(str(video))
     
-    self.update_state(
-        state="TRANSCODING",
-        meta={"step": "ffmpeg"}
-    )
-    
     transcode_video(video, probe_result, output_dir, dash_dir)
-    
-    # Celery task state: Upload processed files
-    self.update_state(
-        state="UPLOADING",
-        meta={"step": "uploading"}
-    )
 
     upload_errors = upload_output_directory_to_r2_bucket(
         local_dir=output_dir,
@@ -522,12 +489,6 @@ def process_video_worker_operations(self, file_name: str):
         raise RuntimeError(
             f"{len(upload_errors)} files failed to upload"
         )
-    
-    # Celery task state: Clean up
-    self.update_state(
-        state="CLEANUP",
-        meta={"step": "cleanup"}
-    )
     
     # 1. Delete local tmp files: downloaded video as well as processed video segments and manifests
     # 2. Remove the actual video from R2 bucket (optional, depending on your retention needs)
