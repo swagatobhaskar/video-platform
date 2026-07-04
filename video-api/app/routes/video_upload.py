@@ -387,15 +387,18 @@ async def record_uploaded_part(
     db: AsyncSession = Depends(get_db)
 ):
 
-    try:
-        result = await db.execute(
-            select(UploadSession).where(UploadSession.video_id == video_id)
+    result = await db.execute(
+        select(UploadSession).where(UploadSession.video_upload_id == upload_id)
+    )
+    upload_session = result.scalar_one_or_none()
+
+    if upload_session is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Upload session not found."
         )
-        upload_session = result.scalar_one_or_none()
 
-        if not upload_session:
-            raise ValueError("Upload session not found for the given video ID")
-
+    try:
         new_part = UploadPart(
             upload_session_id=upload_session.id,
             part_number=part.PartNumber,
@@ -412,9 +415,11 @@ async def record_uploaded_part(
             event_type = "CHUNK_UPLOADED",
             video_id=video_id,
             payload = {
+                "upload_session_id": str(upload_session.id),
                 "upload_id": upload_id,
                 "partNumber": part.PartNumber,
                 "ETag": part.ETag,
+                "size_bytes": part.SizeBytes,
             }
         )
         db.add(video_event)
@@ -424,8 +429,9 @@ async def record_uploaded_part(
     except IntegrityError:
         # catch it. Then simply return success. Duplicate chunk uploads are perfectly normal.
         # raise HTTPException(status=400, detail="This part has already been recorded.")
+        await db.rollback() 
         return {
-            "success": "True",
+            "success": True,
             "message": "uploaded part already recorded"
         }
 
@@ -434,7 +440,7 @@ async def record_uploaded_part(
         raise HTTPException(status=500, detail=str(e))
 
     return {
-        "success": "True",
+        "success": True,
         "message": "uploaded part recorded successfully"
     }
 

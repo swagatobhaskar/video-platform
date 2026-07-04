@@ -169,8 +169,8 @@ def transcode_video(video: Path, probe_result: dict, output_dir: Path, dash_dir:
 async def update_task(db, task, status, progress):
     task.status = status
     task.progress_percent = progress
-    # no commit here. Commit will be done in the main task function after all operations are completed.
-    # await db.commit() 
+    task.heartbeat_at = datetime.now(UTC)
+    await db.commit() 
 
 
 async def update_video_event_record(db, video_id: str, event_type: str, payload: dict, transcode_task_id: str | None = None):
@@ -221,11 +221,10 @@ async def _process_video_worker_operations(
                 worker_id=self.request.hostname, # AKA hostname; the worker currently executing the task
                 progress_percent=10,
                 started_at = datetime.now(UTC),
-                heartbeat_at = datetime.now(UTC),
             )
 
             db.add(transcode_task)
-            await db.commit()   # is this commit() required here?
+            await db.commit()   # is this commit() required here? - Yes
             await db.refresh(transcode_task)
 
             await update_task(db, transcode_task, VideoProcessingStatusEnum.PENDING, 0)
@@ -261,9 +260,6 @@ async def _process_video_worker_operations(
             # download_from_r2(file_name, str(video))
             await asyncio.to_thread(download_from_r2, file_name, str(video_path))
 
-            # Save a heartbeat timestamp to the DB after download is complete
-            transcode_task.heartbeat_at = datetime.now(UTC)
-
             output_dir = temp_dir / "processed" / video_path.stem
             output_dir.mkdir(parents=True, exist_ok=True)
             
@@ -280,9 +276,6 @@ async def _process_video_worker_operations(
             # ffprobe
             # probe_result = probe_video(str(video))
             probe_result = await asyncio.to_thread(probe_video, str(video_path))
-            
-            # Save a heartbeat timestamp to the DB after ffprobe is complete
-            transcode_task.heartbeat_at = datetime.now(UTC)
             
             # Update Video table with FFprobe result
             result = await db.execute(
@@ -329,13 +322,10 @@ async def _process_video_worker_operations(
 
             try:
                 transcode_result = await asyncio.to_thread(transcode_video, video_path, probe_result, output_dir, dash_dir)
-                # Save a heartbeat timestamp to the DB after ffmpeg is complete
-                transcode_task.heartbeat_at = datetime.now(UTC)
             except Exception as e:
                 transcode_task.status = VideoProcessingStatusEnum.FAILED
                 transcode_task.error_message = str(e)
                 transcode_task.finished_at = datetime.now(UTC)
-                transcode_task.heartbeat_at = datetime.now(UTC)
                 await db.commit()
                 raise
 
@@ -374,9 +364,6 @@ async def _process_video_worker_operations(
                 partial(upload_output_directory_to_r2_bucket, local_dir=output_dir, video_file_name=video_path.stem)
             )
 
-            # Save a heartbeat timestamp to the DB after upload is complete
-            transcode_task.heartbeat_at = datetime.now(UTC)
-
             if upload_errors:
                 logger.error("Errors occurred during upload: %s", upload_errors)
                 raise RuntimeError(
@@ -411,9 +398,6 @@ async def _process_video_worker_operations(
             try:
                 # delete_original_video_from_bucket(file_name)
                 await asyncio.to_thread(delete_original_video_from_bucket, file_name)
-
-                # Save a heartbeat timestamp to the DB after source file deletion is complete
-                transcode_task.heartbeat_at = datetime.now(UTC)
                 
                 # Add a VideoEvent record
                 await update_video_event_record(
@@ -476,8 +460,6 @@ async def _process_video_worker_operations(
                 }    
             )
 
-            # Create a TranscodeTask DB record of finished_at and heartbeat_at timestamps
-            transcode_task.heartbeat_at = datetime.now(UTC)
             transcode_task.finished_at = datetime.now(UTC)
             await db.commit()
 
