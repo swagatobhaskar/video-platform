@@ -45,6 +45,7 @@ export function createVideoUploadSession() {
             const { uploadId, key } = await initiateUpload(
                 file.name,
                 file.type,
+                file.size,
                 signal
             );
             

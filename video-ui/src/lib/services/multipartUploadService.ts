@@ -1,7 +1,7 @@
 // Only API Communication
 import { uploadChunkWithProgress } from "$lib/helpers/multipartUploadHelper";
 
-const API_BASE = "http://127.0.0.1:8000/api/upload";
+const API_BASE = "http://127.0.0.1:8000/api/video/uploads";
 
 export interface UploadedPart {
     ETag: string | null;
@@ -11,6 +11,8 @@ export interface UploadedPart {
 export async function initiateUpload(
     fileName: string,
     contentType: string,
+    fileSizeBytes: number,
+    // totalParts: number,
     signal?: AbortSignal
 ): Promise<{ uploadId: string; key: string }> {
     const res = await fetch(`${API_BASE}/initiate-upload`, {
@@ -20,7 +22,9 @@ export async function initiateUpload(
         },
         body: JSON.stringify({
             fileName: fileName,
-            contentType: contentType
+            contentType: contentType,
+            fileSizeBytes: fileSizeBytes,
+            // totalParts: totalParts,
         }),
         signal
     });

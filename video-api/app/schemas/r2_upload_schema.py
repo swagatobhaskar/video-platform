@@ -7,7 +7,7 @@ class InitiateUploadRequest(BaseModel):
     fileName: str
     contentType: str
     fileSizeBytes: int
-    totalParts: int
+    totalParts: int | None = None
     categoryId: UUID | None = None
     language: LanguageEnum = LanguageEnum.BENGALI
     

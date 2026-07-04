@@ -3,7 +3,6 @@ import shutil
 import logging
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Depends
 from celery.result import AsyncResult
-from sqlalchemy.ext import AsyncSession
 from sqlalchemy import select, Uuid
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
@@ -61,6 +60,12 @@ logger = logging.getLogger(__name__)
 
 
 RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
+
+
+@router.post("/new-upload-session")
+async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
+    new_upload_session = UploadSession()
+
 
 @router.post('/initiate-upload')
 async def initiate_upload(req: InitiateUploadRequest, db: AsyncSession = Depends(get_db)):
@@ -166,10 +171,10 @@ def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
     return response.get("Parts", [])
 
 
-@router.post("/{upload_id}/complete-upload")
+@router.post("/complete-upload")
 async def complete_upload(
     req: CompleteRequest,
-    upload_id: str,
+    # upload_id: str,
     db: AsyncSession = Depends(get_db)
 ):
     
@@ -241,8 +246,8 @@ async def complete_upload(
         task = process_video_worker_operations.delay( # type: ignore
             file_name=req.key,
             video_id=req.videoId,
-            upload_id=upload_id, # from function argument
-            upload_session_id=req.uploadSessionId
+            upload_id=req.uploadId, #upload_id, # from function argument
+            upload_session_id=req.uploadSessionId,
         )
 
         logger.info("Task queued: %s", task.id)

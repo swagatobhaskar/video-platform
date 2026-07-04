@@ -16,12 +16,11 @@
     let videoPreviewUrl: string | null = $state(null);
 
     let initiatingUpload: boolean = $state(false);
+
+    // function to initiate to create an upload_session_id
     
     const handleVideoUploadClick = (e: Event) => {
         e.preventDefault();
-
-        const videoSessionUuid = crypto.randomUUID();
-        workflow.workflowProgress.videoSessionId = videoSessionUuid;
         // console.log("Upload clicked");
         // change UI via workflow state
         initiatingUpload = true;
@@ -85,7 +84,15 @@
             {#if !videoInput.state.selectedFile}
                 <div class="flex flex-col items-center gap-3">
 
-                    <svg fill="#3584e4" viewBox="-2.1 -2.1 39.20 39.20" version="1.1" xmlns="http://www.w3.org/2000/svg" stroke="#3584e4" stroke-width="0.00035"><g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round" stroke="#CCCCCC" stroke-width="0.7"></g><g id="SVGRepo_iconCarrier"> <title>upload1</title> <path d="M29.426 15.535c0 0 0.649-8.743-7.361-9.74-6.865-0.701-8.955 5.679-8.955 5.679s-2.067-1.988-4.872-0.364c-2.511 1.55-2.067 4.388-2.067 4.388s-5.576 1.084-5.576 6.768c0.124 5.677 6.054 5.734 6.054 5.734h9.351v-6h-3l5-5 5 5h-3v6h8.467c0 0 5.52 0.006 6.295-5.395 0.369-5.906-5.336-7.070-5.336-7.070z"></path> </g></svg>
+                    <svg fill="#3584e4" viewBox="-2.1 -2.1 39.20 39.20" version="1.1" xmlns="http://www.w3.org/2000/svg" stroke="#3584e4" stroke-width="0.00035">
+                        <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+                        <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round" stroke="#CCCCCC" stroke-width="0.7"></g>
+                        <g id="SVGRepo_iconCarrier">
+                            <title>upload1</title>
+                            <path d="M29.426 15.535c0 0 0.649-8.743-7.361-9.74-6.865-0.701-8.955 5.679-8.955 5.679s-2.067-1.988-4.872-0.364c-2.511 1.55-2.067 4.388-2.067
+                            4.388s-5.576 1.084-5.576 6.768c0.124 5.677 6.054 5.734 6.054 5.734h9.351v-6h-3l5-5 5 5h-3v6h8.467c0 0 5.52 0.006 6.295-5.395 0.369-5.906-5.336-7.070-5.336-7.070z"></path>
+                        </g>
+                    </svg>
 
                     <p>
                         Drop video here
