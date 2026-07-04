@@ -36,7 +36,7 @@ class UploadSession(Base):
 
     # object_key = “path in object storage” / what file in R2 this upload session is writing to / Where you store it in R2
     object_key: Mapped[str] = mapped_column(String(255), nullable=False)
-    video_upload_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    video_upload_id: Mapped[str] = mapped_column(Text, nullable=False)
     file_size_bytes: Mapped[BigInteger] = mapped_column(BigInteger, nullable=False)
     mime_type: Mapped[str] = mapped_column(String(255), nullable=False)
     # What the user uploaded
@@ -46,7 +46,7 @@ class UploadSession(Base):
     # checksum: Mapped[str] = mapped_column(String(255), nullable=True)
 
     # total number of parts/chunks the video is divided into for multipart upload
-    total_parts: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_parts: Mapped[int] = mapped_column(Integer, nullable=True)
     # number of parts/chunks successfully uploaded so far
     uploaded_parts_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

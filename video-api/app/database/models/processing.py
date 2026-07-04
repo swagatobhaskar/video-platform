@@ -111,7 +111,7 @@ class VideoEvent(Base):
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    transcode_task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("transcode_tasks.id"))
+    transcode_task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("transcode_tasks.id"), nullable=True)
     transcode_task: Mapped["TranscodeTask"] = relationship("TranscodeTask", back_populates="events")
 
     # Many events -> one video
