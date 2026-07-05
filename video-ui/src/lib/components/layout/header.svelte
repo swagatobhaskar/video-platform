@@ -27,6 +27,12 @@
 				>
 					New Upload
 				</a>
+				<a
+					href={resolve('/upload')}
+					class="hover:text-violet-700 text-lg"
+				>
+					New
+				</a>
 			{/if}
 		</nav>
 	</div>
