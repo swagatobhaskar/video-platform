@@ -1,23 +1,23 @@
 <script lang="ts">
-    // import { onMount } from 'svelte';
+    import { onMount } from 'svelte';
     
     let {
         open = $bindable(false),
         children
     } = $props();
     
-    // onMount(() => {
+    onMount(() => {
     // Don't close modal on Escape press
-    //     function handleKeyDown(e: KeyboardEvent) {
-    //         if (e.key === 'Escape') {
-    //             open = false;
-    //         }
-    //     }
-    //     window.addEventListener('keydown', handleKeyDown);
-    //     return () => {
-    //         window.removeEventListener('keydown', handleKeyDown);
-    //     };
-    // });
+        function handleKeyDown(e: KeyboardEvent) {
+            if (e.key === 'Escape') {
+                open = false;
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    });
 </script>
 
 
@@ -50,9 +50,11 @@
 
     .modal {
         background: white;
-        padding: 2rem;
-        border-radius: 0.5rem;
-        min-width: 20rem;
-        max-width: 40rem;
+        padding: 1rem;
+        border-radius: 1.5rem;
+        /* min-width: 40rem; */
+        /* max-width: 40rem; */
+        width: 45rem;
+        height: 90vh;
     }
 </style>

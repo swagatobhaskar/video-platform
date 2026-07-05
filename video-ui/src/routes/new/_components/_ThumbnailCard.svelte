@@ -10,7 +10,7 @@
         fileInputController
         } from '$lib/controllers/ui/fileInputController.svelte';
         
-	import ThumbnailPreview from './ThumbnailPreview.svelte';
+	import ThumbnailPreview from './_ThumbnailPreview.svelte';
 
     const thumbnailInput = fileInputController({uploadFileType: "image"});
 

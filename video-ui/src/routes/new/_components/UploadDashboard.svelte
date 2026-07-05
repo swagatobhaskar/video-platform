@@ -1,9 +1,9 @@
 <script lang="ts">
     let { workflow } = $props();
 
-    import VideoUploadProgressCard from './VideoUploadProgressCard.svelte'
-    import ThumbnailCard from './ThumbnailCard.svelte'
-    import MetadataFormCard from './MetadataFormCard.svelte'
+    import VideoUploadProgressCard from './_VideoUploadProgressCard.svelte'
+    import ThumbnailCard from './_ThumbnailCard.svelte'
+    import MetadataFormCard from './_MetadataFormCard.svelte'
 </script>
 
 <div class="h-[calc(100vh-3rem)] md:h-[calc(100vh-4rem)] flex">

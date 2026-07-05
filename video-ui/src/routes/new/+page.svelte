@@ -1,6 +1,6 @@
 <script lang="ts">
 
-    import VideoDrop from "./_components/VideoDrop.svelte";
+    import VideoDrop from "./_components/_VideoDrop.svelte";
     import UploadDashboard from "./_components/UploadDashboard.svelte";
     
     import {
