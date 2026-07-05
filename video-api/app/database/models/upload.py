@@ -18,7 +18,8 @@ if TYPE_CHECKING:
 
 
 class UploadSessionStatusEnum(enum.Enum):
-    IDLE = "idle"
+    # IDLE = "idle"
+    PENDING = "pending"
     UPLOADING = "uploading"
     PAUSED = "paused"
     COMPLETED = "completed"
@@ -63,7 +64,7 @@ class UploadSession(Base):
     status: Mapped[UploadSessionStatusEnum] = mapped_column(
         Enum(UploadSessionStatusEnum),
         nullable=False,
-        default=UploadSessionStatusEnum.IDLE
+        default=UploadSessionStatusEnum.PENDING
     )
     
     created_at: Mapped[datetime] = mapped_column(
