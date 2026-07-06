@@ -70,7 +70,7 @@
 
 </script>
 
-<div class="h-80 overflow-hidden p-4 relative border border-gray-200"
+<div class="h-80 overflow-hidden p-2 relative border border-gray-200"
 >
     <!-- If uploaded, show thumbnail from R2 link -->
     {#if thumbnailR2Url}

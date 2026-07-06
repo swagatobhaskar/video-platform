@@ -8,50 +8,47 @@
     } = $props();
 </script>
 
-<!-- <div class="w-full max-w-xl mx-auto"> -->
 <div class="h-full flex flex-col">
 
     <!-- Preview Card -->
-    <!-- <div class="group overflow-hidden transition-all duration-300"> -->
 
-        <!-- Image -->
-        <!-- <div class="relative p-4"> -->
-        <div class="flex-1 min-h-0 p-4">
-            <div class="h-full w-full overflow-hidden rounded-2xl bg-gray-100">
-                <img
-                    src={thumbnailPreviewUrl}
-                    alt="thumbnail-preview"
-                    class="w-full h-full object-cover"
-                />
-            </div>
+    <!-- Image -->
+    <div class="h-60 p-1">
+        <div class="h-full w-full overflow-hidden rounded-lg bg-gray-100">
+            <img
+                src={thumbnailPreviewUrl}
+                alt="thumbnail-preview"
+                class="w-full h-full object-cover"
+            />
         </div>
+    </div>
+
+    <!-- File name -->
+    <p class="font-light ml-4 text-[13px] text-gray-800">
+        {thumbnailInput.state?.selectedFile?.name}
+    </p>
+
+    <!-- Shor Meta + Buttons -->
+    <div class="flex flex-row gap-3 items-center">
 
         <!-- Thumbnail info -->
-        <!-- <div class="relative px-5 pb-5 space-y-4"> -->
-        <div class="px-5 pb-5 space-y-4 flex-0">
-
-            <div class="">
-                <!-- File name -->
-                <p class="font-semibold text-gray-800">
-                    {thumbnailInput.state?.selectedFile?.name}
-                </p>
+        <div class="px-2 pb-2 space-y-1 flex-1/2">                    
                 
-                {#if thumbnailInput.state.thumbnailMetadata}
-                    <div class="mt-2 flex flex-wrap gap-2 text-xs">
-                        <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">
-                            {thumbnailInput.state.thumbnailMetadata.format}
-                        </span>
+            {#if thumbnailInput.state.thumbnailMetadata}
+                <div class="mt-1 flex flex-wrap gap-1 text-xs">
+                    <span class="rounded-md bg-gray-100 px-2 py-1 text-gray-700">
+                        {thumbnailInput.state.thumbnailMetadata.format}
+                    </span>
 
-                        <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">
-                            {(thumbnailInput.state.thumbnailMetadata.size / (1024 * 1024)).toFixed(2)} MB
-                        </span>
+                    <span class="rounded-md bg-gray-100 px-2 py-1 text-gray-700">
+                        {(thumbnailInput.state.thumbnailMetadata.size / (1024 * 1024)).toFixed(2)} MB
+                    </span>
 
-                        <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">
-                            {thumbnailInput.state.thumbnailMetadata.width}x{thumbnailInput.state.thumbnailMetadata.height}
-                        </span>
-                    </div>
-                {/if}
-            </div>
+                    <span class="rounded-md bg-gray-100 px-2 py-1 text-gray-700">
+                        {thumbnailInput.state.thumbnailMetadata.width}x{thumbnailInput.state.thumbnailMetadata.height}
+                    </span>
+                </div>
+            {/if}
 
             <!-- Error -->
             {#if error}
@@ -73,28 +70,29 @@
                 </div>
             {/if}
 
-            <!-- Upload & Cancel Buttons -->
-            <div class="flex gap-3">
-                <button
-                    class="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-3
-                        font-medium text-gray-700 transition hover:bg-gray-50 cursor-pointer"
-                    onclick={() => {
-                        // if (uploader.uploading) cancelUpload();
-                        // else
-                        thumbnailInput.cancelSelectedFile();
-                    }}
-                >
-                    Cancel
-                </button>
-                <button
-                    class="flex-1 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white shadow-lg
-                        shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
-                    // onclick={uploadVideoFile}
-                    onclick={handleThumbnailUpload}
-                >
-                    { uploading ? 'Uploading...' : 'Upload' }
-                </button>
-            </div>
         </div>
-    <!-- </div> -->
+
+        <!-- Upload & Cancel Buttons -->
+        <div class="flex-1/2 flex flex-row gap-4">
+            <button
+                class="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2
+                    font-medium text-gray-700 transition hover:bg-gray-50 cursor-pointer"
+                onclick={() => {
+                    // if (uploader.uploading) cancelUpload();
+                    // else
+                    thumbnailInput.cancelSelectedFile();
+                }}
+            >
+                Cancel
+            </button>
+            <button
+                class="flex-1 rounded-md bg-blue-600 px-3 py-2 font-medium text-white shadow-lg
+                    shadow-blue-200 transition hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+                // onclick={uploadVideoFile}
+                onclick={handleThumbnailUpload}
+            >
+                { uploading ? 'Uploading...' : 'Upload' }
+            </button>
+        </div>
+    </div>        
 </div>
