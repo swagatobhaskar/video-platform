@@ -85,8 +85,11 @@ async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
             detail="Failed to create new upload session!"    
         )
 
-@router.post('/initiate-upload')
-async def initiate_upload(req: InitiateUploadRequest, db: AsyncSession = Depends(get_db)):
+@router.post('/initiate-upload/')
+async def initiate_upload(
+    req: InitiateUploadRequest,
+    db: AsyncSession = Depends(get_db)
+):
 
     upload_id = None
     object_key = None
@@ -109,16 +112,22 @@ async def initiate_upload(req: InitiateUploadRequest, db: AsyncSession = Depends
         db.add(video)
         await db.flush()
 
-        upload_session = UploadSession(
-            video_id=video.id,
-            object_key=object_key,
-            video_upload_id=upload_id,
-            file_size_bytes=req.fileSizeBytes,
-            mime_type=req.contentType,
-            original_filename=req.fileName,
-            total_parts=req.totalParts,
-            status=UploadSessionStatusEnum.UPLOADING,
-        )
+        # get the upload_session that was created when selecting the file
+        stmt = select(UploadSession).where(UploadSession.id == req.uploadSessionId)
+        result = await db.execute(stmt)
+        upload_session = result.scalar_one_or_none()
+
+        if not upload_session:
+            raise HTTPException(status_code=404, detail="Upload session not found for the given uploadSessionId")
+
+        upload_session.video_id=video.id
+        upload_session.object_key=object_key
+        upload_session.video_upload_id=upload_id
+        upload_session.file_size_bytes=req.fileSizeBytes
+        upload_session.mime_type=req.contentType
+        upload_session.original_filename=req.fileName
+        upload_session.total_parts=req.totalParts
+        upload_session.status=UploadSessionStatusEnum.UPLOADING
 
         video_event = VideoEvent(
             video_id=video.id,
@@ -133,7 +142,7 @@ async def initiate_upload(req: InitiateUploadRequest, db: AsyncSession = Depends
             }
         )
 
-        db.add_all([upload_session, video_event])
+        db.add(video_event)
         await db.commit()
         await db.refresh(upload_session)
 
@@ -141,6 +150,7 @@ async def initiate_upload(req: InitiateUploadRequest, db: AsyncSession = Depends
             "uploadId": upload_id,
             "key": object_key,
             "upload_session_id": str(upload_session.id),
+            "video_id": video.id,
         }
 
     except Exception as e:
@@ -230,9 +240,20 @@ async def complete_upload(
             },
         )
 
+        # Also update UploadSession status to COMPLETED
+        result = await db.execute(
+            select(UploadSession).where(UploadSession.id == req.uploadSessionId)
+        )
+        upload_session = result.scalars().first() # scalar_one_or_none()
+        
+        print("UPLOad SESSION video_id:- ", upload_session.video_id)  # it's coming None !!
+
+        if not upload_session:
+            raise HTTPException(status_code=404, detail="Upload session not found for the given video ID")
+        
         # Create a new VideoEvent instead of updating old events
         video_event = VideoEvent(
-            video_id=req.videoId,
+            video_id=upload_session.video_id,
             event_type="CHUNKS_UPLOAD_COMPLETED",
             payload={
                 "upload_id": req.uploadId,
@@ -243,15 +264,6 @@ async def complete_upload(
 
         db.add(video_event)
 
-        # Also update UploadSession status to COMPLETED
-        result = await db.execute(
-            select(UploadSession).where(UploadSession.video_upload_id == req.uploadId) # That's guaranteed unique. A video could theoretically have multiple upload sessions.
-        )
-        upload_session = result.scalar_one_or_none()
-
-        if not upload_session:
-            raise ValueError("Upload session not found for the given video ID")
-        
         upload_session.status = UploadSessionStatusEnum.COMPLETED
         upload_session.uploaded_parts_count = len(uploaded_parts) # upload_session.total_parts
 
@@ -278,17 +290,18 @@ async def complete_upload(
     
     except Exception as e:
         await db.rollback()
-
+        logger.exception("Complete upload failed")
+        
         result = await db.execute(
-            select(UploadSession).where(UploadSession.video_id == req.videoId)
+            select(UploadSession).where(UploadSession.id == req.uploadSessionId)
         )
-        upload_session = result.scalar_one_or_none()
+        upload_session = result.scalars().first()
     
         if upload_session:
             upload_session.status = UploadSessionStatusEnum.FAILED
             await db.commit()
 
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/{upload_id}/abort-upload")

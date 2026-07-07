@@ -42,7 +42,7 @@ export function createVideoUploadSession() {
 
         try {
             // STEP 1: Initiate Upload
-            const { uploadId, key } = await initiateUpload(
+            const { uploadId, key, videoId } = await initiateUpload(
                 file.name,
                 file.type,
                 file.size,
@@ -103,6 +103,7 @@ export function createVideoUploadSession() {
                 file.name,
                 currentUploadId!,
                 parts,
+                videoId,
                 signal
             );
         } catch (err: unknown) {

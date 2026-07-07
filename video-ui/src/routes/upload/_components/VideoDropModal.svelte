@@ -1,31 +1,27 @@
 <script lang="ts">
 
     import Modal from "./Modal.svelte";
-    let { open, onUploadClick } = $props<{open: boolean; onUploadClick: () => void}>();
+    
+    import { fileInputController } from "$lib/controllers/fileInputController.svelte";
+    type FileInputController = ReturnType<typeof fileInputController>;
+    
+    let { open, onUploadClick, videoInputController } = $props<{
+        open: boolean;
+        onUploadClick: () => void;
+        videoInputController: FileInputController;
+    }>();
 
     let videoFileInputEl = $state<HTMLInputElement | null>(null);
 
     function openVideoFileDialog() {
         videoFileInputEl?.click();
     }
-    import { fileInputController } from "$lib/controllers/fileInputController.svelte";
-    const videoInputController = fileInputController({uploadFileType: "video"});
+    // import { fileInputController } from "$lib/controllers/fileInputController.svelte";
+    // const videoInputController = fileInputController({uploadFileType: "video"});
     
     let videoPreviewUrl: string | null = $state(null);
 
     let initiatingUpload: boolean = $state(false);
-
-    // const handleVideoUploadClick = async (e: Event) => {
-    //     e.preventDefault();
-
-    //     initiatingUpload = true;
-
-    //     try {
-    //         await onUpload();
-    //     } finally {
-    //         initiatingUpload = false;
-    //     }
-    // }
 
     $effect(() => {
         const videoFile = videoInputController.state.selectedFile;

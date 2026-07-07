@@ -12,10 +12,15 @@ export async function initiateUpload(
     fileName: string,
     contentType: string,
     fileSizeBytes: number,
+    // uploadSessionId: string,
     // totalParts: number,
     signal?: AbortSignal
-): Promise<{ uploadId: string; key: string }> {
-    const res = await fetch(`${API_BASE}/initiate-upload`, {
+): Promise<{ uploadId: string; key: string, uploadSessionId: string, videoId: string }> {
+    
+    // Get the uploadSessionId from cookies
+    const uploadSessionId = await cookieStore.get("uploadSessionId");
+
+    const res = await fetch(`${API_BASE}/initiate-upload/`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -24,6 +29,7 @@ export async function initiateUpload(
             fileName: fileName,
             contentType: contentType,
             fileSizeBytes: fileSizeBytes,
+            uploadSessionId: uploadSessionId?.value,
             // totalParts: totalParts,
         }),
         signal
@@ -92,8 +98,15 @@ export async function completeUpload(
     filename: string,
     uploadId: string,
     parts: UploadedPart[],
+    videoId?: string,
     signal?: AbortSignal
 ): Promise<void> {
+
+    const uploadSessionCookie = await cookieStore.get("uploadSessionId");
+    const uploadSessionId = uploadSessionCookie?.value;
+
+    // console.log("COOKIE Upload session ID: ", uploadSessionId); // working
+
     const res = await fetch(`${API_BASE}/complete-upload`, {
         method: "POST",
         headers: {
@@ -103,7 +116,8 @@ export async function completeUpload(
             key,
             filename,
             uploadId,
-            parts
+            parts,
+            uploadSessionId,
         }),
         signal
     });

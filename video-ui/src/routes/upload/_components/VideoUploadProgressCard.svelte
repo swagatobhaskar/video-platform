@@ -1,26 +1,23 @@
 <script lang="ts">
-    import { createVideoUploadSession } from "$lib/services/videoUploadSession.svelte";
+    // import { createVideoUploadSession } from "$lib/services/videoUploadSession.svelte";
+    // const uploader = createVideoUploadSession();
+    import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte'
+    type VideoUploadSession = ReturnType<typeof createVideoUploadSession>;
+
+    let { uploader, videoFile } = $props<{ uploader: VideoUploadSession; videoFile: File | null }>();
+
     // import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
 	import UploadCompleteBar from "$lib/components/ui/uploadCompleteBar.svelte";
-
-    let { workflow } = $props();
-    const uploader = createVideoUploadSession();
-
-    async function uploadVideoFile() {
-        let videoFile = workflow.workflowProgress.selectedVideoFile;
-        if (!videoFile) return;
-
-        uploader.upload(videoFile);
-
-        // videoFile = null;
-    }
 
     function handleUploadPlayPause() {}
     
     function cancelUpload() {
         uploader.cancel();
-        workflow.workflowProgress.selectedVideoFile = null;
+
+        videoFile = null;
+
+        // workflow.workflowProgress.selectedVideoFile = null;
         // workflow.workflowProgress.videoSessionId = null;
         // if (workflow.workflowProgress.thumbnailUploaded) {
             // modal -> cancel upload / upload new video
@@ -58,16 +55,18 @@
     // console.log("Selected file: ", workflow.workflowProgress.selectedVideoFile);
     // console.log("Video Session UUID: ", workflow.workflowProgress.videoSessionId);
 
-    // Start uploading th video as soon as we land on this page
+    // Start uploading the video as soon as we land on this page
     $effect(() => {
-        const timer = setTimeout(() => {
-            if (workflow.workflowProgress.selectedVideoFile) {
-                uploadVideoFile();
-                // mockUploader();
-            }
-        }, 500); // slight delay to ensure UI has updated
+        const file = videoFile; // dependency is tracked here
+        
+        console.log("File in UploadProgressComponent $effect: ", videoFile);
 
-        // Clean-up function to cancel upload if user navigates away before upload starts
+        if (!file) return;
+
+        const timer = setTimeout(() => {
+            uploader.upload(file);
+        }, 500);
+
         return () => clearTimeout(timer);
     });
 </script>
@@ -100,7 +99,8 @@
                     </p> -->
 
                     <h3 class="truncate font-semibold text-gray-900 text-lg">
-                        {workflow.workflowProgress.selectedVideoFile?.name}
+                        <!-- {workflow.workflowProgress.selectedVideoFile?.name} -->
+                         {videoFile?.name}
                     </h3>
                 </div>
 

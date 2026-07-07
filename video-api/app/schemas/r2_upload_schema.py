@@ -9,6 +9,7 @@ class InitiateUploadRequest(BaseModel):
     fileSizeBytes: int
     totalParts: int | None = None
     categoryId: UUID | None = None
+    uploadSessionId: UUID | None = None
     language: LanguageEnum = LanguageEnum.BENGALI
     
 class Part(BaseModel):    

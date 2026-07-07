@@ -2,7 +2,7 @@
     
     // import { onMount } from 'svelte';
     import { page } from '$app/state';
-    import { replaceState, goto } from "$app/navigation";
+    import { goto } from "$app/navigation";
     import { resolve } from '$app/paths';
 
     import VideoDropModal from '../_components/VideoDropModal.svelte';
@@ -11,7 +11,7 @@
     import VideoUploadProgressCard from '../_components/VideoUploadProgressCard.svelte';
 
     import { fileInputController } from '$lib/controllers/fileInputController.svelte';
-    const videoInput = fileInputController({uploadFileType: "video"})
+    const videoInputController = fileInputController({uploadFileType: "video"})
     
     import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte'
     const uploader = createVideoUploadSession();
@@ -36,6 +36,12 @@
 
             const data = await response.json();
 
+            // remove any existing uploadSessionId from cookies
+            cookieStore.delete("uploadSessionId");
+
+            // Set uploadSessionId in cookies
+            cookieStore.set("uploadSessionId", data.upload_session_id)
+
             // Close the modal
             modalOpen = false;
 
@@ -47,13 +53,6 @@
                 keepFocus: true,
             });
 
-            // Start your multipart upload here
-			// console.log('Uploading', file);
-			// console.log('Session', data.upload_session_id);
-
-            const videoFile = videoInput.state.selectedFile;
-            uploader.upload(videoFile);
-
 	    } catch (err) {
             console.error(err);
         }
@@ -61,12 +60,16 @@
     // onMount(() => {
     //     videoDropModalOpen = true;
     // })
+    $effect(() => {
+        console.log("selectedFile:", videoInputController.state.selectedFile);
+    });
 </script>
 
 
 <VideoDropModal
     open={modalOpen}
     // open={modalOpen}
+    {videoInputController}
     onUploadClick={handleNewUploadSession}
 />
 
@@ -81,7 +84,11 @@
     <!-- Upload Progress & Thumbnail -->
     <section class="flex-1/3 flex flex-col justify-evenly">
         <!-- Upload Progress -->
-        <VideoUploadProgressCard />
+        <VideoUploadProgressCard
+            uploader={uploader}
+            videoFile={videoInputController.state.selectedFile}
+        />
+        
         <!-- Thumbnail -->
         <ThumbnailCard />
     </section>
