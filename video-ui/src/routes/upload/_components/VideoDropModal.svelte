@@ -1,47 +1,34 @@
 <script lang="ts">
-    // import { goto } from "$app/navigation";
-    // import { resolve } from '$app/paths';
 
     import Modal from "./Modal.svelte";
-    let { open } = $props();
+    let { open, onUploadClick } = $props<{open: boolean; onUploadClick: () => void}>();
 
     let videoFileInputEl = $state<HTMLInputElement | null>(null);
 
     function openVideoFileDialog() {
         videoFileInputEl?.click();
     }
-    import { fileInputController } from "$lib/controllers/ui/fileInputController.svelte";
-    const videoInput = fileInputController({uploadFileType: "video"});
+    import { fileInputController } from "$lib/controllers/fileInputController.svelte";
+    const videoInputController = fileInputController({uploadFileType: "video"});
     
     let videoPreviewUrl: string | null = $state(null);
 
     let initiatingUpload: boolean = $state(false);
 
-    const handleVideoUploadClick = (e: Event) => {
-        e.preventDefault();
+    // const handleVideoUploadClick = async (e: Event) => {
+    //     e.preventDefault();
 
-        // Close the modal
-        open = false;
+    //     initiatingUpload = true;
 
-        // console.log("Upload clicked");
-        // change UI via workflow state
-        initiatingUpload = true;
-        // Get new upload_session_id and
-        // Navigate to /new/<upload_session_id> page
-    }
-
-    // function handleCancelClickOnModal() {
-	// 	// If there is history to go back to, use it.
-	// 	// Otherwise, safely redirect to a default route.
-	// 	if (window.history.length > 1) {
-	// 		history.back();
-	// 	} else {
-	// 		goto(resolve('/'));
-	// 	}
+    //     try {
+    //         await onUpload();
+    //     } finally {
+    //         initiatingUpload = false;
+    //     }
     // }
 
     $effect(() => {
-        const videoFile = videoInput.state.selectedFile;
+        const videoFile = videoInputController.state.selectedFile;
         if (!videoFile) {
             videoPreviewUrl = null;
             return;
@@ -60,15 +47,15 @@
         
         <!-- Inner border -->
         <div
-            class="absolute inset-0 rounded-3xl p-5 border-2 border-dashed border-gray-400 flex items-center justify-center text-center"
+            class="absolute inset-0 rounded-3xl p-3 border-2 border-dashed border-gray-400 flex items-center justify-center text-center"
             role="button"
             tabindex="0"
-            ondragenter={videoInput.handleDragEnter}
-            ondragleave={videoInput.handleDragLeave}
-            ondragover={videoInput.handleDragOver}
-            ondrop={videoInput.handleDrop}
-            class:border-blue-500={videoInput.state.isDragging}
-            class:bg-blue-50={videoInput.state.isDragging}
+            ondragenter={videoInputController.handleDragEnter}
+            ondragleave={videoInputController.handleDragLeave}
+            ondragover={videoInputController.handleDragOver}
+            ondrop={videoInputController.handleDrop}
+            class:border-blue-500={videoInputController.state.isDragging}
+            class:bg-blue-50={videoInputController.state.isDragging}
             onclick={openVideoFileDialog}
             
             onkeydown={(e) => {
@@ -79,7 +66,7 @@
             }}
         >
             <!-- Show input options if file isn't selcted -->
-            {#if !videoInput.state.selectedFile}
+            {#if !videoInputController.state.selectedFile}
                 <div class="flex flex-col items-center gap-3">
 
                     <svg fill="#C4C4C4" viewBox="-2.1 -2.1 39.20 39.20" version="1.1" xmlns="http://www.w3.org/2000/svg" stroke="#C4C4C4" stroke-width="0.00035">
@@ -106,21 +93,12 @@
                         Browse from device
                     </button>
 
-                    <!-- Cancel button to go back to previous page by cancelling upload -->
-                    <!-- <button
-                        type="button"
-                        onclick={handleCancelClickOnModal}
-                        class="px-4 py-2 rounded-lg bg-gray-400 text-white hover:bg-gray-600"
-                    >
-                        Cancel
-                    </button> -->
-
                     <input
                         type="file"
                         accept="video/*"
                         class="hidden"
                         bind:this={videoFileInputEl}
-                        onchange={videoInput.handleFileSelect}
+                        onchange={videoInputController.handleFileSelect}
                     />
                 </div>
             {:else}
@@ -143,15 +121,15 @@
                             <!-- Metadata -->
                             <div class="text-sm text-gray-700 space-y-1 w-2/4 text-left">
                                 <p class="font-medium text-gray-900 break-all">
-                                    {videoInput.state.selectedFile.name}
+                                    {videoInputController.state.selectedFile.name}
                                 </p>
                                 
-                                {#if videoInput.state.videoMetadata}
+                                {#if videoInputController.state.videoMetadata}
                                     <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-gray-600">
-                                        <p>Type: {videoInput.state.videoMetadata.mimeType}</p>
-                                        <p>Size: {(videoInput.state.videoMetadata.size / (1024 * 1024)).toFixed(2)} MB</p>
-                                        <p>Duration: {(videoInput.state.videoMetadata.duration / 60).toFixed(2)} mins</p>
-                                        <p>Resolution: {videoInput.state.videoMetadata.width}x{videoInput.state.videoMetadata.height}</p>
+                                        <p>Type: {videoInputController.state.videoMetadata.mimeType}</p>
+                                        <p>Size: {(videoInputController.state.videoMetadata.size / (1024 * 1024)).toFixed(2)} MB</p>
+                                        <p>Duration: {(videoInputController.state.videoMetadata.duration / 60).toFixed(2)} mins</p>
+                                        <p>Resolution: {videoInputController.state.videoMetadata.width}x{videoInputController.state.videoMetadata.height}</p>
                                     </div>
                                 {/if}
                             </div>
@@ -161,7 +139,7 @@
                                 <button
                                     class="bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-5 rounded-xl transition cursor-pointer"
                                     onclick={() => {
-                                        videoInput.cancelSelectedFile();
+                                        videoInputController.cancelSelectedFile();
                                     }}
                                 >
                                     Cancel
@@ -169,9 +147,9 @@
 
                                 <button
                                     class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-5 rounded-xl transform shadow cursor-pointer"
-                                    onclick={handleVideoUploadClick}
+                                    onclick={onUploadClick}
                                 >
-                                    { initiatingUpload ? 'Processing...' : 'Upload' }
+                                    { initiatingUpload ? 'Uploading...' : 'Upload' }
                                 </button>
                             </div>
                         </div>
@@ -179,8 +157,8 @@
                 {/if}
             {/if}
         </div>
-        {#if videoInput.state.error}
-            <p class="error">{videoInput.state.error}</p>
+        {#if videoInputController.state.error}
+            <p class="error">{videoInputController.state.error}</p>
         {/if}
     </section>
 </Modal>

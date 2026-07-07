@@ -10,7 +10,7 @@
         videoFileInputEl?.click();
     }
 
-    import { fileInputController } from "$lib/controllers/ui/fileInputController.svelte";
+    import { fileInputController } from "$lib/controllers/fileInputController.svelte";
     const videoInput = fileInputController({uploadFileType: "video"});
     
     let videoPreviewUrl: string | null = $state(null);

@@ -100,7 +100,7 @@ def upgrade() -> None:
     sa.Column('original_filename', sa.String(length=255), nullable=False),
     sa.Column('total_parts', sa.Integer(), nullable=False),
     sa.Column('uploaded_parts_count', sa.Integer(), nullable=False),
-    sa.Column('status', sa.Enum('IDLE', 'UPLOADING', 'PAUSED', 'COMPLETED', 'FAILED', 'ABORTED', name='uploadsessionstatusenum'), nullable=False),
+    sa.Column('status', sa.Enum('pending', 'uploading', 'paused', 'completed', 'failed', 'aborted', name='uploadsessionstatusenum'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['video_id'], ['videos.id'], ondelete='CASCADE'),

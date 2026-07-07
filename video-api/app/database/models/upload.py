@@ -62,7 +62,12 @@ class UploadSession(Base):
     # transcript_uploaded: Mapped[bool] = mapped_column(Boolean, nullable=True, default=False)
     
     status: Mapped[UploadSessionStatusEnum] = mapped_column(
-        Enum(UploadSessionStatusEnum),
+        Enum(
+            UploadSessionStatusEnum,
+            # Tell SQLAlchemy to store the enum values (lowercase),
+            # NOT UPPERCASE enum names.
+            values_callable=lambda obj: [e.value for e in obj],
+        ),
         nullable=False,
         default=UploadSessionStatusEnum.PENDING
     )

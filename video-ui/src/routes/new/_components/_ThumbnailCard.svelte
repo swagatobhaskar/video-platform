@@ -8,7 +8,7 @@
 
     import {
         fileInputController
-        } from '$lib/controllers/ui/fileInputController.svelte';
+        } from '$lib/controllers/fileInputController.svelte';
         
 	import ThumbnailPreview from './_ThumbnailPreview.svelte';
 

@@ -64,8 +64,26 @@ RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
 
 @router.post("/new-upload-session")
 async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
-    new_upload_session = UploadSession()
+    try:
+        new_upload_session = UploadSession()
+        db.add(new_upload_session)
+        await db.commit()
+        await db.refresh(new_upload_session)  # if session uses expire_on_commit=False
 
+        print("New Upload Session id: ", new_upload_session.id)
+
+        return {
+            "success": True,
+            "upload_session_id": str(new_upload_session.id)
+        }
+    
+    except SQLAlchemyError as e:
+        print(e)
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create new upload session!"    
+        )
 
 @router.post('/initiate-upload')
 async def initiate_upload(req: InitiateUploadRequest, db: AsyncSession = Depends(get_db)):
