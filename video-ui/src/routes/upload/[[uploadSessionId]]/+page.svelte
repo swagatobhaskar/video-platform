@@ -12,6 +12,9 @@
 
     import { fileInputController } from '$lib/controllers/fileInputController.svelte';
     const videoInput = fileInputController({uploadFileType: "video"})
+    
+    import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte'
+    const uploader = createVideoUploadSession();
 
     const uploadSessionId = $derived(page.params.uploadSessionId);
 
@@ -47,6 +50,9 @@
             // Start your multipart upload here
 			// console.log('Uploading', file);
 			// console.log('Session', data.upload_session_id);
+
+            const videoFile = videoInput.state.selectedFile;
+            uploader.upload(videoFile);
 
 	    } catch (err) {
             console.error(err);
