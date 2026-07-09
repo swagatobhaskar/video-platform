@@ -4,7 +4,7 @@ from datetime import datetime
 import enum
 
 from sqlalchemy import (
-    String, DateTime, func, Text, Enum, ForeignKey, Integer
+    String, DateTime, func, Text, Enum, ForeignKey, Integer, Boolean
     )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -17,9 +17,10 @@ if TYPE_CHECKING:
     from .upload import UploadSession
 
 class VideoProcessingStatusEnum(enum.Enum):
-    IDLE = "idle"
-    PENDING = "pending"
-    DOWNLOADING_VIDEO = "Downloading_video"
+    # IDLE = "idle"
+    PENDING = "pending"  # after video uploaded 
+    QUEUED = "queued"  # after file is snt to redis
+    DOWNLOADING_VIDEO = "downloading_video"
     PROBING = "probing"
     TRANSCODING = "transcoding"
     UPLOADING = "uploading"
@@ -43,9 +44,10 @@ class TranscodeTask(Base):
     status: Mapped[VideoProcessingStatusEnum] = mapped_column(
         Enum(VideoProcessingStatusEnum),
         nullable=False,
-        default=VideoProcessingStatusEnum.IDLE
+        default=VideoProcessingStatusEnum.PENDING
     )
-    progress_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    progress_percent: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
 
     # Which worker machine/process is currently executing the job
     # though, required if you eventually run multiple dedicated transcoding machines.
@@ -54,7 +56,7 @@ class TranscodeTask(Base):
     # The ID assigned by the queue system. Celery's unique ID for the task execution
     task_id: Mapped[str] = mapped_column(String(255), nullable=True)
     error_message: Mapped[str] = mapped_column(Text, nullable=True)
-    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
     
     events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="transcode_task")
 

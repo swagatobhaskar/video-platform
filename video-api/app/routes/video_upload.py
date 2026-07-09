@@ -8,6 +8,8 @@ from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from fastapi.responses import JSONResponse
 from botocore.exceptions import ClientError
+from kombu.exceptions import OperationalError
+from redis.exceptions import ConnectionError
 
 from app.utils.r2_helper import s3
 from app.utils.dependencies import get_db
@@ -15,7 +17,7 @@ from app.celery_worker import celery
 from app.tasks.transcode.transcode_task import process_video_worker_operations
 
 from app.database.models import (
-    Video, UploadSession, UploadSessionStatusEnum,
+    Video, UploadSession, UploadSessionStatusEnum, TranscodeTask, VideoProcessingStatusEnum,
     UploadPart, VideoEvent, VideoPublicationStatusEnum, VideoTranscript
 )
 from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
@@ -210,7 +212,8 @@ async def complete_upload(
         # Ordering check
         # ETag validation
         # Storage verification
-        
+    
+    # phase 1: complete upload
     try:
         # Verify actual uploaded parts with R2
         uploaded_parts = get_uploaded_parts(
@@ -269,25 +272,6 @@ async def complete_upload(
 
         await db.commit()
 
-        # print(f"File name/key: {req.key}")
-        
-        logger.info("Sending transcode task for %s", req.key)
-        # start celery transcode task
-        task = process_video_worker_operations.delay( # type: ignore
-            file_name=req.key,
-            video_id=req.videoId,
-            upload_id=req.uploadId, #upload_id, # from function argument
-            upload_session_id=req.uploadSessionId,
-        )
-
-        logger.info("Task queued: %s", task.id)
-        
-        return {
-            "success": True,
-            "taskId": task.id,
-            "status": "upload completed",
-        }
-    
     except Exception as e:
         await db.rollback()
         logger.exception("Complete upload failed")
@@ -302,6 +286,52 @@ async def complete_upload(
             await db.commit()
 
         raise HTTPException(status_code=500, detail=str(e))
+    
+    # Phase 2: Send Task to Redis
+        # print(f"File name/key: {req.key}")
+    try:        
+        logger.info("Sending transcode task for %s", req.key)
+
+        # Create A TranscodeTask entry
+        transcode_task = TranscodeTask(
+            video_id=req.videoId,
+            upload_session_id=req.uploadSessionId,
+            status=VideoProcessingStatusEnum.PENDING,
+        )
+
+        db.add(transcode_task)
+        await db.flush()   # INSERT happens, PK becomes available
+        await db.commit()
+        
+        # start celery transcode task
+        task = process_video_worker_operations.delay( # type: ignore
+            file_name=req.key,
+            video_id=req.videoId,
+            upload_id=req.uploadId, #upload_id, # from function argument
+            upload_session_id=req.uploadSessionId,
+            transcode_task_id=str(transcode_task.id),
+        )
+
+        await db.commit()
+
+        logger.info("Task queued: %s", task.id)
+    
+    except (ConnectionError, OperationalError, RuntimeError) as e:
+        print(f"Redis task sending error: {e}")
+        
+        logger.exception("Couldn't queue task")
+                
+        raise HTTPException(
+            status_code=503,
+            detail="Upload completed but processing is unavailable."
+        )
+        
+    return {
+        "success": True,
+        "taskId": task.id,
+        "status": "upload completed",
+        "message": "Upload completed and processing task queued."
+    }
 
 
 @router.post("/{upload_id}/abort-upload")

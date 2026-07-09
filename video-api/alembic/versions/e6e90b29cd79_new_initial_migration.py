@@ -1,8 +1,8 @@
 """New Initial Migration
 
-Revision ID: 1a8b6a098cee
+Revision ID: e6e90b29cd79
 Revises: 
-Create Date: 2026-06-23 20:38:45.995554
+Create Date: 2026-07-09 20:24:16.870905
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '1a8b6a098cee'
+revision: str = 'e6e90b29cd79'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -52,13 +52,13 @@ def upgrade() -> None:
     op.create_index(op.f('ix_users_username'), 'users', ['username'], unique=True)
     op.create_table('videos',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('title', sa.String(length=255), nullable=False),
-    sa.Column('slug', sa.String(length=255), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=True),
+    sa.Column('slug', sa.String(length=255), nullable=True),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('language', sa.Enum('HINDI', 'BENGALI', name='languageenum'), nullable=False),
+    sa.Column('language', sa.Enum('HINDI', 'BENGALI', name='languageenum'), nullable=True),
     sa.Column('duration_seconds', sa.Float(), nullable=True),
-    sa.Column('status', sa.Enum('IDLE', 'FAILED', 'ABORTED', 'COMPLETED', 'UPLOADING', 'PAUSED', name='videostatusenum'), nullable=False),
-    sa.Column('category_id', sa.UUID(), nullable=False),
+    sa.Column('publication_status', sa.Enum('DRAFT', 'PUBLISHED', 'ARCHIVED', name='videopublicationstatusenum'), nullable=False),
+    sa.Column('category_id', sa.UUID(), nullable=True),
     sa.Column('series_id', sa.UUID(), nullable=True),
     sa.Column('episode_number', sa.Integer(), nullable=True),
     sa.Column('seo_tags', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
@@ -74,7 +74,6 @@ def upgrade() -> None:
     sa.Column('view_count', sa.Integer(), nullable=False),
     sa.Column('like_count', sa.Integer(), nullable=False),
     sa.Column('dislike_count', sa.Integer(), nullable=False),
-    sa.Column('video_object_storage_prefix', sa.String(length=255), nullable=True),
     sa.Column('thumbnail_object_storage_prefix', sa.String(length=255), nullable=True),
     sa.Column('bitrate', sa.Integer(), nullable=True),
     sa.Column('codec', sa.String(), nullable=True),
@@ -92,14 +91,14 @@ def upgrade() -> None:
     op.create_index(op.f('ix_videos_title'), 'videos', ['title'], unique=False)
     op.create_table('upload_sessions',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('video_id', sa.UUID(), nullable=False),
-    sa.Column('object_key', sa.String(length=255), nullable=False),
-    sa.Column('video_upload_id', sa.String(length=255), nullable=False),
-    sa.Column('file_size_bytes', sa.BigInteger(), nullable=False),
-    sa.Column('mime_type', sa.String(length=255), nullable=False),
-    sa.Column('original_filename', sa.String(length=255), nullable=False),
-    sa.Column('total_parts', sa.Integer(), nullable=False),
-    sa.Column('uploaded_parts_count', sa.Integer(), nullable=False),
+    sa.Column('video_id', sa.UUID(), nullable=True),
+    sa.Column('object_key', sa.String(length=255), nullable=True),
+    sa.Column('video_upload_id', sa.Text(), nullable=True),
+    sa.Column('file_size_bytes', sa.BigInteger(), nullable=True),
+    sa.Column('mime_type', sa.String(length=255), nullable=True),
+    sa.Column('original_filename', sa.String(length=255), nullable=True),
+    sa.Column('total_parts', sa.Integer(), nullable=True),
+    sa.Column('uploaded_parts_count', sa.Integer(), nullable=True),
     sa.Column('status', sa.Enum('pending', 'uploading', 'paused', 'completed', 'failed', 'aborted', name='uploadsessionstatusenum'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -121,12 +120,12 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('video_id', sa.UUID(), nullable=False),
     sa.Column('upload_session_id', sa.UUID(), nullable=False),
-    sa.Column('status', sa.Enum('IDLE', 'PENDING', 'DOWNLOADING_VIDEO', 'PROBING', 'TRANSCODING', 'UPLOADING', 'CLEANUP', 'COMPLETED', 'FAILED', name='videoprocessingstatusenum'), nullable=False),
-    sa.Column('progress_percent', sa.Integer(), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'QUEUED', 'DOWNLOADING_VIDEO', 'PROBING', 'TRANSCODING', 'UPLOADING', 'CLEANUP', 'COMPLETED', 'FAILED', name='videoprocessingstatusenum'), nullable=False),
+    sa.Column('progress_percent', sa.Integer(), nullable=True),
     sa.Column('worker_id', sa.String(length=255), nullable=True),
-    sa.Column('job_external_id', sa.String(length=255), nullable=True),
+    sa.Column('task_id', sa.String(length=255), nullable=True),
     sa.Column('error_message', sa.Text(), nullable=True),
-    sa.Column('retry_count', sa.Integer(), nullable=False),
+    sa.Column('retry_count', sa.Integer(), nullable=True),
     sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('finished_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('heartbeat_at', sa.DateTime(timezone=True), nullable=True),
@@ -147,9 +146,9 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('upload_session_id', 'part_number', name='uq_upload_session_part_number')
     )
-    op.create_table('processing_events',
+    op.create_table('video_events',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('transcode_task_id', sa.UUID(), nullable=False),
+    sa.Column('transcode_task_id', sa.UUID(), nullable=True),
     sa.Column('video_id', sa.UUID(), nullable=False),
     sa.Column('event_type', sa.String(length=100), nullable=False),
     sa.Column('payload', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
@@ -165,7 +164,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_table('processing_events')
+    op.drop_table('video_events')
     op.drop_table('upload_parts')
     op.drop_table('transcode_tasks')
     op.drop_table('video_transcripts')

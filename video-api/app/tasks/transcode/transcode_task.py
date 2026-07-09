@@ -3,7 +3,7 @@ from pathlib import Path
 from botocore.exceptions import (
     ClientError, BotoCoreError, EndpointConnectionError, NoCredentialsError
 )
-
+from sqlalchemy.exc import SQLAlchemyError
 import os
 from tempfile import TemporaryDirectory
 import logging
@@ -195,7 +195,8 @@ async def update_video_event_record(db, video_id: str, event_type: str, payload:
     autoretry_for=(Exception,),
     retry_backoff=True,
     max_retries=3,
-    )
+    task_ignore_result=True,
+)
 def process_video_worker_operations(self, file_name: str, video_id: str, upload_session_id: str, upload_id: str):
     asyncio.run(_process_video_worker_operations(self, file_name, video_id, upload_session_id, upload_id))
        
@@ -206,28 +207,36 @@ async def _process_video_worker_operations(
     video_id: str,
     upload_session_id: str,
     upload_id: str,
+    transcode_task_id: str
     # can't use Depends(get_db) here because Celery tasks are not FastAPI endpoints,
     # they are normal Python functions. So, we need to manage the session manually.
 ):
     with TemporaryDirectory(prefix="transcode_") as temp_dir:
         
         async with AsyncSessionLocal() as db:
-            # Add a record of the task to the DB
-            transcode_task = TranscodeTask(
-                video_id=video_id,
-                upload_session_id=upload_session_id,
-                status=VideoProcessingStatusEnum.IDLE,
-                task_id=self.request.id,
-                worker_id=self.request.hostname, # AKA hostname; the worker currently executing the task
-                progress_percent=10,
-                started_at = datetime.now(UTC),
-            )
+            # Find the transcode task from /complete-upload
+            result = await db.execute(select(TranscodeTask).where(TranscodeTask.id == transcode_task_id))
+            transcode_task = result.scalar_one_or_none()
 
-            db.add(transcode_task)
-            await db.commit()   # is this commit() required here? - Yes
-            await db.refresh(transcode_task)
-
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.PENDING, 0)
+            if not transcode_task:
+                raise ValueError(f"TranscodeTask {transcode_task_id} not found")
+            
+            try:
+                # Update the record of the task to the DB
+                transcode_task.task_id=self.request.id
+                transcode_task.worker_id=self.request.hostname # AKA hostname; the worker currently executing the task
+                transcode_task.progress_percent=10
+                transcode_task.started_at = datetime.now(UTC)
+                # db.add(transcode_task)  # Not needed, transcode_tsk instance is already attached to the session
+                await db.commit()
+                # await db.refresh(transcode_task)
+            except SQLAlchemyError:
+                logger.exception("Failed to update TranscodeTask record in the database.")
+                transcode_task.status = VideoProcessingStatusEnum.FAILED
+                transcode_task.error_message = "Database update failed"
+                transcode_task.finished_at = datetime.now(UTC)
+                await db.rollback()
+                raise ValueError("Failed to update TranscodeTask record in the database.")
 
             temp_dir = Path(temp_dir)
             # temporary video file path
