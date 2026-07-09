@@ -17,9 +17,9 @@ if TYPE_CHECKING:
     from .upload import UploadSession
 
 class VideoProcessingStatusEnum(enum.Enum):
-    # IDLE = "idle"
-    PENDING = "pending"  # after video uploaded 
-    QUEUED = "queued"  # after file is snt to redis
+    PENDING = "pending"
+    QUEUED = "queued"  # after file is sent to redis
+    QUEUE_FAILED = "queue_failed"
     DOWNLOADING_VIDEO = "downloading_video"
     PROBING = "probing"
     TRANSCODING = "transcoding"
@@ -34,7 +34,7 @@ class TranscodeTask(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
         
     # Many upload sessions -> one video
-    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=True)
     video: Mapped["Video"] = relationship("Video", back_populates="transcode_tasks")
         
     # Many upload sessions -> one video

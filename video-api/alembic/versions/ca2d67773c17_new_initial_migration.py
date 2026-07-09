@@ -1,8 +1,8 @@
 """New Initial Migration
 
-Revision ID: e6e90b29cd79
+Revision ID: ca2d67773c17
 Revises: 
-Create Date: 2026-07-09 20:24:16.870905
+Create Date: 2026-07-10 00:39:20.273742
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'e6e90b29cd79'
+revision: str = 'ca2d67773c17'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -118,9 +118,9 @@ def upgrade() -> None:
     )
     op.create_table('transcode_tasks',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('video_id', sa.UUID(), nullable=False),
+    sa.Column('video_id', sa.UUID(), nullable=True),
     sa.Column('upload_session_id', sa.UUID(), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'QUEUED', 'DOWNLOADING_VIDEO', 'PROBING', 'TRANSCODING', 'UPLOADING', 'CLEANUP', 'COMPLETED', 'FAILED', name='videoprocessingstatusenum'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'QUEUED', 'QUEUE_FAILED', 'DOWNLOADING_VIDEO', 'PROBING', 'TRANSCODING', 'UPLOADING', 'CLEANUP', 'COMPLETED', 'FAILED', name='videoprocessingstatusenum'), nullable=False),
     sa.Column('progress_percent', sa.Integer(), nullable=True),
     sa.Column('worker_id', sa.String(length=255), nullable=True),
     sa.Column('task_id', sa.String(length=255), nullable=True),

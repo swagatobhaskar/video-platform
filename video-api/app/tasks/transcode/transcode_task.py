@@ -197,8 +197,8 @@ async def update_video_event_record(db, video_id: str, event_type: str, payload:
     max_retries=3,
     task_ignore_result=True,
 )
-def process_video_worker_operations(self, file_name: str, video_id: str, upload_session_id: str, upload_id: str):
-    asyncio.run(_process_video_worker_operations(self, file_name, video_id, upload_session_id, upload_id))
+def process_video_worker_operations(self, file_name: str, video_id: str, upload_session_id: str, upload_id: str, transcode_task_id: str):
+    asyncio.run(_process_video_worker_operations(self, file_name, video_id, upload_session_id, upload_id, transcode_task_id))
        
 
 async def _process_video_worker_operations(

@@ -8,8 +8,8 @@ from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from fastapi.responses import JSONResponse
 from botocore.exceptions import ClientError
-from kombu.exceptions import OperationalError
-from redis.exceptions import ConnectionError
+import kombu
+import redis
 
 from app.utils.r2_helper import s3
 from app.utils.dependencies import get_db
@@ -202,11 +202,7 @@ def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
 
 
 @router.post("/complete-upload")
-async def complete_upload(
-    req: CompleteRequest,
-    # upload_id: str,
-    db: AsyncSession = Depends(get_db)
-):
+async def complete_upload(req: CompleteRequest, db: AsyncSession = Depends(get_db)):
     
     # Later Additions:
         # Ordering check
@@ -243,14 +239,11 @@ async def complete_upload(
             },
         )
 
-        # Also update UploadSession status to COMPLETED
         result = await db.execute(
             select(UploadSession).where(UploadSession.id == req.uploadSessionId)
         )
         upload_session = result.scalars().first() # scalar_one_or_none()
         
-        print("UPLOad SESSION video_id:- ", upload_session.video_id)  # it's coming None !!
-
         if not upload_session:
             raise HTTPException(status_code=404, detail="Upload session not found for the given video ID")
         
@@ -287,10 +280,9 @@ async def complete_upload(
 
         raise HTTPException(status_code=500, detail=str(e))
     
-    # Phase 2: Send Task to Redis
-        # print(f"File name/key: {req.key}")
+    # Phase 2: Create a TranscodeTask
     try:        
-        logger.info("Sending transcode task for %s", req.key)
+        logger.info("Adding transcode task for %s", req.key)
 
         # Create A TranscodeTask entry
         transcode_task = TranscodeTask(
@@ -300,37 +292,60 @@ async def complete_upload(
         )
 
         db.add(transcode_task)
-        await db.flush()   # INSERT happens, PK becomes available
+        await db.flush()   # Get transcode_task_id # INSERT happens, UUID becomes available
         await db.commit()
-        
+
+    except SQLAlchemyError:
+        await db.rollback()
+        logger.exception("Failed creating TranscodeTask")
+        raise  # I think it should raise HTTPException saying something!
+
+    # Phase 3: Send Task to Redis
+    task_id: str | None = None
+    try:
         # start celery transcode task
         task = process_video_worker_operations.delay( # type: ignore
             file_name=req.key,
             video_id=req.videoId,
-            upload_id=req.uploadId, #upload_id, # from function argument
+            upload_id=req.uploadId,
             upload_session_id=req.uploadSessionId,
             transcode_task_id=str(transcode_task.id),
         )
-
+        
+        task_id = str(task.id)
+        # print("TASK ID: ", task.id)
+        transcode_task.status = VideoProcessingStatusEnum.QUEUED
         await db.commit()
 
         logger.info("Task queued: %s", task.id)
     
-    except (ConnectionError, OperationalError, RuntimeError) as e:
-        print(f"Redis task sending error: {e}")
-        
+    except (
+        redis.exceptions.ConnectionError,
+        kombu.exceptions.OperationalError,
+        RuntimeError
+    ) as e:
+        # print(f"Redis task sending error: {e}")
+        transcode_task.status = VideoProcessingStatusEnum.QUEUE_FAILED
+        await db.commit()
+
         logger.exception("Couldn't queue task")
-                
-        raise HTTPException(
-            status_code=503,
-            detail="Upload completed but processing is unavailable."
-        )
+        logger.exception("Exception type: %s", type(e))
+
+        # Don't raise 500, because upload is already completed. Just inform the user that processing is unavailable.
+        # raise HTTPException(
+        #     status_code=503,
+        #     detail="Upload completed but processing is unavailable."
+        # )
         
     return {
         "success": True,
-        "taskId": task.id,
+        "taskId": task_id if task_id else "Transcoding QUEUE_FAILED",
         "status": "upload completed",
-        "message": "Upload completed and processing task queued."
+        "message": (
+            "Upload completed and processing task queued." if task_id 
+            else "Upload completed. Processing is PENDING. \
+                Task will be queued when the service is available."
+        ),
     }
 
 
