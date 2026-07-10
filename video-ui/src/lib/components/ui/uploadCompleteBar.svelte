@@ -1,5 +1,5 @@
 <script lang="ts">
-    let { workflow } = $props();
+    
 </script>
 
 <div class="rounded-xl border border-emerald-100 bg-emerald-50/40 px-4 py-3">
@@ -38,7 +38,7 @@
                 </div>
 
                 <p class="truncate text-xs text-gray-500">
-                    {workflow.workflowProgress.selectedVideoFile?.name}
+                    <!-- {workflow.workflowProgress.selectedVideoFile?.name} -->
                 </p>
             </div>
         </div>

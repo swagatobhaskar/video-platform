@@ -16,8 +16,6 @@
     import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte'
     const uploader = createVideoUploadSession();
 
-    // const uploadSessionId = $derived(page.params.uploadSessionId);
-    // let modalOpen = $state(true);
     const modalOpen = $derived(!page.params.uploadSessionId);
 
     async function handleUploadWithNewSession() {
@@ -65,18 +63,11 @@
             console.error(err);
         }
     }
-    // onMount(() => {
-    //     videoDropModalOpen = true;
-    // })
-    $effect(() => {
-        console.log("selectedFile:", videoInputController.state.selectedFile);
-    });
 </script>
 
 
 <VideoDropModal
     open={modalOpen}
-    // open={modalOpen}
     {videoInputController}
     onUploadClick={handleUploadWithNewSession}
 />

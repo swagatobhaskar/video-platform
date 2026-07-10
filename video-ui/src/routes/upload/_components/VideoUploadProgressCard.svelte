@@ -1,11 +1,10 @@
 <script lang="ts">
-    // import { createVideoUploadSession } from "$lib/services/videoUploadSession.svelte";
-    // const uploader = createVideoUploadSession();
+
     import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte'
 
     let { uploader } = $props<{ uploader: ReturnType<typeof createVideoUploadSession>; }>();
 
-    // import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
+    import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
 	import UploadCompleteBar from "$lib/components/ui/uploadCompleteBar.svelte";
 
@@ -58,7 +57,6 @@
     // });
 </script>
 
-
 <div class="h-80 relative overflow-hidden border border-gray-200 p-6">
 
     {#if uploader.state.uploading}
@@ -81,13 +79,7 @@
             <!-- Header -->
             <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
-                    <!-- <p class="text-sm text-gray-500 mb-1">
-                        Uploading Video
-                    </p> -->
-
                     <h3 class="truncate font-semibold text-gray-900 text-lg">
-                        <!-- {workflow.workflowProgress.selectedVideoFile?.name} -->
-                        <!-- {videoFile?.name} -->
                         {uploader.state.file?.name}
                     </h3>
                 </div>
@@ -98,7 +90,6 @@
                     px-3 py-1 text-sm font-medium texxt-blue-600"
                 >
                     {uploader.state.progress}%
-                     <!-- {progress}% -->
                 </div>
             </div>
 
@@ -130,22 +121,19 @@
                         <div>
                             <span class="text-gray-400">Speed</span>
                             <span class="ml-1 font-medium text-gray-700">
-                                <!-- {formatSpeed(uploader.speed)} MB/s -->
-                                {uploader.state.speed} MB/s
+                                {formatSpeed(uploader.state.speed)} MB/s
                             </span>
                         </div>
 
                         <div>
                             <span class="text-gray-400">ETA</span>
                             <span class="ml-1 font-medium text-gray-700">
-                                <!-- {formatETA(uploader.eta)}s -->
-                                {uploader.state.eta}s
+                                {formatETA(uploader.state.eta)}
                             </span>
                         </div>
                     </div>
 
                     <p class="font-medium text-gray-700">
-                        <!-- {uploader.progress}% uploaded -->
                         {uploader.state.progress}% uploaded
                     </p>
                 </div>
@@ -183,13 +171,13 @@
         </div>
     {/if}
 
-    <!-- {#if ... }
+    <!-- {#if !uploader.state.uploading && !uploader.state.complete}
         <UploadProgressSkleton />
     {/if} -->
 
     {#if uploader.state.complete}
 
-        <UploadCompleteBar {workflow} />
+        <UploadCompleteBar />
 
         <!-- <TranscodeProgress {workflow} /> -->
     {/if}
