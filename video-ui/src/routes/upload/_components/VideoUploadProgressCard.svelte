@@ -8,11 +8,24 @@
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
 	import UploadCompleteBar from "$lib/components/ui/uploadCompleteBar.svelte";
 
+    import VideoProcessingProgress from './VideoProcessingProgress.svelte';
+	import VideoPicker from './VideoPicker.svelte';
+
     function handleUploadPlayPause() {}
+
+    let uploadCancelled = $state<boolean>(false);
     
     function cancelUpload() {
+        // show alert
+        const confirmed = confirm("Are you sure you want to cancel the upload?");
+        
+        if (!confirmed) {
+            return; // User chose No, keep uploading
+        }
+        
         uploader.cancel();
         uploader.state.file = null;
+        uploadCancelled = true;
     }
 
     // let progress = $state(0);
@@ -121,7 +134,7 @@
                         <div>
                             <span class="text-gray-400">Speed</span>
                             <span class="ml-1 font-medium text-gray-700">
-                                {formatSpeed(uploader.state.speed)} MB/s
+                                {formatSpeed(uploader.state.speed)}
                             </span>
                         </div>
 
@@ -175,11 +188,18 @@
         <UploadProgressSkleton />
     {/if} -->
 
+    <!-- If upload cancelled show file picker -->
+    {#if uploadCancelled}
+        <!-- <VideoPicker uploader={uploader}/> -->
+
+        <!-- Instead, ask whether user will upload another video, then Show the modal again, or exit-->
+    {/if}
+
     {#if uploader.state.complete}
-
-        <UploadCompleteBar />
-
-        <!-- <TranscodeProgress {workflow} /> -->
+        <div class="flex flex-col">
+            <UploadCompleteBar uploader={uploader} />
+            <VideoProcessingProgress />
+        </div>
     {/if}
 
 </div>

@@ -40,7 +40,7 @@
 
 <div class="h-full w-5/6 mx-auto p-8 space-y-8">
     <!-- Header -->
-    <div>
+    <!-- <div>
         <h2 class="text-2xl font-bold text-gray-900">
             Video Details
         </h2>
@@ -48,6 +48,11 @@
         <p class="mt-1 text-sm text-gray-500">
             Fill out information for your upload
         </p>
+    </div> -->
+
+    <!-- Publish / Draft Buton -->
+    <div class="w-2/3 border border-gray-200 shadow-md shadow-gray-100 rounded-xl p-5">
+        <button class="px-3 py-2 bg-blue-500 text-white rounded-md font-medium cursor-pointer focus:bg-blue-600">Publish</button>
     </div>
 
     <!-- Video Title -->
