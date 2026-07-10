@@ -349,8 +349,8 @@ async def complete_upload(req: CompleteRequest, db: AsyncSession = Depends(get_d
     }
 
 
-@router.post("/{upload_id}/abort-upload")
-async def abort_upload(req: AbortRequest, upload_id: str, db:AsyncSession = Depends(get_db)):
+@router.post("/abort-upload")
+async def abort_upload(req: AbortRequest, db:AsyncSession = Depends(get_db)):
     try:
         s3.abort_multipart_upload(
             Bucket=RAW_VIDEO_BUCKET,
@@ -360,7 +360,7 @@ async def abort_upload(req: AbortRequest, upload_id: str, db:AsyncSession = Depe
 
         # get video_id from upload_id
         result = await db.execute(
-            select(UploadSession).where(UploadSession.video_upload_id == upload_id)
+            select(UploadSession).where(UploadSession.video_upload_id == req.uploadId)
         )
         upload_session = result.scalar_one_or_none()
 
@@ -371,6 +371,7 @@ async def abort_upload(req: AbortRequest, upload_id: str, db:AsyncSession = Depe
         video_event = VideoEvent(
             event_type = "CHUNKS_UPLOAD_ABORTED",
             video_id=upload_session.video_id,
+            # video_id = req.videoId,
             payload = {
                 "upload_id": req.uploadId,
                 "object_key": req.key,
