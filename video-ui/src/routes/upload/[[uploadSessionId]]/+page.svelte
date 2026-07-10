@@ -16,12 +16,12 @@
     import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte'
     const uploader = createVideoUploadSession();
 
-    const uploadSessionId = $derived(page.params.uploadSessionId);
+    // const uploadSessionId = $derived(page.params.uploadSessionId);
+    // let modalOpen = $state(true);
+    const modalOpen = $derived(!page.params.uploadSessionId);
 
-    let modalOpen = $state(true);
-
-    async function handleNewUploadSession() {
-        // Get new upload_session_id
+    async function handleUploadWithNewSession() {
+        // Create new upload_session and fetch the id
         try {
             const response = await fetch(
                 'http://127.0.0.1:8000/api/video/uploads/new-upload-session',
@@ -43,7 +43,7 @@
             cookieStore.set("uploadSessionId", data.upload_session_id)
 
             // Close the modal
-            modalOpen = false;
+            // modalOpen = false;
 
             // Add the upload_session_id to the URL
             await goto(
@@ -52,6 +52,14 @@
                 noScroll: true,
                 keepFocus: true,
             });
+
+            // Start the upload
+            const file = videoInputController.state.selectedFile;
+            
+            if (file) {
+                await uploader.upload(file);
+            }
+
 
 	    } catch (err) {
             console.error(err);
@@ -70,7 +78,7 @@
     open={modalOpen}
     // open={modalOpen}
     {videoInputController}
-    onUploadClick={handleNewUploadSession}
+    onUploadClick={handleUploadWithNewSession}
 />
 
 <div class="w-5/6 mx-auto h-100vh flex flex-row">
@@ -84,10 +92,7 @@
     <!-- Upload Progress & Thumbnail -->
     <section class="flex-1/3 flex flex-col justify-evenly">
         <!-- Upload Progress -->
-        <VideoUploadProgressCard
-            uploader={uploader}
-            videoFile={videoInputController.state.selectedFile}
-        />
+        <VideoUploadProgressCard uploader={uploader} />
         
         <!-- Thumbnail -->
         <ThumbnailCard />

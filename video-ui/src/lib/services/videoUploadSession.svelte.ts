@@ -12,12 +12,15 @@ import { splitFileIntoChunks } from '$lib/helpers/multipartUploadHelper';
 
 export function createVideoUploadSession() {
     // Reactive state (runes)
-    let uploading = $state(false);
-    let progress = $state(0);
-    let speed = $state(0);
-    let eta = $state(0);
-    let complete = $state(false);
-    let error = $state<string | null>(null);
+    const state = $state({
+        file: null as File | null,
+        uploading: false,
+        progress: 0,
+        speed: 0,
+        eta: 0,
+        complete: false,
+        error: null as string | null
+    });
 
     let abortController: AbortController | null = null;
     let currentUploadId: string | null = null;
@@ -27,12 +30,13 @@ export function createVideoUploadSession() {
     let startTime = 0;
 
     async function upload(file: File) {
-        uploading = true;
-        error = null;
-        progress = 0;
-        speed = 0;
-        eta = 0;
-        complete = false;
+        state.file = file;
+        state.uploading = true;
+        state.error = null;
+        state.progress = 0;
+        state.speed = 0;
+        state.eta = 0;
+        state.complete = false;
 
         totalUploadedBytes = 0;
         startTime = Date.now();
@@ -78,13 +82,13 @@ export function createVideoUploadSession() {
 
                         const elapsedSeconds = (Date.now() - startTime) / 1000;
 
-                        speed = elapsedSeconds > 0 ? ( totalUploadedBytes / elapsedSeconds ) : 0;
+                        state.speed = elapsedSeconds > 0 ? ( totalUploadedBytes / elapsedSeconds ) : 0;
 
                         const remainingBytes = file.size - totalUploadedBytes;
 
-                        eta = speed > 0 ? (remainingBytes / speed) : 0;
+                        state.eta = state.speed > 0 ? (remainingBytes / state.speed) : 0;
 
-                        progress = Math.round(
+                        state.progress = Math.round(
                             (totalUploadedBytes / file.size) * 100
                         );
                     },
@@ -112,17 +116,17 @@ export function createVideoUploadSession() {
                     console.log("Upload cancelled");
                 } else {
                     console.error(err);
-                    error = err.message;
+                    state.error = err.message;
                 }
             } else {
                 console.error(err);
-                error = 'Unknown error occurred';
+                state.error = 'Unknown error occurred';
             }
         } finally {
-            uploading = false;
+            state.uploading = false;
             currentUploadId = null;
             currentKey = null;
-            complete = true;
+            state.complete = true;
         }
     }
 
@@ -137,7 +141,7 @@ export function createVideoUploadSession() {
         } catch (err) {
             console.warn("Abort cleanup failed", err);
         } finally {
-            uploading = false;
+            state.uploading = false;
 
             // Reset controllers and trackers
             abortController = null;
@@ -147,9 +151,9 @@ export function createVideoUploadSession() {
             currentKey = null;
 
             // reset metrics
-            progress = 0;
-            speed = 0;
-            eta = 0;
+            state.progress = 0;
+            state.speed = 0;
+            state.eta = 0;
 
             totalUploadedBytes = 0;
             startTime = 0;
@@ -157,40 +161,8 @@ export function createVideoUploadSession() {
     }
 
     return {
-        // actions
+        state,
         upload,
-        cancel,
-
-        // reactive state (auto-tracked in Svelte)
-        // uploading,
-        // progress,
-        // speed,
-        // eta,
-        // error
-        
-        // reactive state
-        get uploading() {
-            return uploading;
-        },
-
-        get progress() {
-            return progress;
-        },
-
-        get speed() {
-            return speed;
-        },
-
-        get eta() {
-            return eta;
-        },
-
-        get error() {
-            return error;
-        },
-
-        get complete() {
-            return complete;
-        }
+        cancel
     };
 }

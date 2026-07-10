@@ -2,9 +2,8 @@
     // import { createVideoUploadSession } from "$lib/services/videoUploadSession.svelte";
     // const uploader = createVideoUploadSession();
     import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte'
-    type VideoUploadSession = ReturnType<typeof createVideoUploadSession>;
 
-    let { uploader, videoFile } = $props<{ uploader: VideoUploadSession; videoFile: File | null }>();
+    let { uploader } = $props<{ uploader: ReturnType<typeof createVideoUploadSession>; }>();
 
     // import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
@@ -14,17 +13,8 @@
     
     function cancelUpload() {
         uploader.cancel();
-
-        videoFile = null;
-
-        // workflow.workflowProgress.selectedVideoFile = null;
-        // workflow.workflowProgress.videoSessionId = null;
-        // if (workflow.workflowProgress.thumbnailUploaded) {
-            // modal -> cancel upload / upload new video
-        // }
-        // workflow.goToStep("video-drop");
+        uploader.state.file = null;
     }
-
 
     // let progress = $state(0);
 	// let uploading = $state(false);
@@ -52,29 +42,26 @@
     //     }, 500);
     // };
 
-    // console.log("Selected file: ", workflow.workflowProgress.selectedVideoFile);
-    // console.log("Video Session UUID: ", workflow.workflowProgress.videoSessionId);
-
     // Start uploading the video as soon as we land on this page
-    $effect(() => {
-        const file = videoFile; // dependency is tracked here
+    // $effect(() => {
+    //     const file = videoFile; // dependency is tracked here
         
-        console.log("File in UploadProgressComponent $effect: ", videoFile);
+    //     console.log("File in UploadProgressComponent $effect: ", videoFile);
 
-        if (!file) return;
+    //     if (!file) return;
 
-        const timer = setTimeout(() => {
-            uploader.upload(file);
-        }, 500);
+    //     const timer = setTimeout(() => {
+    //         uploader.upload(file);
+    //     }, 500);
 
-        return () => clearTimeout(timer);
-    });
+    //     return () => clearTimeout(timer);
+    // });
 </script>
 
 
 <div class="h-80 relative overflow-hidden border border-gray-200 p-6">
 
-    {#if uploader.uploading}
+    {#if uploader.state.uploading}
     <!-- {#if uploading} -->
         
         <div class="space-y-5">
@@ -100,7 +87,8 @@
 
                     <h3 class="truncate font-semibold text-gray-900 text-lg">
                         <!-- {workflow.workflowProgress.selectedVideoFile?.name} -->
-                         {videoFile?.name}
+                        <!-- {videoFile?.name} -->
+                        {uploader.state.file?.name}
                     </h3>
                 </div>
 
@@ -109,7 +97,7 @@
                     class="shrink-0 rounded-full bg-blue-50 border border-blue-100
                     px-3 py-1 text-sm font-medium texxt-blue-600"
                 >
-                    {uploader.progress}%
+                    {uploader.state.progress}%
                      <!-- {progress}% -->
                 </div>
             </div>
@@ -121,7 +109,7 @@
                     <!-- Filled Portion -->
                     <div
                         class="relative h-full overflow-hidden rounded-full transition-all duration-500 ease-out"
-                        style={`width:${uploader.progress}%`}
+                        style={`width:${uploader.state.progress}%`}
                     >
                         <!-- Gradient fill -->
                         <div class="absolute inset-0 bg-linear-to-r from-value-500 via-indigo-500 to-purple-500"
@@ -143,7 +131,7 @@
                             <span class="text-gray-400">Speed</span>
                             <span class="ml-1 font-medium text-gray-700">
                                 <!-- {formatSpeed(uploader.speed)} MB/s -->
-                                {uploader.speed} MB/s
+                                {uploader.state.speed} MB/s
                             </span>
                         </div>
 
@@ -151,14 +139,14 @@
                             <span class="text-gray-400">ETA</span>
                             <span class="ml-1 font-medium text-gray-700">
                                 <!-- {formatETA(uploader.eta)}s -->
-                                {uploader.eta}s
+                                {uploader.state.eta}s
                             </span>
                         </div>
                     </div>
 
                     <p class="font-medium text-gray-700">
                         <!-- {uploader.progress}% uploaded -->
-                        {uploader.progress}% uploaded
+                        {uploader.state.progress}% uploaded
                     </p>
                 </div>
             </div>
@@ -169,7 +157,7 @@
                     class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm
                         font-medium text-white transition hover:bg-black active:scale-[0.98]"
                     onclick={() => {
-                        if (uploader.uploading) handleUploadPlayPause();
+                        if (uploader.state.uploading) handleUploadPlayPause();
                     }}
                 >
                     Pause
@@ -179,7 +167,7 @@
                     class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm border-red-200
                         bg-red-50 font-medium text-red-600 transition hover:bg-red-100 active:scale-[0.98]"
                     onclick={() => {
-                        if (uploader.uploading) cancelUpload();
+                        if (uploader.state.uploading) cancelUpload();
                     }}
                 >
                     X Cancel
@@ -189,7 +177,7 @@
             <!-- Error -->
             {#if uploader.error}
                 <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                    {uploader.error}
+                    {uploader.state.error}
                 </div>
             {/if}
         </div>
@@ -199,7 +187,7 @@
         <UploadProgressSkleton />
     {/if} -->
 
-    {#if uploader.complete}
+    {#if uploader.state.complete}
 
         <UploadCompleteBar {workflow} />
 
