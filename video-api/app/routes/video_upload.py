@@ -87,7 +87,7 @@ async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
             detail="Failed to create new upload session!"    
         )
 
-@router.post('/initiate-upload/')
+@router.post('/initiate-upload')
 async def initiate_upload(
     req: InitiateUploadRequest,
     db: AsyncSession = Depends(get_db)
@@ -526,11 +526,40 @@ async def record_uploaded_part(
         "message": "uploaded part recorded successfully"
     }
 
-
-@router.get("/{upload_id}/processing-status/{transcode_task_id}")
-def get_transcode_processing_status(transcode_task_id: str):
+# transcode_task_id could be optional
+# So changing it iinto route query parameter
+@router.get("/{video_id}/processing-status/")
+async def get_transcode_processing_status(
+    video_id: str,
+    transcode_task_id: str,
+    transcode_task_id: str | None = None,
+    db: AsyncSession = Depends(get_db)
+):
     status = AsyncResult(transcode_task_id, app=celery)
-        
+    
+    result = await db.execute(
+        select(Video).where(Video.id == video_id)
+    )
+
+    video = await result.scalar_one_or_none()
+
+    if not video:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Video with id {video_id} not found!"
+        )
+    
+    if transcode_task_id:
+        transcode_task_result = await db.execute(
+            select(TranscodeTask).where(TranscodeTask.id == transcode_task_id)
+        )
+
+    # If transcode_task_id is not present
+    else:
+        transcode_task_result = await db.execute(
+            select(TranscodeTask).where(TranscodeTask.video_id == video_id)
+        )
+
     return {
         "task_id": transcode_task_id,
         "status": status.status,

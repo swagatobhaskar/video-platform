@@ -54,13 +54,6 @@ class UploadSession(Base):
     # One upload session -> many upload parts
     parts: Mapped[List["UploadPart"]] = relationship("UploadPart", back_populates="upload_session", cascade="all, delete-orphan")
     
-    # Compute those from Video and related tables instead.
-    # thumbnail_upload_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    # metadata_complete: Mapped[bool] = mapped_column(Boolean, nullable=True, default=False)
-    # video_uploaded: Mapped[bool] = mapped_column(Boolean, nullable=True, default=False)
-    # thumbnail_uploaded: Mapped[bool] = mapped_column(Boolean, nullable=True, default=False)
-    # transcript_uploaded: Mapped[bool] = mapped_column(Boolean, nullable=True, default=False)
-    
     status: Mapped[UploadSessionStatusEnum] = mapped_column(
         Enum(
             UploadSessionStatusEnum,
@@ -112,5 +105,5 @@ class UploadPart(Base):
     )
     
     def __repr__(self) -> str:
-        return f"<UploadPart(id={self.id}, video_id={self.video_id}, upload_session_id={self.upload_session_id})>"
+        return f"<UploadPart(id={self.id}, upload_session_id={self.upload_session_id})>"
     
