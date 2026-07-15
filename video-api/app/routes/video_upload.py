@@ -67,16 +67,22 @@ RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
 @router.post("/new-upload-session")
 async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
     try:
-        new_upload_session = UploadSession()
+        new_video = Video()
+        db.add(new_video)
+
+        new_upload_session = UploadSession(Video=new_video)
         db.add(new_upload_session)
         await db.commit()
+        await db.refresh(new_video)
         await db.refresh(new_upload_session)  # if session uses expire_on_commit=False
 
         print("New Upload Session id: ", new_upload_session.id)
+        print("New Video id: ", new_video.id)
 
         return {
             "success": True,
-            "upload_session_id": str(new_upload_session.id)
+            "upload_session_id": str(new_upload_session.id),
+            "video_id": str(new_video.id)
         }
     
     except SQLAlchemyError as e:
@@ -84,11 +90,12 @@ async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
         await db.rollback()
         raise HTTPException(
             status_code=500,
-            detail="Failed to create new upload session!"    
+            detail="Failed to create new upload session and new video!"    
         )
 
-@router.post('/initiate-upload')
+@router.post('{video_id}/initiate-upload')
 async def initiate_upload(
+    video_id: str,
     req: InitiateUploadRequest,
     db: AsyncSession = Depends(get_db)
 ):
@@ -109,20 +116,36 @@ async def initiate_upload(
         # print("Initiate Upload Response: ", response)
         upload_id = response["UploadId"]
 
-        video = Video(title=req.fileName)
+        # Get the video
+        result = await db.execute(
+            select(Video).where(Video.id == video_id)
+        )
+        video = result.scalar_one_or_none()
 
-        db.add(video)
+        if not video:
+            raise HTTPException(
+                status_code=404,
+                detail="No video found with this id."
+            )
+
+        video.title=req.fileName
+
+        # db.add(video)
         await db.flush()
 
         # get the upload_session that was created when selecting the file
-        stmt = select(UploadSession).where(UploadSession.id == req.uploadSessionId)
+        stmt = select(UploadSession).where(
+            UploadSession.id == req.uploadSessionId,
+            UploadSession.video_id == video_id
+        )
+
         result = await db.execute(stmt)
         upload_session = result.scalar_one_or_none()
 
         if not upload_session:
-            raise HTTPException(status_code=404, detail="Upload session not found for the given uploadSessionId")
+            raise HTTPException(status_code=404, detail="Upload session not found for the given uploadSessionId and video id")
 
-        upload_session.video_id=video.id
+        # upload_session.video_id=video.id
         upload_session.object_key=object_key
         upload_session.video_upload_id=upload_id
         upload_session.file_size_bytes=req.fileSizeBytes
@@ -132,7 +155,7 @@ async def initiate_upload(
         upload_session.status=UploadSessionStatusEnum.UPLOADING
 
         video_event = VideoEvent(
-            video_id=video.id,
+            video_id=video_id,
             event_type="UPLOAD_INITIATED",
             payload={
                 "upload_id": upload_id,
@@ -175,8 +198,12 @@ async def initiate_upload(
         )
 
 
-@router.post("/get-presigned-url")
-def get_presigned_url(req: PartRequest):
+@router.post("{video_id}/get-presigned-url")
+async def get_presigned_url(
+    video_id: str,
+    req: PartRequest,
+    db: AsyncSession = Depends(get_db)    
+):
     url = s3.generate_presigned_url(
         ClientMethod="upload_part",
         Params={
@@ -187,6 +214,23 @@ def get_presigned_url(req: PartRequest):
         },
         ExpiresIn=3600,
     )
+    try:
+        video_event = VideoEvent(
+            video_id = video_id,
+            event_type=f"PART {req.partNumber} UPLOADED",
+            payload={
+                "upload_id": req.uploadId,
+                "object_key": req.key,
+                "part_number": req.partNumber
+            }
+        )
+
+        db.add(video_event)
+        await db.commit()
+    except SQLAlchemyError as e:
+        await db.rollback()
+        logger.exception("VideoEvent creation failed at /get-presigned-url.")
+    
     # print("Generated presigned URL: ", url)
     return {"uploadUrl": url}
 
@@ -201,8 +245,8 @@ def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
     return response.get("Parts", [])
 
 
-@router.post("/complete-upload")
-async def complete_upload(req: CompleteRequest, db: AsyncSession = Depends(get_db)):
+@router.post("/{video_id}/complete-upload")
+async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession = Depends(get_db)):
     
     # Later Additions:
         # Ordering check
@@ -240,7 +284,10 @@ async def complete_upload(req: CompleteRequest, db: AsyncSession = Depends(get_d
         )
 
         result = await db.execute(
-            select(UploadSession).where(UploadSession.id == req.uploadSessionId)
+            select(UploadSession).where(
+                UploadSession.id == req.uploadSessionId,
+                UploadSession.video_id == video_id
+            )
         )
         upload_session = result.scalars().first() # scalar_one_or_none()
         
@@ -249,7 +296,7 @@ async def complete_upload(req: CompleteRequest, db: AsyncSession = Depends(get_d
         
         # Create a new VideoEvent instead of updating old events
         video_event = VideoEvent(
-            video_id=upload_session.video_id,
+            video_id=video_id,
             event_type="CHUNKS_UPLOAD_COMPLETED",
             payload={
                 "upload_id": req.uploadId,
@@ -270,7 +317,10 @@ async def complete_upload(req: CompleteRequest, db: AsyncSession = Depends(get_d
         logger.exception("Complete upload failed")
         
         result = await db.execute(
-            select(UploadSession).where(UploadSession.id == req.uploadSessionId)
+            select(UploadSession).where(
+                UploadSession.id == req.uploadSessionId,
+                UploadSession.video_id == video_id    
+            )
         )
         upload_session = result.scalars().first()
     
@@ -306,7 +356,7 @@ async def complete_upload(req: CompleteRequest, db: AsyncSession = Depends(get_d
         # start celery transcode task
         task = process_video_worker_operations.delay( # type: ignore
             file_name=req.key,
-            video_id=req.videoId,
+            video_id=req.videoId,  # or video_id ?
             upload_id=req.uploadId,
             upload_session_id=req.uploadSessionId,
             transcode_task_id=str(transcode_task.id),
@@ -349,8 +399,8 @@ async def complete_upload(req: CompleteRequest, db: AsyncSession = Depends(get_d
     }
 
 
-@router.post("/abort-upload")
-async def abort_upload(req: AbortRequest, db:AsyncSession = Depends(get_db)):
+@router.post("/{video_id}/abort-upload")
+async def abort_upload(video_id: str, req: AbortRequest, db:AsyncSession = Depends(get_db)):
     try:
         s3.abort_multipart_upload(
             Bucket=RAW_VIDEO_BUCKET,
@@ -360,7 +410,10 @@ async def abort_upload(req: AbortRequest, db:AsyncSession = Depends(get_db)):
 
         # get video_id from upload_id
         result = await db.execute(
-            select(UploadSession).where(UploadSession.video_upload_id == req.uploadId)
+            select(UploadSession).where(
+                UploadSession.video_upload_id == req.uploadId,
+                UploadSession.video_id == video_id    
+            )
         )
         upload_session = result.scalar_one_or_none()
 
@@ -370,7 +423,7 @@ async def abort_upload(req: AbortRequest, db:AsyncSession = Depends(get_db)):
         # Add a VideoEvent to the DB
         video_event = VideoEvent(
             event_type = "CHUNKS_UPLOAD_ABORTED",
-            video_id=upload_session.video_id,
+            video_id=video_id,
             # video_id = req.videoId,
             payload = {
                 "upload_id": req.uploadId,
@@ -389,9 +442,17 @@ async def abort_upload(req: AbortRequest, db:AsyncSession = Depends(get_db)):
         return {"error": str(e)}
 
 
-@router.post("/{upload_id}/pause-upload")
-async def pause_video_upload(upload_id: str, db:AsyncSession = Depends(get_db)):
-    upload_session = await db.get(UploadSession, upload_id)
+@router.post("/{video_id}/{upload_id}/pause-upload")
+async def pause_video_upload(video_id: str, upload_id: str, db:AsyncSession = Depends(get_db)):
+
+    result = await db.execute(
+        select(UploadSession).where(
+            UploadSession.upload_id == upload_id,
+            UploadSession.video_id == video_id
+        )
+    )
+
+    upload_session = result.scalar_one_or_none()
 
     if not upload_session:
         raise HTTPException(status=404, detail="Upload session not found")
@@ -404,7 +465,7 @@ async def pause_video_upload(upload_id: str, db:AsyncSession = Depends(get_db)):
     # Add a VideoEvent to the DB
     video_event = VideoEvent(
         event_type = "CHUNKS_UPLOAD_PAUSED",
-        video_id=upload_session.video_id,
+        video_id=video_id,
         payload = {
             "upload_id": upload_id,
             "object_key": upload_session.object_key,
@@ -418,9 +479,17 @@ async def pause_video_upload(upload_id: str, db:AsyncSession = Depends(get_db)):
     return { "success": True, "status": "paused"}
 
 
-@router.post("/{upload_id}/resume-upload")
-async def resume_video_upload(upload_id: str, db:AsyncSession = Depends(get_db)):
-    upload_session = await db.get(UploadSession, upload_id)
+@router.post("/{video_id}/{upload_id}/resume-upload")
+async def resume_video_upload(video_id: str, upload_id: str, db:AsyncSession = Depends(get_db)):
+    
+    result = await db.execute(
+        select(UploadSession).where(
+            UploadSession.upload_id == upload_id,
+            UploadSession.video_id == video_id
+        )
+    )
+
+    upload_session = result.scalar_one_or_none()
 
     if not upload_session:
         raise HTTPException(status=404, detail="Upload session not found")
@@ -431,15 +500,23 @@ async def resume_video_upload(upload_id: str, db:AsyncSession = Depends(get_db))
     upload_session.status = UploadSessionStatusEnum.UPLOADING
 
     # Frontend asks which parts already exist.
-    result = await db.execute(
-        select(UploadPart).where(UploadPart.upload_session_id == upload_session.id)
+    # result = await db.execute(
+    #     select(UploadPart).where(UploadPart.upload_session_id == upload_session.id)
+    # )
+    # uploaded_parts = result.scalars().all()
+
+    # Ask R2 which parts actually exist
+    uploaded_parts = get_uploaded_parts(
+        s3=s3,
+        bucket=RAW_VIDEO_BUCKET,
+        key=upload_session.object_key,
+        uploadId=upload_session.video_upload_id,
     )
-    uploaded_parts = result.scalars().all()
 
     # Add a VideoEvent to the DB
     video_event = VideoEvent(
         event_type = "CHUNKS_UPLOAD_RESUMED",
-        video_id=upload_session.video_id,
+        video_id = video_id,
         payload = {
             "upload_id": upload_id,
             "object_key": upload_session.object_key,
@@ -470,11 +547,15 @@ async def record_uploaded_part(
 ):
 
     result = await db.execute(
-        select(UploadSession).where(UploadSession.video_upload_id == upload_id)
+        select(UploadSession).where(
+            UploadSession.video_upload_id == upload_id,
+            UploadSession.video_id == video_id
+        )
     )
+
     upload_session = result.scalar_one_or_none()
 
-    if upload_session is None:
+    if not upload_session:
         raise HTTPException(
             status_code=404,
             detail="Upload session not found."
@@ -528,15 +609,12 @@ async def record_uploaded_part(
 
 # transcode_task_id could be optional
 # So changing it iinto route query parameter
-@router.get("/{video_id}/processing-status/")
+@router.get("/{video_id}/processing-status/{transcode_task_id}")
 async def get_transcode_processing_status(
     video_id: str,
     transcode_task_id: str,
-    transcode_task_id: str | None = None,
     db: AsyncSession = Depends(get_db)
-):
-    status = AsyncResult(transcode_task_id, app=celery)
-    
+):    
     result = await db.execute(
         select(Video).where(Video.id == video_id)
     )
@@ -549,16 +627,26 @@ async def get_transcode_processing_status(
             detail=f"Video with id {video_id} not found!"
         )
     
-    if transcode_task_id:
-        transcode_task_result = await db.execute(
-            select(TranscodeTask).where(TranscodeTask.id == transcode_task_id)
+    if video.transcode_task_id != transcode_task_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Task id doesn't belong to the video"
         )
+    
+    # transcode_task_result = await db.execute(
+    #     select(TranscodeTask).where(TranscodeTask.id == transcode_task_id)
+    # )
+
+    # transcode_task = transcode_task_result.scalar_one_or_none()
 
     # If transcode_task_id is not present
-    else:
-        transcode_task_result = await db.execute(
-            select(TranscodeTask).where(TranscodeTask.video_id == video_id)
-        )
+    # if not transcode_task:
+    #     raise HTTPException(
+    #         status_code=404,
+    #         detail=f"Video with id {video_id} not found!"
+    #     )
+
+    status = AsyncResult(transcode_task_id, app=celery)
 
     return {
         "task_id": transcode_task_id,
@@ -567,43 +655,151 @@ async def get_transcode_processing_status(
     }
 
 
-@router.post("/{upload_id}/retry-upload")
+@router.post("/{video_id}/retry-upload")
 async def retry_failed_upload(
-    upload_id: str,
+    video_id: str,
     db: AsyncSession = Depends(get_db)
 ):
-    upload_session = await db.get(UploadSession, upload_id)
+    # Find the latest failed/paused upload session
+    result = await db.execute(
+        select(UploadSession).where(
+            # UploadSession.video_upload_id == upload_id,
+            UploadSession.video_id == video_id,
+            UploadSession.status.in_([
+                UploadSessionStatusEnum.FAILED,
+                UploadSessionStatusEnum.PAUSED,
+            ])
+        )
+        .order_by(UploadSession.created_at.desc())
+    )
 
-    if not upload_session:
-        raise HTTPException(status=404, detail="Upload session not found")
-    
-    if upload_session.status != UploadSessionStatusEnum.FAILED:
-        raise HTTPException(status=400, detail="Upload session is not in FAILED state")
-    
+    upload_session = result.scalars().first()
+
+    if upload_session is None:
+        raise HTTPException(status=404, detail="No failed upload session found.")
+
+    # Ask R2 which parts actually exist
+    uploaded_parts = get_uploaded_parts(
+        s3=s3,
+        bucket=RAW_VIDEO_BUCKET,
+        key=upload_session.object_key,
+        uploadId=upload_session.video_upload_id,
+    )
+
+    upload_session.status = UploadSessionStatusEnum.UPLOADING
+
     # get the chunks already uploaded
-    stmt = select(UploadPart).where(UploadPart.upload_session_id == upload_session.id)
-    result = await db.execute(stmt)
-    uploaded_parts = result.scalars().all()
+    # stmt = select(UploadPart).where(UploadPart.upload_session_id == upload_session.id)
+    # result = await db.execute(stmt)
+    # uploaded_parts = result.scalars().all()
 
     # Add a VideoEvent to the DB
     video_event = VideoEvent(
         event_type = "CHUNKS_UPLOAD_RETRY",
-        video_id=upload_session.video_id,
+        video_id=video_id,
         payload = {
-            "upload_id": upload_id,
+            "upload_id": str(upload_session.video_upload_id),
             "object_key": upload_session.object_key,
             "file_name": upload_session.original_filename,  # Assuming the key is the filename
+            "upload_session": str(upload_session.id),
+            "uploaded_parts": len(uploaded_parts)
         },
     )
     db.add(video_event)
-
-    upload_session.status = UploadSessionStatusEnum.UPLOADING
         
     await db.commit()
 
+    # Frontend Retry button
+    # ↓
+    # POST /retry-upload
+    # ↓
+    # receive
+
+    # uploadId
+    # objectKey
+    # uploadedParts
+    # ↓
+    # Skip uploaded parts
+    # ↓
+    # Upload only missing parts
+    # ↓
+    # CompleteMultipartUpload
+
     return {
-        "status": "retrying",
-        "upload_id": upload_id,
+        "video_id": video_id,
+        "upload_session_id": str(upload_session.id),
+        "upload_id": upload_session.video_upload_id,
+        "object_key": upload_session.object_key,
         "uploaded_parts": uploaded_parts,
     }
 
+
+@router.post("/{video_id}/restart-upload")
+async def restart_video_upload(video_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(UploadSession)
+        .where(
+            UploadSession.video_id == video_id
+        )
+        .order_by(UploadSession.created_at.desc())
+    )
+
+    old_session = result.scalars().first()
+
+    if old_session is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Upload session not found."
+        )
+
+    new_session = UploadSession(
+        video_id=old_session.video_id,
+        file_size_bytes=old_session.file_size_bytes,
+        mime_type=old_session.mime_type,
+        original_filename=old_session.original_filename,
+        total_parts=old_session.total_parts,
+        status=UploadSessionStatusEnum.PENDING,
+    )
+
+    db.add(new_session)
+    await db.flush()
+
+    db.add(
+        VideoEvent(
+            video_id=video_id,
+            event_type="UPLOAD_RESTARTED",
+            payload={
+                "old_upload_session_id": str(old_session.id),
+                "new_upload_session_id": str(new_session.id),
+            },
+        )
+    )
+
+    await db.commit()
+
+    # there is no uploaded_parts. The old chunks belong to another multipart upload.
+
+    return {
+        "video_id": video_id,
+        "upload_session_id": str(new_session.id),
+    }
+    # Frontend
+    # Restart button
+    # ↓
+    # POST /restart-upload
+    # ↓
+    # receive
+
+    # new upload_session_id
+    # ↓
+    # POST /initiate-upload
+    # ↓
+    # receive
+
+    # new uploadId
+    # new objectKey
+    # ↓
+    # Upload ALL chunks
+    # ↓
+    # Complete upload
+    
