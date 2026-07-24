@@ -77,7 +77,7 @@ async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
         await db.refresh(new_upload_session)  # if session uses expire_on_commit=False
 
         print("New Upload Session id: ", new_upload_session.id)
-        print("New Video id: ", new_video.id)
+        # print("New Video id: ", new_video.id)
 
         return {
             "success": True,
@@ -217,7 +217,7 @@ async def get_presigned_url(
     try:
         video_event = VideoEvent(
             video_id = video_id,
-            event_type=f"PART {req.partNumber} UPLOADED",
+            event_type="GENERATED_PRESIGNED_URL",
             payload={
                 "upload_id": req.uploadId,
                 "object_key": req.key,
