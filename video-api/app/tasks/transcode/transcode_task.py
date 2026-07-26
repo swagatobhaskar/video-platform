@@ -22,6 +22,9 @@ from app.database.models import (
     Video, VideoEvent, VideoProcessingStatusEnum, TranscodeTask
 )
 
+from app.config import get_settings
+settings = get_settings()
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,7 +67,7 @@ def upload_output_directory_to_r2_bucket(
     video_file_name: str,
 ):
     
-    BUCKET: str = 'processed-videos-bucket'
+    PROCESSED_VIDEOS_BUCKET = settings.processed_videos_bucket
         
     local_dir = Path(local_dir)
     remote_prefix = Path(video_file_name).stem
@@ -80,7 +83,7 @@ def upload_output_directory_to_r2_bucket(
         try:
             s3.upload_file(
                 str(file_path),
-                BUCKET,
+                PROCESSED_VIDEOS_BUCKET,
                 key,
             )
     

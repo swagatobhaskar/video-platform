@@ -11,6 +11,7 @@ from app.database.models.base import Base
 from app.routes.user import router as UserRouter
 from app.routes.auth import router as AuthRouter
 from app.routes.video_upload import router as VideoUploadRouter
+from app.routes.lists import router as ListRouter
 from app.routes._task_routes import router as TaskRouter
 
 settings = get_settings()
@@ -42,6 +43,7 @@ app.include_router(UserRouter)
 app.include_router(AuthRouter)
 app.include_router(VideoUploadRouter)
 app.include_router(TaskRouter)
+app.include_router(ListRouter)
 
 # Use settings as Dependency Injection
 @app.get("/")

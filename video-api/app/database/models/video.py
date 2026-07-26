@@ -176,7 +176,7 @@ class Video(Base):
 
     @property
     def hls_manifest_key(self):
-        return f"{self.id}/hls/master.m3u8"    # correction required here
+        return f"{self.id}/dash/master.m3u8"    # correction required here
 
     @property
     def thumbnail_uploaded(self) -> bool:

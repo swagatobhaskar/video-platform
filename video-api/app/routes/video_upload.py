@@ -23,6 +23,9 @@ from app.database.models import (
 from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
 from app.database.session import AsyncSession
 
+from app.config import get_settings
+settings = get_settings()
+
 router = APIRouter(prefix="/api/video/uploads", tags=["video", "upload"])
 
 logger = logging.getLogger(__name__)
@@ -60,9 +63,7 @@ logger = logging.getLogger(__name__)
     
 #     return {"info": f"Video thumbnail {file.filename} saved at {thumbnail_file_location}"}
 
-
-RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
-
+RAW_VIDEO_BUCKET = settings.raw_videos_bucket
 
 @router.post("/new-upload-session")
 async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
