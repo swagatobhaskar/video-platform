@@ -3,6 +3,7 @@ from pathlib import Path
 from botocore.exceptions import (
     ClientError, BotoCoreError, EndpointConnectionError, NoCredentialsError
 )
+from app.database.session import engine
 from sqlalchemy.exc import SQLAlchemyError
 import os
 from tempfile import TemporaryDirectory
@@ -173,7 +174,8 @@ async def update_task(db, task, status, progress):
     task.status = status
     task.progress_percent = progress
     task.heartbeat_at = datetime.now(UTC)
-    await db.commit() 
+    # await db.commit()
+    await db.flush()  # Flush changes to the database without committing
 
 
 async def update_video_event_record(db, video_id: str, event_type: str, payload: dict, transcode_task_id: str | None = None):
@@ -187,9 +189,10 @@ async def update_video_event_record(db, video_id: str, event_type: str, payload:
         transcode_task_id = transcode_task_id if transcode_task_id else None
     )
 
-    db.add(video_event)    
+    db.add(video_event)
     # No commit here. Commit will be done in the main task function after all operations are completed.
-    # await db.commit() 
+    # await db.commit()
+    await db.flush()  # Flush changes to the database without committing
 
 
 @celery.task(
@@ -201,8 +204,12 @@ async def update_video_event_record(db, video_id: str, event_type: str, payload:
     task_ignore_result=True,
 )
 def process_video_worker_operations(self, object_key: str, video_id: str, upload_session_id: str, upload_id: str, transcode_task_id: str):
-    asyncio.run(_process_video_worker_operations(self, object_key, video_id, upload_session_id, upload_id, transcode_task_id))
-       
+    try:
+        asyncio.run(_process_video_worker_operations(self, object_key, video_id, upload_session_id, upload_id, transcode_task_id))
+    finally:
+        # Ensure that the database session is closed after the task is done
+        # This forces the pool to release connections when the event loop dies.
+        asyncio.run(engine.dispose())
 
 async def _process_video_worker_operations(
     self,

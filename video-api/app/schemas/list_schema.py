@@ -52,6 +52,16 @@ class VideoListOut(BaseModel):
     duration_seconds: float | None = None
     publication_status: VideoPublicationStatusEnum
 
+class VideoDetailOut(VideoListOut):
+    meta_title: str | None = None
+    seo_summary_en: str | None = None
+    meta_description: str | None = None
+    keywords: list[str | None]
+    seo_tags: list[str | None]
+    search_intent: str | None = None
+    focus_keyword: str | None = None
+    secondary_keywords: list[str | None]
+
     # --- COMPUTED URL FIELDS (Leveraging the model's properties) ---
 
     @computed_field
@@ -74,20 +84,6 @@ class VideoListOut(BaseModel):
         if not self.id:
             return None
         return f"{settings.processed_videos_bucket_dev_url}/{self.object_key}/dash/manifest.mpd"
-
-class VideoSEOOut(BaseModel):
-    meta_title: str | None = None
-    seo_summary_en: str | None = None
-    meta_description: str | None = None
-    keywords: list[str | None]
-    seo_tags: list[str | None]
-    search_intent: str | None = None
-    focus_keyword: str | None = None
-    secondary_keywords: list[str | None]
-
-
-class VideoDetailOut(BaseModel):
-    pass
 
 
 class SeriesListOut(BaseModel):

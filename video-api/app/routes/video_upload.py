@@ -71,19 +71,19 @@ async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
         new_video = Video()
         db.add(new_video)
 
-        new_upload_session = UploadSession(Video=new_video)
+        new_upload_session = UploadSession(video=new_video)
         db.add(new_upload_session)
         await db.commit()
         await db.refresh(new_video)
         await db.refresh(new_upload_session)  # if session uses expire_on_commit=False
 
         print("New Upload Session id: ", new_upload_session.id)
-        # print("New Video id: ", new_video.id)
+        print("New Video id: ", new_video.id)
 
         return {
             "success": True,
-            "upload_session_id": str(new_upload_session.id),
-            "video_id": str(new_video.id)
+            "uploadSessionId": str(new_upload_session.id),
+            "videoId": str(new_video.id)
         }
     
     except SQLAlchemyError as e:
@@ -94,7 +94,7 @@ async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
             detail="Failed to create new upload session and new video!"    
         )
 
-@router.post('{video_id}/initiate-upload')
+@router.post('/{video_id}/initiate-upload')
 async def initiate_upload(
     video_id: str,
     req: InitiateUploadRequest,
@@ -158,13 +158,14 @@ async def initiate_upload(
         video_event = VideoEvent(
             video_id=video_id,
             event_type="UPLOAD_INITIATED",
-            payload={
+            payload = {
                 "upload_id": upload_id,
                 "object_key": object_key,
                 "file_name": req.fileName,
                 "file_size_bytes": req.fileSizeBytes,
                 "content_type": req.contentType,
-                "total_parts": req.totalParts
+                "total_parts": req.totalParts,
+                "upload_session_id": str(req.uploadSessionId),
             }
         )
 
@@ -175,8 +176,8 @@ async def initiate_upload(
         return {
             "uploadId": upload_id,
             "key": object_key,
-            "upload_session_id": str(upload_session.id),
-            "video_id": video.id,
+            # "upload_session_id": str(upload_session.id),
+            # "video_id": video.id,
         }
 
     except Exception as e:
@@ -199,7 +200,7 @@ async def initiate_upload(
         )
 
 
-@router.post("{video_id}/get-presigned-url")
+@router.post("/{video_id}/get-presigned-url")
 async def get_presigned_url(
     video_id: str,
     req: PartRequest,
@@ -532,7 +533,7 @@ async def resume_video_upload(video_id: str, upload_id: str, db:AsyncSession = D
     return {
         "success": True,
         "status": "resumed",
-        "upload_id": upload_id,
+        "uploadId": upload_id,
         "uploaded_parts": uploaded_parts,
     }
 
@@ -727,10 +728,10 @@ async def retry_failed_upload(
     # CompleteMultipartUpload
 
     return {
-        "video_id": video_id,
-        "upload_session_id": str(upload_session.id),
-        "upload_id": upload_session.video_upload_id,
-        "object_key": upload_session.object_key,
+        "videoId": video_id,
+        "uploadSessionId": str(upload_session.id),
+        "uploadId": upload_session.video_upload_id,
+        "objectKey": upload_session.object_key,
         "uploaded_parts": uploaded_parts,
     }
 
@@ -781,8 +782,8 @@ async def restart_video_upload(video_id: str, db: AsyncSession = Depends(get_db)
     # there is no uploaded_parts. The old chunks belong to another multipart upload.
 
     return {
-        "video_id": video_id,
-        "upload_session_id": str(new_session.id),
+        "videoId": video_id,
+        "uploadSessionId": str(new_session.id),
     }
     # Frontend
     # Restart button
