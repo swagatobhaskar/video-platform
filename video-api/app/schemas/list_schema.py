@@ -80,4 +80,7 @@ class VideoSEOOut(BaseModel):
     search_intent: str | None = None
     focus_keyword: str | None = None
     secondary_keywords: list[str | None]
-    
+
+
+class VideoDetailOut(BaseModel):
+    pass

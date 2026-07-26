@@ -284,12 +284,6 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
             },
         )
 
-        video_result = await db.execute(select(Video).where(Video.id == video_id))
-        video = video_result.scalars().first()
-
-        if not video:
-            raise HTTPException(status_code=500, detail="The Video object isn't found!")
-
         result = await db.execute(
             select(UploadSession).where(
                 UploadSession.id == req.uploadSessionId,
@@ -300,9 +294,6 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
         
         if not upload_session:
             raise HTTPException(status_code=404, detail="Upload session not found for the given video ID")
-
-        # Assign the object_key fom UploadSession to Video
-        video.object_key = upload_session.object_key
         
         # Create a new VideoEvent instead of updating old events
         video_event = VideoEvent(
@@ -311,7 +302,7 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
             payload={
                 "upload_id": req.uploadId,
                 "object_key": req.key,
-                "file_name": req.key,  # Assuming the key is the filename
+                "file_name": upload_session.original_filename,
             }
         )
 
@@ -365,7 +356,7 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
     try:
         # start celery transcode task
         task = process_video_worker_operations.delay( # type: ignore
-            file_name=req.key,
+            object_key=req.key,
             video_id=req.videoId,  # or video_id ?
             upload_id=req.uploadId,
             upload_session_id=req.uploadSessionId,
@@ -438,7 +429,7 @@ async def abort_upload(video_id: str, req: AbortRequest, db:AsyncSession = Depen
             payload = {
                 "upload_id": req.uploadId,
                 "object_key": req.key,
-                "file_name": req.key,  # Assuming the key is the filename
+                "file_name": upload_session.original_filename,
             },
         )
         db.add(video_event)
@@ -710,7 +701,7 @@ async def retry_failed_upload(
         payload = {
             "upload_id": str(upload_session.video_upload_id),
             "object_key": upload_session.object_key,
-            "file_name": upload_session.original_filename,  # Assuming the key is the filename
+            "file_name": upload_session.original_filename,
             "upload_session": str(upload_session.id),
             "uploaded_parts": len(uploaded_parts)
         },

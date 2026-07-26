@@ -22,10 +22,10 @@ async def get_video_list(session: AsyncSession = Depends(get_db)):
     result = await session.execute(select(Video))
     videos = result.scalars().all()
 
-    # FastAPI/Pydantic automatically serializes and calculates the computed URLs for each video item
     return videos
 
 
+# Add query parameter for Draft/Published/Archived videos
 @router.get("/videos/{video_id}", response_model=list_schema.VideoDetailOut)
 async def get_video_detail(video_id: str, session: AsyncSession = Depends(get_db)):
 
