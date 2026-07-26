@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     thumbnails_bucket: str
     category_image_bucket: str
     # buckets dev URLs
+    raw_videos_bucket_dev_url: str
     thumbnails_bucket_dev_url: str
     category_image_bucket_dev_url: str
     processed_videos_bucket_dev_url: str

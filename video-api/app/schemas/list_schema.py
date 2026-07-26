@@ -3,6 +3,7 @@ from datetime import datetime
 import enum
 import uuid
 from app.config import get_settings
+# from app.database.models import Video, Series, Category
 
 settings = get_settings()
 
@@ -19,7 +20,10 @@ class VideoPublicationStatusEnum(str, enum.Enum): # Recommended to inherit from 
 
 class VideoListOut(BaseModel):
     # Pydantic v2 configuration to read from SQLAlchemy models
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        arbitrary_types_allowed=True,
+    )
 
     id: uuid.UUID
     object_key: uuid.UUID
@@ -84,3 +88,33 @@ class VideoSEOOut(BaseModel):
 
 class VideoDetailOut(BaseModel):
     pass
+
+
+class SeriesListOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+class SeriesDetailOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    updated_at: datetime
+    videos: VideoListOut
+
+
+class CategoryListOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    image_url: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+class CategoryDetailOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    image_url: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    videos: VideoListOut
