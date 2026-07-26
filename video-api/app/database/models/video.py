@@ -93,6 +93,9 @@ class Video(Base):
         default=VideoPublicationStatusEnum.DRAFT
     )
 
+    # The uploaded file name as is sent to R2. Assigned from UploadSession after upload is completed.
+    object_key: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True, index=True, nullable=True)
+
     # Many videos -> one category
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     category: Mapped["Category"] = relationship("Category", back_populates="videos")
@@ -172,11 +175,11 @@ class Video(Base):
 
     @property
     def dash_manifest_key(self):
-        return f"{self.id}/dash/manifest.mpd"
+        return f"{self.object_key}/dash/manifest.mpd"
 
     @property
     def hls_manifest_key(self):
-        return f"{self.id}/dash/master.m3u8"    # correction required here
+        return f"{self.object_key}/dash/master.m3u8"    # correction required here
 
     @property
     def thumbnail_uploaded(self) -> bool:

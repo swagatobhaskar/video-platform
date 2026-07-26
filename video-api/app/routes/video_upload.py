@@ -284,6 +284,12 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
             },
         )
 
+        video_result = await db.execute(select(Video).where(Video.id == video_id))
+        video = video_result.scalars().first()
+
+        if not video:
+            raise HTTPException(status_code=500, detail="The Video object isn't found!")
+
         result = await db.execute(
             select(UploadSession).where(
                 UploadSession.id == req.uploadSessionId,
@@ -294,6 +300,9 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
         
         if not upload_session:
             raise HTTPException(status_code=404, detail="Upload session not found for the given video ID")
+
+        # Assign the object_key fom UploadSession to Video
+        video.object_key = upload_session.object_key
         
         # Create a new VideoEvent instead of updating old events
         video_event = VideoEvent(

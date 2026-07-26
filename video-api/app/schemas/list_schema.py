@@ -22,6 +22,7 @@ class VideoListOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    object_key: uuid.UUID
 
     category_id: str | None = None
     series_id: str | None = None
@@ -61,15 +62,14 @@ class VideoListOut(BaseModel):
     def hls_url(self) -> str | None:
         if not self.id:
             return None
-        return f"{settings.processed_videos_bucket_dev_url}/{self.id}/dash/master.m3u8"
+        return f"{settings.processed_videos_bucket_dev_url}/{self.object_key}/dash/master.m3u8"
 
     @computed_field
     @property
     def dash_url(self) -> str | None:
         if not self.id:
             return None
-        return f"{settings.processed_videos_bucket_dev_url}/{self.id}/dash/manifest.mpd"
-
+        return f"{settings.processed_videos_bucket_dev_url}/{self.object_key}/dash/manifest.mpd"
 
 class VideoSEOOut(BaseModel):
     meta_title: str | None = None
