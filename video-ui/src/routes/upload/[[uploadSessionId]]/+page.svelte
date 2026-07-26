@@ -34,18 +34,20 @@
 
             const data = await response.json();
 
-            // remove any existing uploadSessionId from cookies
+            // remove any existing uploadSessionId, videoId from cookies
             cookieStore.delete("uploadSessionId");
+            cookieStore.delete("videoId");
 
-            // Set uploadSessionId in cookies
-            cookieStore.set("uploadSessionId", data.upload_session_id)
+            // Set uploadSessionId, videoId in cookies
+            cookieStore.set("uploadSessionId", data.uploadSessionId);
+            cookieStore.set("videoId", data.videoId);
 
             // Close the modal
             // modalOpen = false;
 
             // Add the upload_session_id to the URL
             await goto(
-                resolve(`/upload/${data.upload_session_id}`), {
+                resolve(`/upload/${data.videoId}`), {
                 replaceState: true,
                 noScroll: true,
                 keepFocus: true,

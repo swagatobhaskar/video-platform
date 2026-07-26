@@ -44,12 +44,29 @@ export function createVideoUploadSession() {
         abortController = new AbortController();
         const signal = abortController.signal;
 
+        // get videoId from cookies/localStorage
+        const videoCookie = await cookieStore.get("videoId");
+        const videoId = videoCookie?.value;
+
+        if (!videoId) {
+            throw new Error("Missing videoId");
+        }
+
+        const uploadSessionCookie = await cookieStore.get("uploadSessionId");
+        const uploadSessionId = uploadSessionCookie?.value;
+
+        if (!uploadSessionId) {
+            throw new Error("Missing videoId");
+        }
+
         try {
             // STEP 1: Initiate Upload
-            const { uploadId, key, videoId } = await initiateUpload(
+            const { uploadId, key } = await initiateUpload(
                 file.name,
                 file.type,
                 file.size,
+                videoId,
+                uploadSessionId,
                 signal
             );
             
@@ -67,6 +84,7 @@ export function createVideoUploadSession() {
                     uploadId,
                     key,
                     partNumber,
+                    videoId,
                     signal
                 );
 
@@ -134,9 +152,17 @@ export function createVideoUploadSession() {
         // Cancel in-flight requests
         abortController?.abort();
 
+        // get videoId from cookies/localStorage
+        const videoCookie = await cookieStore.get("videoId");
+        const videoId = videoCookie?.value;
+
+        if (!videoId) {
+            throw new Error("Missing videoId");
+        }
+
         try {
             if (currentUploadId && currentKey) {
-                await abortUpload(currentUploadId, currentKey);
+                await abortUpload(currentUploadId, currentKey, videoId);
             }
         } catch (err) {
             console.warn("Abort cleanup failed", err);
