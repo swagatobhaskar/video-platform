@@ -26,7 +26,7 @@ vite.config.ts.timestamp-*
 
 # Environment variables
 .env
-.env.*
+.env.development
 !.env.example
 
 # Logs
