@@ -204,12 +204,7 @@ async def update_video_event_record(db, video_id: str, event_type: str, payload:
     task_ignore_result=True,
 )
 def process_video_worker_operations(self, object_key: str, video_id: str, upload_session_id: str, upload_id: str, transcode_task_id: str):
-    try:
-        asyncio.run(_process_video_worker_operations(self, object_key, video_id, upload_session_id, upload_id, transcode_task_id))
-    finally:
-        # Ensure that the database session is closed after the task is done
-        # This forces the pool to release connections when the event loop dies.
-        asyncio.run(engine.dispose())
+    asyncio.run(_process_video_worker_operations(self, object_key, video_id, upload_session_id, upload_id, transcode_task_id))
 
 async def _process_video_worker_operations(
     self,

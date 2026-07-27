@@ -338,7 +338,7 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
 
         # Create A TranscodeTask entry
         transcode_task = TranscodeTask(
-            video_id=req.videoId,
+            video_id=video_id,
             upload_session_id=req.uploadSessionId,
             status=VideoProcessingStatusEnum.PENDING,
         )
@@ -358,7 +358,7 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
         # start celery transcode task
         task = process_video_worker_operations.delay( # type: ignore
             object_key=req.key,
-            video_id=req.videoId,  # or video_id ?
+            video_id=video_id,
             upload_id=req.uploadId,
             upload_session_id=req.uploadSessionId,
             transcode_task_id=str(transcode_task.id),
