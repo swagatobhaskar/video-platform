@@ -38,19 +38,23 @@ services:
 
       # You can peek inside the postgres container with: docker exec -it postgres_db psql -U swagato -d mypgdb
 
-  seed:
-    build:
-      context: ./api
-    depends_on:
-      database:
-        condition: service_healthy
-    command: python -m scripts.seed
-    env_file:
-      - ./api/.env
-    profiles:
-      - tools
+  # seed:
+  #   build:
+  #     context: ./api
+  #   depends_on:
+  #     database:
+  #       condition: service_healthy
+  #   command: python -m scripts.seed
+  #   env_file:
+  #     - ./api/.env
+  #   profiles:
+  #     - tools
 
     # Run the seed service with: docker compose --profile tools run --rm seed or, docker compose --profile tools up seed
+
+# FFmpeg needs to be installed in the backend container or VM for the transcode task to work.
+# You can install it by adding the following lines to the Dockerfile in the api directory:
+# RUN apt-get update && apt-get install -y ffmpeg
 
   celery_worker:
     build:
