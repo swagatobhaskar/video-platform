@@ -120,6 +120,7 @@ export async function completeUpload(
             uploadId,
             parts,
             uploadSessionId,
+            // videoId, passing it via url
         }),
         signal
     });
