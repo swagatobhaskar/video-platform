@@ -26,11 +26,9 @@ class VideoListOut(BaseModel):
     )
 
     id: uuid.UUID
-    object_key: uuid.UUID
-
+    object_key: uuid.UUID | None = None # it can be None until video is processed
     category_id: str | None = None
     series_id: str | None = None
-
     title: str | None = None
     slug: str | None = None
     description: str | None = None
