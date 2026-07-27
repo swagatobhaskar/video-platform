@@ -610,51 +610,38 @@ async def record_uploaded_part(
         "message": "uploaded part recorded successfully"
     }
 
-# transcode_task_id could be optional
-# So changing it iinto route query parameter
+
 @router.get("/{video_id}/processing-status/{transcode_task_id}")
 async def get_transcode_processing_status(
     video_id: str,
     transcode_task_id: str,
     db: AsyncSession = Depends(get_db)
-):    
-    result = await db.execute(
-        select(Video).where(Video.id == video_id)
-    )
-
+):
+    result = await db.execute(select(Video).where(Video.id == video_id))
     video = await result.scalar_one_or_none()
 
     if not video:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Video with id {video_id} not found!"
-        )
+        raise HTTPException(status_code=404, detail=f"Video with id {video_id} not found!")
     
     if video.transcode_task_id != transcode_task_id:
-        raise HTTPException(
-            status_code=503,
-            detail="Task id doesn't belong to the video"
-        )
+        raise HTTPException(status_code=503, detail="Task id doesn't belong to the video")
     
-    # transcode_task_result = await db.execute(
-    #     select(TranscodeTask).where(TranscodeTask.id == transcode_task_id)
-    # )
-
-    # transcode_task = transcode_task_result.scalar_one_or_none()
+    task_result = await db.execute(
+        select(TranscodeTask).where(TranscodeTask.id == transcode_task_id)
+    )
+    transcode_task = task_result.scalar_one_or_none()
 
     # If transcode_task_id is not present
-    # if not transcode_task:
-    #     raise HTTPException(
-    #         status_code=404,
-    #         detail=f"Video with id {video_id} not found!"
-    #     )
+    if not transcode_task:
+        raise HTTPException(status_code=400, detail=f"Transcode task {transcode_task_id} not found!")
 
     status = AsyncResult(transcode_task_id, app=celery)
 
     return {
         "task_id": transcode_task_id,
         "status": status.status,
-        "result": status.result
+        "result": status.result,
+        "progress": transcode_task.progress_percent,
     }
 
 
