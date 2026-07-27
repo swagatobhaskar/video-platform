@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from botocore.exceptions import ClientError
 import kombu
 import redis
+from datetime import datetime, timezone
 
 from app.utils.r2_helper import s3
 from app.utils.dependencies import get_db
@@ -146,7 +147,6 @@ async def initiate_upload(
         if not upload_session:
             raise HTTPException(status_code=404, detail="Upload session not found for the given uploadSessionId and video id")
 
-        # upload_session.video_id=video.id
         upload_session.object_key=object_key
         upload_session.video_upload_id=upload_id
         upload_session.file_size_bytes=req.fileSizeBytes
@@ -310,6 +310,7 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
         db.add(video_event)
 
         upload_session.status = UploadSessionStatusEnum.COMPLETED
+        upload_session.completed_at = datetime.now(timezone.utc)
         upload_session.uploaded_parts_count = len(uploaded_parts) # upload_session.total_parts
 
         await db.commit()
