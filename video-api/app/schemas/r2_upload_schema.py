@@ -37,5 +37,10 @@ class AbortRequest(BaseModel):
 class ThumbnailUploadRequest(BaseModel):
     contentType: str
     filename: str
-    fileSizeBytes: str
+    fileSizeBytes: int
+    # uploadSessionId: str
+
+class ThumbnailUploadComplete(BaseModel):
+    # uploadSessionId: str
+    thumbnail_object_key: str
     
