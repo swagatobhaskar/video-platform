@@ -130,12 +130,6 @@ class Video(Base):
     like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     dislike_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # e.g., if object_prefix = "bucket/abc123"
-    # Then construct:
-    # dash_manifest = f"{prefix}/dash/manifest.mpd"
-    # hls_manifest = f"{prefix}/hls/master.m3u8"
-    # Not required for my use case
-
     # Thumbnail should be prefixed by the video_id
     thumbnail_object_key: Mapped[str] = mapped_column(String(255), nullable=True)
     
