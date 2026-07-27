@@ -1,16 +1,13 @@
 import uuid
-
 from fastapi.routing import APIRouter
 from fastapi import HTTPException, status, Depends
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from typing import cast, Literal
 
 from app.schemas import list_schema
 from app.database.session import AsyncSession
 from app.utils.dependencies import get_current_user, get_db
 from app.utils import security
-from app.database.models import User, Video, UploadSession, Series, Category, VideoPublicationStatusEnum
+from app.database.models import Video, Series, Category, VideoPublicationStatusEnum
 from app.config import get_settings
 
 router = APIRouter(prefix="/api/list", tags=["list"])
