@@ -9,19 +9,14 @@ from botocore.exceptions import ClientError
 
 from app.utils.r2_helper import s3
 from app.utils.dependencies import get_db
-from app.tasks.transcode.transcode_task import process_video_worker_operations
-
-from app.database.models import (
-    Video, UploadSession, UploadSessionStatusEnum, VideoProcessingStatusEnum,
-    VideoEvent,
-)
+from app.database.models import Video, VideoEvent
 from app.schemas.r2_upload_schema import ThumbnailUploadComplete, ThumbnailUploadRequest
 from app.database.session import AsyncSession
 
 from app.config import get_settings
 settings = get_settings()
 
-router = APIRouter(prefix="/api/video/thumbnail/", tags=["thumbnail",])
+router = APIRouter(prefix="/api/thumbnail/", tags=["thumbnail",])
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +43,18 @@ async def upload_video_thumbnail(
     if req.fileSizeBytes > MAX_SIZE:
         raise HTTPException(status_code=400, detail="Thumbnail too large")
 
+    result = await session.execute(
+        select(Video).where(Video.id == video_id)
+    )
+
+    video = result.scalar_one_or_none()
+
+    if not video:
+        raise HTTPException(status_code=400, detail=f"Video {video_id} not found!")
+
     try:
         import uuid
-        thumbnail_object_key = uuid.uuid4()  # This avoids weird filenames like ../../cat.png
+        thumbnail_object_key = str(uuid.uuid4())  # This avoids weird filenames like ../../cat.png
 
         url = s3.generate_presigned_url(
             "put_object",
@@ -82,9 +86,19 @@ async def upload_video_thumbnail(
             "thumbnail_object_key": thumbnail_object_key,
         }
 
-    except Exception as e:
-        logger.exception(str(e))
-        print(str(e))
+    except ClientError:
+        logger.exception("Failed to generate presigned R2 URL.")
+        raise HTTPException(status_code=500, detail="Could not generate upload URL.")
+
+    except SQLAlchemyError:
+        await session.rollback()
+        logger.exception("Failed to save thumbnail upload event.")
+        raise HTTPException(status_code=500, detail="Could not create upload session.")
+
+    except Exception:
+        await session.rollback()
+        logger.exception("Unexpected error while generating thumbnail upload URL.")
+        raise
 
 
 @router.post("/{video_id}/upload-complete")
