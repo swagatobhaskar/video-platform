@@ -12,9 +12,13 @@
 
     import { fileInputController } from '$lib/controllers/fileInputController.svelte';
     const videoInputController = fileInputController({uploadFileType: "video"})
+    const thumbnailInputController = fileInputController({uploadFileType: "image"})
     
     import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte'
     const uploader = createVideoUploadSession();
+
+    import { thumbnailUploadService } from '$lib/services/thumbnailUploadService.svelte';
+    const thumbnailUploader = thumbnailUploadService();
 
     // const videoId = $derived(!page.params.videoId);
     const videoId = $derived(page.params.videoId);
@@ -66,6 +70,16 @@
 	    } catch (err) {
             console.error(err);
         }
+    }
+
+    async function handleThumbnailUpload() {
+        const thumbnail_file = thumbnailInputController.state.selectedFile;
+
+        if (!thumbnail_file) {
+            throw new Error("No thumbnail image file!")
+        };
+
+        await thumbnailUploader.upload();
     }
 
     // type Video = {
@@ -151,9 +165,7 @@ This avoids race conditions during rapid client-side navigation.
     <!-- Form Area -->
     <section class="flex-2/3">
         <!-- Form Component -->
-         <!-- <FormComponent values={fetchedVideoData} /> -->
          <FormComponent />
-        <!-- End of Form Component -->
     </section>
     
     <!-- Upload Progress & Thumbnail -->
@@ -162,6 +174,6 @@ This avoids race conditions during rapid client-side navigation.
         <VideoUploadProgressCard uploader={uploader} />
         
         <!-- Thumbnail -->
-        <ThumbnailCard />
+        <ThumbnailCard controller={thumbnailInputController} />
     </section>
 </div>
