@@ -77,6 +77,11 @@ class UploadSession(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     
     def __repr__(self) -> str:
         return f"<UploadSession(id={self.id}, video_id={self.video_id})>"

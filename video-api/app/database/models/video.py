@@ -135,23 +135,15 @@ class Video(Base):
     # dash_manifest = f"{prefix}/dash/manifest.mpd"
     # hls_manifest = f"{prefix}/hls/master.m3u8"
     # Not required for my use case
-    # video_object_storage_prefix: Mapped[str] = mapped_column(String(255), nullable=True)
 
     # Thumbnail should be prefixed by the video_id
-    thumbnail_object_storage_prefix: Mapped[str] = mapped_column(String(255), nullable=True)
+    thumbnail_object_key: Mapped[str] = mapped_column(String(255), nullable=True)
     
     bitrate: Mapped[int] = mapped_column(Integer, nullable=True)  # in kbps
     codec: Mapped[str] = mapped_column(String, nullable=True)  # e.g., h264, vp9, av1
     width: Mapped[int] = mapped_column(Integer, nullable=True)
     height: Mapped[int] = mapped_column(Integer, nullable=True)
     fps: Mapped[float] = mapped_column(Float, nullable=True)  # frames per second
-
-    # These aren't required, since file URL will be derived from:
-    # <CDN URL>/<video_id>/dash/manifest.mpd
-    # or, <CDN URL>/<video_id>/hls/master.m3u8
-    # video_dash_url: Mapped[str] = mapped_column(String(255), nullable=True)
-    # video_hls_url: Mapped[str] = mapped_column(String(255), nullable=True)
-    # thumbnail_url: Mapped[str] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -179,11 +171,11 @@ class Video(Base):
 
     @property
     def hls_manifest_key(self):
-        return f"{self.object_key}/dash/master.m3u8"    # correction required here
+        return f"{self.object_key}/dash/master.m3u8"
 
     @property
     def thumbnail_uploaded(self) -> bool:
-        return bool(self.thumbnail_object_storage_prefix)
+        return bool(self.thumbnail_object_key)
     
     # @property
     # def hls_url(self):
@@ -193,10 +185,6 @@ class Video(Base):
     # def dash_url(self):
     #     return f"{settings.CDN_BASE_URL}/{self.dash_manifest_key}"
 
-    # @property
-    # def thumbnail_key(self):
-    #     return f"{self.id}/thumbnails/thumbnail.jpg"
-    
     @property
     def transcript_uploaded(self) -> bool:
         return any(
