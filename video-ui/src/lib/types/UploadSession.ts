@@ -1,18 +1,3 @@
-// export type UploadSession = {
-//     id: string;
-//     videoId: string;
-//     object_key: string;
-//     uploadId: string;
-//     file_size_bytes: number;
-//     mime_type: string;
-//     original_filename: string;
-//     total_parts: number;
-//     uploaded_parts_count: number;
-//     created_at: Date;
-//     updated_at: Date;
-//     status: string;
-// }
-
 
 export type UploadSessionStatus =
     | "pending"
@@ -35,4 +20,5 @@ export type UploadSession = {
     status: UploadSessionStatus;
     created_at: string;
     updated_at: string;
+    completed_at: string | null;
 };
