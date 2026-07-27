@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # Helper function to download mp4 files from Cloudflare R2 bucket
 def download_from_r2(object_key: str, local_download_path: str):
     
-    RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
+    RAW_VIDEO_BUCKET = settings.raw_videos_bucket
     
     try:
         s3.download_file(
