@@ -33,3 +33,9 @@ class AbortRequest(BaseModel):
     key: str
     uploadId: str
     videoId: str
+
+class ThumbnailUploadRequest(BaseModel):
+    contentType: str
+    filename: str
+    fileSizeBytes: str
+    
