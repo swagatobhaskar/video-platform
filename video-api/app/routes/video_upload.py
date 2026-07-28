@@ -27,7 +27,7 @@ from app.database.session import AsyncSession
 from app.config import get_settings
 settings = get_settings()
 
-router = APIRouter(prefix="/api/video/uploads", tags=["video", "upload"])
+router = APIRouter(prefix="/api/video/upload", tags=["video", "upload"])
 
 logger = logging.getLogger(__name__)
 
