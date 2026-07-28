@@ -21,16 +21,25 @@ class CategoryUpdate(BaseModel):
     image_url: str | None = None
 
 
+class CategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    name: str
+    image_url: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class CategoryVideoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     # These are fields for Video
     id: uuid.UUID
-    title: str
+    title: str | None = None
     # thumbnail_url: str | None = None
 
 
-class CategoryOut(CategoryBase):
+class CategoryOutWithVideo(CategoryBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
