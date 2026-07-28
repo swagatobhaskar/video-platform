@@ -96,19 +96,3 @@ class SeriesDetailOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     videos: VideoListOut
-
-
-class CategoryListOut(BaseModel):
-    id: uuid.UUID
-    name: str
-    image_url: str | None = None
-    created_at: datetime
-    updated_at: datetime
-
-class CategoryDetailOut(BaseModel):
-    id: uuid.UUID
-    name: str
-    image_url: str | None = None
-    created_at: datetime
-    updated_at: datetime
-    videos: VideoListOut

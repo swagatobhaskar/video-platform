@@ -69,25 +69,3 @@ async def get_series_detail(series_id: str, session: AsyncSession = Depends(get_
 
     return series
 
-
-# Categories list
-@router.get("/category", response_model=list[list_schema.CategoryListOut])
-async def get_series_list(session: AsyncSession = Depends(get_db)):
-    result = await session.execute(select(Category))
-    all_categories = result.scalars().all()
-    return all_categories
-
-
-# Series detail
-@router.get("/category/{category_id}", response_model=list_schema.CategoryDetailOut)
-async def get_series_detail(category_id: str, session: AsyncSession = Depends(get_db)):
-
-    result = await session.execute(
-        select(Series).where(Series.id == category_id)
-    )
-    category = result.scalar_one_or_none()
-
-    if not category:
-        raise HTTPException(status_code=404, detail=f"Video {category_id} not found!")
-
-    return category
