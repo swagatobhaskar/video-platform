@@ -41,6 +41,7 @@ MarkupSafe==3.0.3
 mdurl==0.1.2
 packaging==26.0
 passlib==1.7.4
+pillow==12.3.0
 prometheus_client==0.25.0
 prompt_toolkit==3.0.52
 psycopg2-binary==2.9.11

@@ -16,6 +16,10 @@ from app.utils import security
 from app.database.models import Video, Category
 from app.config import get_settings
 from app.utils.r2_helper import s3
+from app.utils.image_helper import (
+    convert_to_webp_bytes, validate_thumbnail_image,
+    upload_image_to_r2, safe_delete_from_r2
+)
 
 router = APIRouter(prefix="/api/category", tags=["category"])
 
@@ -23,36 +27,6 @@ settings = get_settings()
 
 logger = logging.getLogger(__name__)
 
-# Instead of using pre-signed url this time, the image is uploaded through the backend
-async def upload_image_to_r2(image: UploadFile) -> str:
-    # extension = image.filename.split(".")[-1]
-    extension = Path(image.filename).suffix
-    filename = f"{uuid.uuid4()}.{extension}"
-    print("Ext, filename: ", extension, filename)
-
-    s3.upload_fileobj(
-        image.file,
-        settings.category_image_bucket,
-        filename,
-        ExtraArgs={
-            "ContentType": image.content_type,
-        },
-    )
-
-    # return f"{settings.category_image_bucket_dev_url}/{filename}"
-    print("filename after r2 upload: ", filename)
-    return filename
-
-
-async def delete_image_from_r2(object_key: str) -> None:
-    await run_in_threadpool(s3.delete_object, Bucket=settings.category_image_bucket, Key=object_key)
-
-async def safe_delete_from_r2(object_key: str) -> None:
-    try:
-        await delete_image_from_r2(object_key)
-    except Exception:
-        # Log the error; don't mask the original exception.
-        logger.exception("Failed to delete orphaned R2 object: %s", object_key)
 
 @router.post("/", response_model=category_schema.CategoryOut, status_code=201)
 async def create_new_category(
@@ -60,15 +34,7 @@ async def create_new_category(
     image: UploadFile | None = File(None),
     session: AsyncSession = Depends(get_db)
 ):
-    MAX_SIZE = 5 * 1024 * 1024  # 5 MB
     image_key : str | None = None
-
-    if image and not image.content_type.startswith("image/"):
-        raise HTTPException(400, "File must be an image.")
-
-    # This is likely unreliable
-    # if image and not image.size < MAX_SIZE:
-    #     raise HTTPException(400, "Image size exceeds 5 MB.")
 
     if image:
         image_key = await upload_image_to_r2(image)
