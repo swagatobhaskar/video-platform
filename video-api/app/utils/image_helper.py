@@ -13,6 +13,16 @@ settings = get_settings()
 
 logger = logging.getLogger(__name__)
 
+
+"""
+⭐️ YouTube video thumbnails should be uploaded at a size of 3840 x 2160 pixels so that they are optimized for TV viewers on YouTube. This is heavily increased from the previous 1280 x 720 limit.
+YouTube thumbnails are a aspect ratio of 16:9 (same as widescreen video).
+The minimum width of YouTube thumbnails is 640 pixels.
+YouTube thumbnail files should be under 50MB.
+Supported image formats for thumbnails are JPG, GIF, or PNG.
+"""
+
+
 def validate_thumbnail_image(file: UploadFile):
 
     MAX_SIZE = 5 * 1024 * 1024  # 5 MB
@@ -52,7 +62,7 @@ def validate_thumbnail_image(file: UploadFile):
     print(f"Dimensions: {image.width}x{image.height}")
 
 
-def convert_to_webp_bytes(file: UploadFile) -> BytesIO:
+def convert_to_webp(file: UploadFile) -> BytesIO:
     image = Image.open(file.file)
 
     # Preserve alpha channel/transparency for PNGs
@@ -62,9 +72,10 @@ def convert_to_webp_bytes(file: UploadFile) -> BytesIO:
     output = BytesIO()
 
     # resize before encoding
+    image_size = image.size # size returns a tuple: (width, height)
     image.thumbnail((2048, 2048))
     
-    image.save(output, format="WEBP", quality=90, method=6)
+    image.save(output, format="WEBP", quality=85, method=6)
     output.seek(0)
 
     return output

@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from botocore.exceptions import ClientError
 
 from app.utils.r2_helper import s3
+from app.utils.image_helper import convert_to_webp
 from app.utils.dependencies import get_db
 from app.database.models import Video, VideoEvent
 from app.schemas.r2_upload_schema import ThumbnailUploadComplete, ThumbnailUploadRequest
@@ -51,6 +52,8 @@ async def upload_video_thumbnail(
 
     if not video:
         raise HTTPException(status_code=400, detail=f"Video {video_id} not found!")
+
+    # if uploaded image file is webp, bypass conversion
 
     try:
         import uuid
