@@ -226,6 +226,15 @@ class VideoRead(BaseModel):
     can_publish: bool
 
 
+
+class VideoAdminRead(VideoRead):
+    # remove these fields from VideoRead
+    video_transcripts: list[VideoTranscriptRead] = Field(default_factory=list)
+    upload_sessions: list[UploadSessionRead] = Field(default_factory=list)
+    transcode_tasks: list[TranscodeTaskRead] = Field(default_factory=list)
+    video_events: list[VideoEventRead] = Field(default_factory=list)
+
+
 # Might not be required anymore
 # class VideoOut(BaseModel):
 #     # Pydantic v2 configuration to read from SQLAlchemy models
