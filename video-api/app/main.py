@@ -6,13 +6,14 @@ from contextlib import asynccontextmanager
 
 from app.config import get_settings, Settings
 from app.database.session import engine
-from app.database.models.base import Base
+# from app.database.models.base import Base
 
 from app.routes.user import router as UserRouter
 from app.routes.auth import router as AuthRouter
 from app.routes.video_upload import router as VideoUploadRouter
-from app.routes.lists import router as ListRouter
+from app.routes.video import router as VideoRouter
 from app.routes.category import router as CategoryRouter
+from app.routes.series import router as SeriesRouter
 from app.routes._task_routes import router as TaskRouter
 
 settings = get_settings()
@@ -38,18 +39,19 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    )
+)
 
 app.include_router(UserRouter)
 app.include_router(AuthRouter)
 app.include_router(VideoUploadRouter)
 app.include_router(TaskRouter)
-app.include_router(ListRouter)
+app.include_router(VideoRouter)
 app.include_router(CategoryRouter)
+app.include_router(SeriesRouter)
 
 # Use settings as Dependency Injection
 @app.get("/")
-def root_info(settings: Annotated[Settings, Depends(get_settings)]):
+def read_root(settings: Annotated[Settings, Depends(get_settings)]):
     
     return JSONResponse(
         status_code=status.HTTP_200_OK, 

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 # Series list
-@router.get("/", response_model=list[series_schema.SeriesListOut])
+@router.get("/", response_model=list[series_schema.SeriesOut])
 async def get_series_list(session: AsyncSession = Depends(get_db)):
     result = await session.execute(select(Series))
     all_series = result.scalars().all()
@@ -32,8 +32,9 @@ async def get_series_list(session: AsyncSession = Depends(get_db)):
 async def get_series_detail(series_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
 
     result = await session.execute(
-        select(Series).where(Series.id == series_id),
-        selectinload(Video).load_only(Video.id, Video.title)
+        select(Series)
+        .options(selectinload(Series.videos).load_only(Video.id, Video.title))
+        .where(Series.id == series_id)
     )
     series = result.scalar_one_or_none()
 
@@ -64,10 +65,10 @@ async def create_new_series(req: series_schema.SeriesCreate, session: AsyncSessi
 
 
 # Series delete
-# Keep the videos, just remove their category.
+# Keep the videos, just remove their series.
 # Later: add option to delete the videos as well
 @router.delete("/{series_id}", status_code=204)
-async def delete_category(
+async def delete_series(
     series_id: uuid.UUID,
     delete_videos: bool = False,
     session: AsyncSession = Depends(get_db)
@@ -89,3 +90,119 @@ async def delete_category(
     except SQLAlchemyError as e:
         await session.rollback()
         raise HTTPException(status_code=500, detail="Database error")
+
+
+# Series patch
+@router.patch("/{series_id}", response_model=series_schema.SeriesDetailOut)
+async def update_series(
+    series_id: uuid.UUID,
+    req: series_schema.SeriesUpdate,
+    session: AsyncSession = Depends(get_db),
+):
+    series = await session.get(Series, series_id)
+
+    if series is None:
+        raise HTTPException(404, "Series not found")
+
+    if req.name is not None:
+        series.name = req.name
+
+    try:
+        await session.commit()
+        await session.refresh(series)
+
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(409, "Series name already exists")
+
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(500, "Database error")
+
+    return series
+
+
+# Add video to series
+@router.post("/{series_id}/video/{video_id}", response_model=series_schema.SeriesDetailOutWithVideo)
+async def add_video_to_series(
+    series_id: uuid.UUID,
+    video_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+):
+    series = await session.get(Series, series_id)
+    if series is None:
+        raise HTTPException(404, "Series not found")
+
+    video = await session.get(Video, video_id)
+    if video is None:
+        raise HTTPException(404, f"Video not found")
+
+    if video.series_id is not None:
+        raise HTTPException(status_code=409, detail="Video already belongs to a series.")
+
+    video.series = series
+    # or:
+    # video.series_id = series.id
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(409, "Integrity constraint violated")
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(500, "Database error")
+
+    # this doesn't match I think!
+    result = await session.execute(
+        select(Series)
+        .options(selectinload(Series.videos).load_only(Video.id, Video.title))
+        .where(Series.id == series_id)
+    )
+
+    return result.scalar_one()
+
+
+# Remove video from a series
+@router.delete("/{series_id}/video/{video_id}", response_model=series_schema.SeriesDetailOutWithVideo)
+async def remove_video_from_series(
+    series_id: uuid.UUID,
+    video_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+):
+    series = await session.get(Series, series_id)
+
+    if series is None:
+        raise HTTPException(404, "Series not found")
+    
+    video = await session.get(Video, video_id)
+
+    if video is None:
+        raise HTTPException(404, "Video not found")
+
+    if video.series_id != series_id:
+        raise HTTPException(400, "Video is not in this series")
+
+    # Remove relationship
+    video.series = None
+    # or:
+    # video.series_id = None
+
+    try:
+        await session.commit()
+
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(409, "Could not remove video from series")
+
+    except SQLAlchemyError:
+        await session.rollback()
+        raise HTTPException(500, "Database error")
+
+    # Reload series with videos relationship populated
+    result = await session.execute(
+        select(Series)
+        .options(selectinload(Series.videos).load_only(Video.id, Video.title))
+        .where(Series.id == series_id)
+    )
+
+    return result.scalar_one()

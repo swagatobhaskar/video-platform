@@ -15,7 +15,7 @@ class SeriesUpdate(BaseModel):
     name: str | None = None
 
 
-class SeriesListOut(BaseModel):
+class SeriesOut(BaseModel):
     id: uuid.UUID
     name: str
     created_at: datetime
