@@ -19,12 +19,15 @@ if TYPE_CHECKING:
     from .upload import UploadSession, UploadSessionStatusEnum
     from .processing import TranscodeTask, VideoEvent
 
+from app.config import get_settings
+settings = get_settings()
+
 class Category(Base):
     __tablename__ = "categories"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    image_url: Mapped[str] = mapped_column(String(255), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # One category -> many videos
     videos: Mapped[List["Video"]] = relationship("Video", back_populates="category")
@@ -83,11 +86,11 @@ class Video(Base):
     __tablename__ = "videos"
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title: Mapped[str] = mapped_column(String(255), unique=False, index=True, nullable=True)
-    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=True)
-    description: Mapped[str] = mapped_column(Text, nullable=True)
+    title: Mapped[str | None] = mapped_column(String(255), unique=False, index=True, nullable=True)
+    slug: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     language: Mapped[LanguageEnum] = mapped_column(Enum(LanguageEnum), nullable=True, default=LanguageEnum.BENGALI)  
-    duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)  # convert to ISO 8601 duration format when returning in API response
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)  # convert to ISO 8601 duration format when returning in API response
     
     publication_status: Mapped[VideoPublicationStatusEnum] = mapped_column(
         Enum(VideoPublicationStatusEnum),
@@ -96,16 +99,16 @@ class Video(Base):
     )
 
     # The uploaded file name as is sent to R2. Assigned from UploadSession after upload is completed.
-    object_key: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), unique=True, index=True, nullable=True)
+    object_key: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), unique=True, index=True, nullable=True)
 
     # Many videos -> one category
-    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+    category_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     category: Mapped["Category"] = relationship("Category", back_populates="videos")
     
     # Many videos -> one series
-    series_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("series.id", ondelete="SET NULL"), nullable=True)
+    series_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("series.id", ondelete="SET NULL"), nullable=True)
     series: Mapped["Series"] = relationship("Series", back_populates="videos")
-    episode_number: Mapped[int] = mapped_column(Integer, nullable=True)
+    episode_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Children
     video_transcripts: Mapped[List["VideoTranscript"]] = relationship("VideoTranscript", back_populates="video", cascade="all, delete-orphan")
@@ -116,15 +119,15 @@ class Video(Base):
 
     # SEO Fields
     seo_tags: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
-    focus_keyword: Mapped[str] = mapped_column(String(255), nullable=True)
+    focus_keyword: Mapped[str | None] = mapped_column(String(255), nullable=True)
     secondary_keywords: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
-    seo_summary_en: Mapped[str] = mapped_column(String(255), nullable=True)
+    seo_summary_en: Mapped[str | None] = mapped_column(String(255), nullable=True)
     keywords: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
-    meta_title: Mapped[str] = mapped_column(String(255), nullable=True)
-    meta_description: Mapped[str] = mapped_column(String(255), nullable=True)
-    thumbnail_alt_text: Mapped[str] = mapped_column(String(255), nullable=True)
-    search_intent: Mapped[str] = mapped_column(String(255), nullable=True)
-    transcript: Mapped[str] = mapped_column(Text, nullable=True)
+    meta_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    meta_description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    thumbnail_alt_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    search_intent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # content_rating (G, PG, PG-13, R)
     # age_restriction (0, 7, 13, 18)
@@ -133,13 +136,13 @@ class Video(Base):
     dislike_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Thumbnail should be prefixed by the video_id
-    thumbnail_object_key: Mapped[str] = mapped_column(String(255), nullable=True)
+    thumbnail_object_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     
-    bitrate: Mapped[int] = mapped_column(Integer, nullable=True)  # in kbps
-    codec: Mapped[str] = mapped_column(String, nullable=True)  # e.g., h264, vp9, av1
-    width: Mapped[int] = mapped_column(Integer, nullable=True)
-    height: Mapped[int] = mapped_column(Integer, nullable=True)
-    fps: Mapped[float] = mapped_column(Float, nullable=True)  # frames per second
+    bitrate: Mapped[int | None] = mapped_column(Integer, nullable=True)  # in kbps
+    codec: Mapped[str | None] = mapped_column(String, nullable=True)  # e.g., h264, vp9, av1
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fps: Mapped[float | None] = mapped_column(Float, nullable=True)  # frames per second
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -155,20 +158,33 @@ class Video(Base):
     )
     
     # Admin manually clicks publish button to make the video live
-    published_at: Mapped[datetime] = mapped_column(
+    published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         # server_default=func.now(),
         nullable=True,  # Since the video is not published when it's created, we can't set server_default to now() and nullable to False.
     )
 
     @property
-    def dash_manifest_key(self):
-        return f"{self.object_key}/dash/manifest.mpd"
+    def dash_manifest_key(self) -> str | None:
+        if self.object_key:
+            return f"{settings.processed_videos_bucket_dev_url}/{self.object_key}/dash/manifest.mpd"
+        else:
+            return None
 
     @property
-    def hls_manifest_key(self):
-        return f"{self.object_key}/dash/master.m3u8"
+    def hls_manifest_key(self) -> str | None:
+        if self.object_key:
+            return f"{settings.processed_videos_bucket_dev_url}/{self.object_key}/dash/master.m3u8"
+        else:
+            return None
 
+    @property
+    def thumbnail_key(self) -> str | None:
+        if self.thumbnail_object_key:
+            return f"{settings.thumbnails_bucket_dev_url}/{self.thumbnail_object_key}.webp" # extension might be removable
+        else:
+            return None
+        
     @property
     def thumbnail_uploaded(self) -> bool:
         return bool(self.thumbnail_object_key)
@@ -247,7 +263,7 @@ class VideoTranscript(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     language_code: Mapped[str] = mapped_column(String(10), nullable=False, default="bn") # 'en', 'hi', 'bn'
-    transcript_text: Mapped[str] = mapped_column(Text, nullable=True)
+    transcript_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Many transcripts -> one video
     video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)

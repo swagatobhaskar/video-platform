@@ -7,7 +7,7 @@ from app.schemas import video_schema
 from app.database.session import AsyncSession
 from app.utils.dependencies import get_current_user, get_db
 from app.utils import security
-from app.database.models import Video, Series, Category, VideoPublicationStatusEnum
+from app.database.models import Video, VideoPublicationStatusEnum
 from app.config import get_settings
 
 router = APIRouter(prefix="/api/video", tags=["video"])
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/video", tags=["video"])
 settings = get_settings()
 
 # Add query parameter for Draft/Published/Archived videos
-@router.get("/", response_model=list[video_schema.VideoListOut])
+@router.get("/", response_model=list[video_schema.VideoRead])
 async def get_video_list(
     status: VideoPublicationStatusEnum | None = None,
     session: AsyncSession = Depends(get_db)
@@ -26,6 +26,8 @@ async def get_video_list(
     if status:
         query = query.where(Video.publication_status == status)
 
+    # need to fetch related models
+
     result = await session.execute(query)
     videos = result.scalars().all()
 
@@ -33,7 +35,7 @@ async def get_video_list(
 
 
 # Add query parameter for Draft/Published/Archived videos
-@router.get("/{video_id}", response_model=video_schema.VideoDetailOut)
+@router.get("/{video_id}", response_model=video_schema.VideoRead)
 async def get_video_detail(video_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
 
     result = await session.execute(
