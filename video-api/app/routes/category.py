@@ -17,7 +17,7 @@ from app.database.models import Video, Category
 from app.config import get_settings
 from app.utils.r2_helper import s3
 from app.utils.image_helper import (
-    convert_to_webp_bytes, validate_thumbnail_image,
+    convert_to_webp, validate_thumbnail_image,
     upload_image_to_r2, safe_delete_from_r2
 )
 
