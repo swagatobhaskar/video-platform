@@ -35,10 +35,16 @@ async def create_new_category(
     session: AsyncSession = Depends(get_db)
 ):
     image_key : str | None = None
+    file_bytes: bytes | None = None
 
     if image:
-        # convert to webp, if required
-        image_key = await upload_image_to_r2(image)
+        if not image.content_type == "image/webp":
+            # convert to webp
+            file_bytes = convert_to_webp(image)
+        else:
+            file_bytes = await image.read()
+
+        image_key: str = await upload_image_to_r2(file_bytes)
 
     try:
         new_category = Category(name=name, image_url = image_key)

@@ -23,46 +23,53 @@ Supported image formats for thumbnails are JPG, GIF, or PNG.
 """
 
 
-def validate_thumbnail_image(file: UploadFile):
+async def validate_image(file: UploadFile) -> bytes:
 
-    MAX_SIZE = 5 * 1024 * 1024  # 5 MB
+    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 
-    if file and not file.content_type.startswith("image/"):
-        raise HTTPException(400, "File must be an image.")
-
-    # file size
-    file.file.seek(0, os.SEEK_END)
-    original_size = size_bytes = file.file.tell()
-    file.file.seek(0)   # Reset for later reading
-    print(size_bytes)
-
-    if original_size > MAX_SIZE:
-        raise HTTPException(400, "Image can not be larger than 5MB!")
-
-    if file.content_type not in {
+    ALLOWED_TYPES = {
         "image/jpg",
         "image/jpeg",
         "image/png",
-    }:
-        raise HTTPException(400, "Only JPG, JPEG, and PNG are supported.")
+        "image/webp",
+    }
+
+    if file and not file.content_type in ALLOWED_TYPES:
+        raise HTTPException(400, "Unsupported image type.")
+
+    data = await file.read()
+
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file.")
+
+    if len(data) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Image exceeds maximum size.")
+
+    return data
+
+    # file size
+    # file.file.seek(0, os.SEEK_END)
+    # original_size = size_bytes = file.file.tell()
+    # file.file.seek(0)   # Reset for later reading
+    # print(size_bytes)
 
     # read image dimension
-    image = Image.open(file.file)
-    width, height = image.size
-    print(width, height)  # e.g. 1920 1080
+    # image = Image.open(file.file)
+    # width, height = image.size
+    # print(width, height)  # e.g. 1920 1080
 
-    # Converted WebP size
-    output = BytesIO()
-    image.save(output, format="WEBP", quality=85)
-    webp_size = output.tell() # bytes
-    output.seek(0)
+    # # Converted WebP size
+    # output = BytesIO()
+    # image.save(output, format="WEBP", quality=85)
+    # webp_size = output.tell() # bytes
+    # output.seek(0)
 
-    print(f"Original: {original_size / 1024:.1f} KB")
-    print(f"WebP: {webp_size / 1024:.1f} KB")
-    print(f"Dimensions: {image.width}x{image.height}")
+    # print(f"Original: {original_size / 1024:.1f} KB")
+    # print(f"WebP: {webp_size / 1024:.1f} KB")
+    # print(f"Dimensions: {image.width}x{image.height}")
 
 
-def convert_to_webp(file: UploadFile) -> BytesIO:
+def convert_to_webp(bytes: bytes, file: UploadFile | None = None) -> BytesIO:
     image = Image.open(file.file)
 
     # Preserve alpha channel/transparency for PNGs
@@ -72,7 +79,7 @@ def convert_to_webp(file: UploadFile) -> BytesIO:
     output = BytesIO()
 
     # resize before encoding
-    image_size = image.size # size returns a tuple: (width, height)
+    # image_size = image.size # size returns a tuple: (width, height)
     image.thumbnail((2048, 2048))
     
     image.save(output, format="WEBP", quality=85, method=6)
@@ -82,10 +89,11 @@ def convert_to_webp(file: UploadFile) -> BytesIO:
 
 
 # Instead of using pre-signed url this time, the image is uploaded through the backend
-async def upload_image_to_r2(image: UploadFile) -> str:
+# async def upload_image_to_r2(image: UploadFile) -> str:
+async def upload_image_to_r2(file_bytes: bytes, filename: str, content_type: str, bucket: str) -> str:
     # extension = image.filename.split(".")[-1]
-    extension = Path(image.filename).suffix
-    filename = f"{uuid.uuid4()}.{extension}"
+    extension = filename.split(".")[-1]
+    key = f"{uuid.uuid4()}.{extension}"
     print("Ext, filename: ", extension, filename)
 
     s3.upload_fileobj(
@@ -97,9 +105,17 @@ async def upload_image_to_r2(image: UploadFile) -> str:
         },
     )
 
-    # return f"{settings.category_image_bucket_dev_url}/{filename}"
-    print("filename after r2 upload: ", filename)
-    return filename
+    s3.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=file_bytes,
+        ContentType=content_type,
+    )
+
+    return {
+        "key": key, # filename
+        # "url": f"{settings.thumbnails_bucket_dev_url}/{key}",
+    }
 
 
 async def delete_image_from_r2(object_key: str) -> None:
