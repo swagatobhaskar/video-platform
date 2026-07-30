@@ -37,6 +37,7 @@ async def create_new_category(
     image_key : str | None = None
 
     if image:
+        # convert to webp, if required
         image_key = await upload_image_to_r2(image)
 
     try:

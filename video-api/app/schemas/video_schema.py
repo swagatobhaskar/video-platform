@@ -82,17 +82,3 @@ class VideoDetailOut(VideoListOut):
         if not self.id:
             return None
         return f"{settings.processed_videos_bucket_dev_url}/{self.object_key}/dash/manifest.mpd"
-
-
-class SeriesListOut(BaseModel):
-    id: uuid.UUID
-    name: str
-    created_at: datetime
-    updated_at: datetime
-
-class SeriesDetailOut(BaseModel):
-    id: uuid.UUID
-    name: str
-    created_at: datetime
-    updated_at: datetime
-    videos: VideoListOut

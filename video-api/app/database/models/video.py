@@ -62,7 +62,9 @@ class Series(Base):
     )
 
     # One series -> many videos
-    videos: Mapped[List["Video"]] = relationship("Video", back_populates="series")
+    videos: Mapped[List["Video"]] = relationship("Video", back_populates="series", passive_deletes=True)
+    # With passive_delete=True, SQLAlchemy does not load or update the child rows
+    # The DB handles it internally because of the foreign key.
 
     def __repr__(self) -> str:
         return f"<Series(id={self.id}, name='{self.name}')>"
