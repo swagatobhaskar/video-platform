@@ -14,6 +14,9 @@ from .base import Base
 
 from typing import TYPE_CHECKING
 
+from .upload import UploadSessionStatusEnum
+from .processing import TranscodeTask, VideoEvent
+
 # TYPE_CHECKING imports are ignored at runtime, so they don't create circular imports
 if TYPE_CHECKING:
     from .upload import UploadSession, UploadSessionStatusEnum
@@ -111,11 +114,12 @@ class Video(Base):
     episode_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Children
-    video_transcripts: Mapped[List["VideoTranscript"]] = relationship("VideoTranscript", back_populates="video", cascade="all, delete-orphan")
-    upload_sessions: Mapped[List["UploadSession"]] = relationship("UploadSession", back_populates="video", cascade="all, delete-orphan")
-    transcode_tasks: Mapped[List["TranscodeTask"]] = relationship("TranscodeTask", back_populates="video", cascade="all, delete-orphan")
+    # Using lazy="selectin" avoids calling .selectinload() in SQLAlchemy queries
+    video_transcripts: Mapped[List["VideoTranscript"]] = relationship("VideoTranscript", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
+    upload_sessions: Mapped[List["UploadSession"]] = relationship("UploadSession", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
+    transcode_tasks: Mapped[List["TranscodeTask"]] = relationship("TranscodeTask", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
     # renditions: Mapped[List[Rendition]] = relationship("Rendition", back_populates="video", cascade="all, delete-orphan")
-    video_events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="video", cascade="all, delete-orphan")
+    video_events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
 
     # SEO Fields
     seo_tags: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
@@ -164,6 +168,9 @@ class Video(Base):
         nullable=True,  # Since the video is not published when it's created, we can't set server_default to now() and nullable to False.
     )
 
+    # @property may introduce hidden database access during Pydantic serialization.
+    # A cleaner approach is to make them explicit schema fields populated in your function through routequery.
+    
     @property
     def dash_manifest_key(self) -> str | None:
         if self.object_key:
