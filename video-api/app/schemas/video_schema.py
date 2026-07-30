@@ -211,10 +211,6 @@ class VideoRead(BaseModel):
 
     video_transcripts: list[VideoTranscriptRead] = Field(default_factory=list)
 
-    # upload_sessions: list[UploadSessionRead] = Field(default_factory=list)
-    # transcode_tasks: list[TranscodeTaskRead] = Field(default_factory=list)
-    # video_events: list[VideoEventRead] = Field(default_factory=list)
-
     dash_manifest_key: str | None
     hls_manifest_key: str | None
     thumbnail_object_key: str | None
@@ -233,33 +229,3 @@ class VideoAdminRead(BaseModel):
     transcode_tasks: list[TranscodeTaskRead] = Field(default_factory=list)
     video_events: list[VideoEventRead] = Field(default_factory=list)
 
-
-# Might not be required anymore
-# class VideoOut(BaseModel):
-#     # Pydantic v2 configuration to read from SQLAlchemy models
-#     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
-
-#     id: uuid.UUID
-#     object_key: uuid.UUID | None = None # it can be None until video is processed
-#     category_id: uuid.UUID | None = None
-#     series_id: uuid.UUID | None = None
-#     title: str | None = None
-#     slug: str | None = None
-#     description: str | None = None
-#     created_at: datetime
-#     published_at: datetime | None = None
-#     updated_at: datetime
-#     episode_number: int | None = None
-#     thumbnail_alt_text: str | None = None
-#     thumbnail_object_storage_prefix: str | None = None
-#     language: LanguageEnum | None = None
-#     bitrate: int | None = None
-#     codec: str | None = None
-#     view_count: int = 0
-#     like_count: int = 0
-#     dislike_count: int = 0
-#     width: int | None = None
-#     height: int | None = None 
-#     fps: float | None = None
-#     duration_seconds: float | None = None
-#     publication_status: VideoPublicationStatusEnum

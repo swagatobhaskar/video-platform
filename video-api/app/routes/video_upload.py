@@ -31,22 +31,6 @@ router = APIRouter(prefix="/api/video/upload", tags=["video", "upload"])
 
 logger = logging.getLogger(__name__)
 
-# @router.post('/video')
-# async def upload_video(file: UploadFile = File(...), title: str = Form(...)):
-#     # Basic validation: ensure it's an image
-#     if not file.content_type.startswith("video/"):
-#         raise HTTPException(status_code=400, detail="File must be a video!")
-    
-#     # Create a local path to save the video
-#     video_file_location = f"videos/{file.filename}"
-#     os.makedirs("videos", exist_ok=True)
-    
-#     with open(video_file_location, "wb+") as file_object:
-#         # Stream the file content to disk
-#         shutil.copyfileobj(file.file, file_object)
-    
-#     return {"info": f"Video '{title}' saved at {video_file_location}"}
-
 
 # @router.post('/thumbnail')
 # async def upload_thumbnail(file: UploadFile = File(...)):
