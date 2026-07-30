@@ -20,15 +20,12 @@ class VideoPublicationStatusEnum(str, enum.Enum): # Recommended to inherit from 
 
 class VideoListOut(BaseModel):
     # Pydantic v2 configuration to read from SQLAlchemy models
-    model_config = ConfigDict(
-        from_attributes=True,
-        arbitrary_types_allowed=True,
-    )
+    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
     id: uuid.UUID
     object_key: uuid.UUID | None = None # it can be None until video is processed
-    category_id: str | None = None
-    series_id: str | None = None
+    category_id: uuid.UUID | None = None
+    series_id: uuid.UUID | None = None
     title: str | None = None
     slug: str | None = None
     description: str | None = None

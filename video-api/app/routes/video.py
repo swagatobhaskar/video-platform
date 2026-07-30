@@ -3,7 +3,7 @@ from fastapi.routing import APIRouter
 from fastapi import HTTPException, status, Depends
 from sqlalchemy import select
 
-from app.schemas import list_schema
+from app.schemas import video_schema
 from app.database.session import AsyncSession
 from app.utils.dependencies import get_current_user, get_db
 from app.utils import security
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/video", tags=["video"])
 settings = get_settings()
 
 # Add query parameter for Draft/Published/Archived videos
-@router.get("/", response_model=list[list_schema.VideoListOut])
+@router.get("/", response_model=list[video_schema.VideoListOut])
 async def get_video_list(
     status: VideoPublicationStatusEnum | None = None,
     session: AsyncSession = Depends(get_db)
@@ -33,7 +33,7 @@ async def get_video_list(
 
 
 # Add query parameter for Draft/Published/Archived videos
-@router.get("/{video_id}", response_model=list_schema.VideoDetailOut)
+@router.get("/{video_id}", response_model=video_schema.VideoDetailOut)
 async def get_video_detail(video_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
 
     result = await session.execute(
