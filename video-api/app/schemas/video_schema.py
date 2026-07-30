@@ -166,7 +166,7 @@ class VideoRead(BaseModel):
     slug: str | None
     description: str | None
 
-    language: LanguageEnum | None
+    language: LanguageEnum = LanguageEnum.BENGALI
     duration_seconds: float | None
 
     publication_status: VideoPublicationStatusEnum
@@ -210,9 +210,10 @@ class VideoRead(BaseModel):
     series: SeriesRead | None = None
 
     video_transcripts: list[VideoTranscriptRead] = Field(default_factory=list)
-    upload_sessions: list[UploadSessionRead] = Field(default_factory=list)
-    transcode_tasks: list[TranscodeTaskRead] = Field(default_factory=list)
-    video_events: list[VideoEventRead] = Field(default_factory=list)
+
+    # upload_sessions: list[UploadSessionRead] = Field(default_factory=list)
+    # transcode_tasks: list[TranscodeTaskRead] = Field(default_factory=list)
+    # video_events: list[VideoEventRead] = Field(default_factory=list)
 
     dash_manifest_key: str | None
     hls_manifest_key: str | None
@@ -226,10 +227,8 @@ class VideoRead(BaseModel):
     can_publish: bool
 
 
-
-class VideoAdminRead(VideoRead):
-    # remove these fields from VideoRead
-    video_transcripts: list[VideoTranscriptRead] = Field(default_factory=list)
+class VideoAdminRead(BaseModel):
+    # these fields aren't in VideoRead
     upload_sessions: list[UploadSessionRead] = Field(default_factory=list)
     transcode_tasks: list[TranscodeTaskRead] = Field(default_factory=list)
     video_events: list[VideoEventRead] = Field(default_factory=list)
