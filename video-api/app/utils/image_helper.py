@@ -1,6 +1,6 @@
 import os
 from io import BytesIO
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from fastapi import UploadFile, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from pathlib import Path
@@ -22,30 +22,35 @@ YouTube thumbnail files should be under 50MB.
 Supported image formats for thumbnails are JPG, GIF, or PNG.
 """
 
+ALLOWED_FORMATS = {"JPEG", "WEBP", "PNG"}
 
-async def validate_image(file: UploadFile) -> bytes:
 
-    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+def validate_image(file: UploadFile) -> str:
+    # Ensure we start reading from the beginning.
+    file.file.seek(0)
 
-    ALLOWED_TYPES = {
-        "image/jpg",
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-    }
+    try:
+        with Image.open(file.file) as image:
+            image_format = image.format
 
-    if file and not file.content_type in ALLOWED_TYPES:
-        raise HTTPException(400, "Unsupported image type.")
+            if image_format not in ALLOWED_FORMATS:
+                raise HTTPException(status_code=400, detail=f"Unsupported image format: {image_format}")
 
-    data = await file.read()
+            # Force Pillow to read the entire image structure.
+            # Detects truncated/corrupted images.
+            image.verify()
 
-    if not data:
-        raise HTTPException(status_code=400, detail="Empty file.")
+    except UnidentifiedImageError:
+        raise HTTPException(status_code=400, detail="Invalid image file")
 
-    if len(data) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Image exceeds maximum size.")
+    except OSError:
+        raise HTTPException(status_code=400, detail="Corrupted image file")
 
-    return data
+    finally:
+        # Reset because verify() consumes the image stream.
+        file.file.seek(0)
+
+    return image_format
 
     # file size
     # file.file.seek(0, os.SEEK_END)
@@ -69,47 +74,54 @@ async def validate_image(file: UploadFile) -> bytes:
     # print(f"Dimensions: {image.width}x{image.height}")
 
 
-def convert_to_webp(bytes: bytes, file: UploadFile | None = None) -> BytesIO:
-    image = Image.open(file.file)
+def convert_to_webp(img_file: UploadFile | None = None) -> bytes:
+    # upload_file.file is already a binary file-like object.
+    # Pillow can read directly from it without first converting it to bytes
+    # or wrapping it in a BytesIO.
 
-    # Preserve alpha channel/transparency for PNGs
+    # open the image in Pillow
+    # Image.open() does not immediately decode the entire image; it reads enough
+    # data to identify the format and loads pixel data lazily when needed.
+    image = Image.open(img_file.file)
+
+    # Convert to a mode that WebP supports while preserving transparency
+    # for images that have an alpha channel, e.g., PNG.
     if image.mode not in ("RGB", "RGBA"):
         image = image.convert("RGBA")
 
-    output = BytesIO()
+    # Create an empty in-memory binary file.
+    # Pillow will write the encoded WebP file bytes into this buffer.
+    buffer = BytesIO()
 
-    # resize before encoding
-    # image_size = image.size # size returns a tuple: (width, height)
-    image.thumbnail((2048, 2048))
-    
-    image.save(output, format="WEBP", quality=85, method=6)
-    output.seek(0)
+    # Resize while preserving the aspect ratio.
+    # The image will not be enlarged if it is already smaller than these dimensions.
+    image.thumbnail((1920, 1080))
 
-    return output
+    # Using Pillow's save method, encode the image as WebP and write the resulting bytes into the in-memory buffer.
+    image.save(buffer, format="WEBP", quality=85, method=6)
+
+    # Move the buffer cursor back to the beginning.
+    # Writing advanced the cursor to the end of the file; this allows subsequent
+    # readers (such as boto3/R2 upload) to read from the start.
+    buffer.seek(0)
+
+    # Extract the entire WebP file from memory as raw bytes.
+    # These bytes can be passed directly to S3/R2 as the Body parameter.
+    return buffer.getvalue()
 
 
 # Instead of using pre-signed url this time, the image is uploaded through the backend
-# async def upload_image_to_r2(image: UploadFile) -> str:
-async def upload_image_to_r2(file_bytes: bytes, filename: str, content_type: str, bucket: str) -> str:
-    # extension = image.filename.split(".")[-1]
-    extension = filename.split(".")[-1]
-    key = f"{uuid.uuid4()}.{extension}"
-    print("Ext, filename: ", extension, filename)
+async def upload_image_to_r2(img_file_bytes: bytes, bucket: str) -> str:
+    key = f"{uuid.uuid4()}.webp"
+    print("Image key: ", key)
 
-    s3.upload_fileobj(
-        image.file,
-        settings.category_image_bucket,
-        filename,
-        ExtraArgs={
-            "ContentType": image.content_type,
-        },
-    )
-
+    # s3.put_object() is preferred over s3.upload_fileobj() when the contents are coming as bytes, which is here
+    # After conversion, bytes of the WebP file is coming directly, instead of a file-like object
     s3.put_object(
         Bucket=bucket,
         Key=key,
-        Body=file_bytes,
-        ContentType=content_type,
+        Body=img_file_bytes,
+        ContentType="image/webp",
     )
 
     return {
