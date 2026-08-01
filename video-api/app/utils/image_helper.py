@@ -1,7 +1,6 @@
 from io import BytesIO
 from PIL import Image, UnidentifiedImageError, ImageOps, DecompressionBombError
 from fastapi import UploadFile, HTTPException
-from fastapi.concurrency import run_in_threadpool
 import uuid
 import logging
 
@@ -31,7 +30,8 @@ MAX_THUMBNAIL_SIZE = (1920, 1080)
 # Set pixel dimension limit: A malicious image can be small on disk but huge when decoded.
 Image.MAX_IMAGE_PIXELS = 25_000_000 # Set it at the top
 
-def validate_image(file: UploadFile) -> str:
+# Its return type is None because it either raises exceptions or retruns nothing when passed
+def validate_image(file: UploadFile) -> None:
     stream = file.file
     # Ensure we start reading from the beginning.
     stream.seek(0)
@@ -50,17 +50,13 @@ def validate_image(file: UploadFile) -> str:
 
     stream.seek(0)
 
-    image_format: str | None = None
-
     try:
         with Image.open(stream) as image:
             # if image.width * image.height > MAX_PIXELS:
             #     raise HTTPException(400, "Image dimensions too large")
 
-            image_format = image.format
-
-            if image_format not in ALLOWED_FORMATS:
-                raise HTTPException(status_code=400, detail=f"Unsupported image format: {image_format}")
+            if image.format not in ALLOWED_FORMATS:
+                raise HTTPException(status_code=400, detail=f"Unsupported image format: {image.format}")
 
             # Force Pillow to read the entire image structure.
             # Detects truncated/corrupted images.
@@ -84,29 +80,6 @@ def validate_image(file: UploadFile) -> str:
     finally:
         # Reset because verify() consumes the image stream.
         stream.seek(0)
-
-    return image_format
-
-    # file size
-    # file.file.seek(0, os.SEEK_END)
-    # original_size = size_bytes = file.file.tell()
-    # file.file.seek(0)   # Reset for later reading
-    # print(size_bytes)
-
-    # read image dimension
-    # image = Image.open(file.file)
-    # width, height = image.size
-    # print(width, height)  # e.g. 1920 1080
-
-    # # Converted WebP size
-    # output = BytesIO()
-    # image.save(output, format="WEBP", quality=85)
-    # webp_size = output.tell() # bytes
-    # output.seek(0)
-
-    # print(f"Original: {original_size / 1024:.1f} KB")
-    # print(f"WebP: {webp_size / 1024:.1f} KB")
-    # print(f"Dimensions: {image.width}x{image.height}")
 
 
 def convert_to_webp(img_file: UploadFile) -> BytesIO:
@@ -162,7 +135,7 @@ def convert_to_webp(img_file: UploadFile) -> BytesIO:
 
 
 # Instead of using pre-signed url this time, the image is uploaded through the backend
-def upload_image_to_r2(img_buffer: BytesIO, bucket: str) -> dict[str, str]:
+def upload_image_to_r2(img_buffer: BytesIO, bucket: str) -> str: #dict[str, str]:
     key = f"{uuid.uuid4()}.webp"
     print("Image key: ", key)
 
@@ -175,18 +148,16 @@ def upload_image_to_r2(img_buffer: BytesIO, bucket: str) -> dict[str, str]:
         ContentType="image/webp",
     )
 
-    return {
-        "key": key, # filename
-        # "url": f"{settings.thumbnails_bucket_dev_url}/{key}",
-    }
+    return key
+
+    # return {
+    #     "key": key, # filename
+    #     "url": f"{settings.thumbnails_bucket_dev_url}/{key}",
+    # }
 
 
-async def delete_image_from_r2(object_key: str) -> None:
-    await run_in_threadpool(s3.delete_object, Bucket=settings.category_image_bucket, Key=object_key)
-
-async def safe_delete_from_r2(object_key: str) -> None:
-    try:
-        await delete_image_from_r2(object_key)
-    except Exception:
-        # Log the error; don't mask the original exception.
-        logger.exception("Failed to delete orphaned R2 object: %s", object_key)
+def delete_image_from_r2(key: str, bucket: str) -> None:
+    s3.delete_object(
+        Bucket=bucket,
+        Key=key,
+    )
