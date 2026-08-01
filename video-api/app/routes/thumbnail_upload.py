@@ -35,8 +35,12 @@ async def upload_video_thumbnail(
     if not video:
         raise HTTPException(status_code=404, detail=f"Video {video_id} not found!")
 
+    # if thumbnail_image:
+
     # validate_image(thumbnail_image)
     await run_in_threadpool(validate_image, thumbnail_image)
+
+    # bypass conversion if image is WebP
 
     # webp_buffer = convert_to_webp(thumbnail_image)
     webp_buffer = await run_in_threadpool(convert_to_webp, thumbnail_image)

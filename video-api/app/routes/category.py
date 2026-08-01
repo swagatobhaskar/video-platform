@@ -17,7 +17,7 @@ from app.database.models import Video, Category
 from app.config import get_settings
 from app.utils.r2_helper import s3
 from app.utils.image_helper import (
-    convert_to_webp, validate_thumbnail_image,
+    convert_to_webp, delete_image_from_r2, validate_thumbnail_image,
     upload_image_to_r2, safe_delete_from_r2
 )
 
@@ -27,6 +27,8 @@ settings = get_settings()
 
 logger = logging.getLogger(__name__)
 
+
+BUCKET = settings.category_image_bucket
 
 @router.post("/", response_model=category_schema.CategoryOut, status_code=201)
 async def create_new_category(
@@ -38,13 +40,16 @@ async def create_new_category(
     file_bytes: bytes | None = None
 
     if image:
+        # validate
+
         if not image.content_type == "image/webp":
             # convert to webp
             file_bytes = convert_to_webp(image)
         else:
             file_bytes = await image.read()
+            # convert to BytesIO
 
-        image_key: str = await upload_image_to_r2(file_bytes)
+        image_key: str = await upload_image_to_r2(img_buffer, BUCKET)
 
     try:
         new_category = Category(name=name, image_url = image_key)
@@ -55,13 +60,14 @@ async def create_new_category(
     except IntegrityError:
         await session.rollback()
         if image_key:
-            await safe_delete_from_r2(image_key)
+            await delete_image_from_r2(image_key, BUCKET)
         raise HTTPException(status_code=409, detail="A category with that name already exists.")
 
     except SQLAlchemyError:
         await session.rollback()
         if image_key:
-            await safe_delete_from_r2(image_key)
+            # run_in_threadpool ?
+            await delete_image_from_r2(image_key, BUCKET)
         raise HTTPException(status_code=500, detail="Database error.")
 
     return new_category
