@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from botocore.exceptions import ClientError
 import kombu
 import redis
+from datetime import datetime, timezone
 
 from app.utils.r2_helper import s3
 from app.utils.dependencies import get_db
@@ -23,25 +24,12 @@ from app.database.models import (
 from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
 from app.database.session import AsyncSession
 
-router = APIRouter(prefix="/api/video/uploads", tags=["video", "upload"])
+from app.config import get_settings
+settings = get_settings()
+
+router = APIRouter(prefix="/api/video/upload", tags=["video", "upload"])
 
 logger = logging.getLogger(__name__)
-
-# @router.post('/video')
-# async def upload_video(file: UploadFile = File(...), title: str = Form(...)):
-#     # Basic validation: ensure it's an image
-#     if not file.content_type.startswith("video/"):
-#         raise HTTPException(status_code=400, detail="File must be a video!")
-    
-#     # Create a local path to save the video
-#     video_file_location = f"videos/{file.filename}"
-#     os.makedirs("videos", exist_ok=True)
-    
-#     with open(video_file_location, "wb+") as file_object:
-#         # Stream the file content to disk
-#         shutil.copyfileobj(file.file, file_object)
-    
-#     return {"info": f"Video '{title}' saved at {video_file_location}"}
 
 
 # @router.post('/thumbnail')
@@ -60,9 +48,7 @@ logger = logging.getLogger(__name__)
     
 #     return {"info": f"Video thumbnail {file.filename} saved at {thumbnail_file_location}"}
 
-
-RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
-
+RAW_VIDEO_BUCKET = settings.raw_videos_bucket
 
 @router.post("/new-upload-session")
 async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
@@ -70,7 +56,7 @@ async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
         new_video = Video()
         db.add(new_video)
 
-        new_upload_session = UploadSession(Video=new_video)
+        new_upload_session = UploadSession(video=new_video)
         db.add(new_upload_session)
         await db.commit()
         await db.refresh(new_video)
@@ -81,8 +67,8 @@ async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
 
         return {
             "success": True,
-            "upload_session_id": str(new_upload_session.id),
-            "video_id": str(new_video.id)
+            "uploadSessionId": str(new_upload_session.id),
+            "videoId": str(new_video.id)
         }
     
     except SQLAlchemyError as e:
@@ -93,7 +79,7 @@ async def create_new_upload_session(db: AsyncSession = Depends(get_db)):
             detail="Failed to create new upload session and new video!"    
         )
 
-@router.post('{video_id}/initiate-upload')
+@router.post('/{video_id}/initiate-upload')
 async def initiate_upload(
     video_id: str,
     req: InitiateUploadRequest,
@@ -145,7 +131,6 @@ async def initiate_upload(
         if not upload_session:
             raise HTTPException(status_code=404, detail="Upload session not found for the given uploadSessionId and video id")
 
-        # upload_session.video_id=video.id
         upload_session.object_key=object_key
         upload_session.video_upload_id=upload_id
         upload_session.file_size_bytes=req.fileSizeBytes
@@ -157,13 +142,14 @@ async def initiate_upload(
         video_event = VideoEvent(
             video_id=video_id,
             event_type="UPLOAD_INITIATED",
-            payload={
+            payload = {
                 "upload_id": upload_id,
                 "object_key": object_key,
                 "file_name": req.fileName,
                 "file_size_bytes": req.fileSizeBytes,
                 "content_type": req.contentType,
-                "total_parts": req.totalParts
+                "total_parts": req.totalParts,
+                "upload_session_id": str(req.uploadSessionId),
             }
         )
 
@@ -174,8 +160,8 @@ async def initiate_upload(
         return {
             "uploadId": upload_id,
             "key": object_key,
-            "upload_session_id": str(upload_session.id),
-            "video_id": video.id,
+            # "upload_session_id": str(upload_session.id),
+            # "video_id": video.id,
         }
 
     except Exception as e:
@@ -198,7 +184,7 @@ async def initiate_upload(
         )
 
 
-@router.post("{video_id}/get-presigned-url")
+@router.post("/{video_id}/get-presigned-url")
 async def get_presigned_url(
     video_id: str,
     req: PartRequest,
@@ -217,7 +203,7 @@ async def get_presigned_url(
     try:
         video_event = VideoEvent(
             video_id = video_id,
-            event_type=f"PART {req.partNumber} UPLOADED",
+            event_type="GENERATED_PRESIGNED_URL",
             payload={
                 "upload_id": req.uploadId,
                 "object_key": req.key,
@@ -301,13 +287,14 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
             payload={
                 "upload_id": req.uploadId,
                 "object_key": req.key,
-                "file_name": req.key,  # Assuming the key is the filename
+                "file_name": upload_session.original_filename,
             }
         )
 
         db.add(video_event)
 
         upload_session.status = UploadSessionStatusEnum.COMPLETED
+        upload_session.completed_at = datetime.now(timezone.utc)
         upload_session.uploaded_parts_count = len(uploaded_parts) # upload_session.total_parts
 
         await db.commit()
@@ -336,7 +323,7 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
 
         # Create A TranscodeTask entry
         transcode_task = TranscodeTask(
-            video_id=req.videoId,
+            video_id=video_id,
             upload_session_id=req.uploadSessionId,
             status=VideoProcessingStatusEnum.PENDING,
         )
@@ -355,8 +342,8 @@ async def complete_upload(video_id: str, req: CompleteRequest, db: AsyncSession 
     try:
         # start celery transcode task
         task = process_video_worker_operations.delay( # type: ignore
-            file_name=req.key,
-            video_id=req.videoId,  # or video_id ?
+            object_key=req.key,
+            video_id=video_id,
             upload_id=req.uploadId,
             upload_session_id=req.uploadSessionId,
             transcode_task_id=str(transcode_task.id),
@@ -428,7 +415,7 @@ async def abort_upload(video_id: str, req: AbortRequest, db:AsyncSession = Depen
             payload = {
                 "upload_id": req.uploadId,
                 "object_key": req.key,
-                "file_name": req.key,  # Assuming the key is the filename
+                "file_name": upload_session.original_filename,
             },
         )
         db.add(video_event)
@@ -531,7 +518,7 @@ async def resume_video_upload(video_id: str, upload_id: str, db:AsyncSession = D
     return {
         "success": True,
         "status": "resumed",
-        "upload_id": upload_id,
+        "uploadId": upload_id,
         "uploaded_parts": uploaded_parts,
     }
 
@@ -607,51 +594,38 @@ async def record_uploaded_part(
         "message": "uploaded part recorded successfully"
     }
 
-# transcode_task_id could be optional
-# So changing it iinto route query parameter
+
 @router.get("/{video_id}/processing-status/{transcode_task_id}")
 async def get_transcode_processing_status(
     video_id: str,
     transcode_task_id: str,
     db: AsyncSession = Depends(get_db)
-):    
-    result = await db.execute(
-        select(Video).where(Video.id == video_id)
-    )
-
+):
+    result = await db.execute(select(Video).where(Video.id == video_id))
     video = await result.scalar_one_or_none()
 
     if not video:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Video with id {video_id} not found!"
-        )
+        raise HTTPException(status_code=404, detail=f"Video with id {video_id} not found!")
     
     if video.transcode_task_id != transcode_task_id:
-        raise HTTPException(
-            status_code=503,
-            detail="Task id doesn't belong to the video"
-        )
+        raise HTTPException(status_code=503, detail="Task id doesn't belong to the video")
     
-    # transcode_task_result = await db.execute(
-    #     select(TranscodeTask).where(TranscodeTask.id == transcode_task_id)
-    # )
-
-    # transcode_task = transcode_task_result.scalar_one_or_none()
+    task_result = await db.execute(
+        select(TranscodeTask).where(TranscodeTask.id == transcode_task_id)
+    )
+    transcode_task = task_result.scalar_one_or_none()
 
     # If transcode_task_id is not present
-    # if not transcode_task:
-    #     raise HTTPException(
-    #         status_code=404,
-    #         detail=f"Video with id {video_id} not found!"
-    #     )
+    if not transcode_task:
+        raise HTTPException(status_code=400, detail=f"Transcode task {transcode_task_id} not found!")
 
     status = AsyncResult(transcode_task_id, app=celery)
 
     return {
         "task_id": transcode_task_id,
         "status": status.status,
-        "result": status.result
+        "result": status.result,
+        "progress": transcode_task.progress_percent,
     }
 
 
@@ -700,7 +674,7 @@ async def retry_failed_upload(
         payload = {
             "upload_id": str(upload_session.video_upload_id),
             "object_key": upload_session.object_key,
-            "file_name": upload_session.original_filename,  # Assuming the key is the filename
+            "file_name": upload_session.original_filename,
             "upload_session": str(upload_session.id),
             "uploaded_parts": len(uploaded_parts)
         },
@@ -726,10 +700,10 @@ async def retry_failed_upload(
     # CompleteMultipartUpload
 
     return {
-        "video_id": video_id,
-        "upload_session_id": str(upload_session.id),
-        "upload_id": upload_session.video_upload_id,
-        "object_key": upload_session.object_key,
+        "videoId": video_id,
+        "uploadSessionId": str(upload_session.id),
+        "uploadId": upload_session.video_upload_id,
+        "objectKey": upload_session.object_key,
         "uploaded_parts": uploaded_parts,
     }
 
@@ -780,8 +754,8 @@ async def restart_video_upload(video_id: str, db: AsyncSession = Depends(get_db)
     # there is no uploaded_parts. The old chunks belong to another multipart upload.
 
     return {
-        "video_id": video_id,
-        "upload_session_id": str(new_session.id),
+        "videoId": video_id,
+        "uploadSessionId": str(new_session.id),
     }
     # Frontend
     # Restart button

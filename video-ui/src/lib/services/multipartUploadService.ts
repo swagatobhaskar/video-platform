@@ -12,15 +12,16 @@ export async function initiateUpload(
     fileName: string,
     contentType: string,
     fileSizeBytes: number,
-    // uploadSessionId: string,
+    videoId: string,
+    uploadSessionId: string,
     // totalParts: number,
     signal?: AbortSignal
 ): Promise<{ uploadId: string; key: string, uploadSessionId: string, videoId: string }> {
     
     // Get the uploadSessionId from cookies
-    const uploadSessionId = await cookieStore.get("uploadSessionId");
+    // const uploadSessionId = await cookieStore.get("uploadSessionId");
 
-    const res = await fetch(`${API_BASE}/initiate-upload/`, {
+    const res = await fetch(`${API_BASE}/${videoId}/initiate-upload/`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -29,7 +30,7 @@ export async function initiateUpload(
             fileName: fileName,
             contentType: contentType,
             fileSizeBytes: fileSizeBytes,
-            uploadSessionId: uploadSessionId?.value,
+            uploadSessionId: uploadSessionId,
             // totalParts: totalParts,
         }),
         signal
@@ -47,9 +48,10 @@ export async function getPresignedUrl(
     uploadId: string,
     key: string,
     partNumber: number,
+    videoId: string,
     signal?: AbortSignal
 ): Promise<string> {
-    const res = await fetch(`${API_BASE}/get-presigned-url`, {
+    const res = await fetch(`${API_BASE}/${videoId}/get-presigned-url`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -107,7 +109,7 @@ export async function completeUpload(
 
     // console.log("COOKIE Upload session ID: ", uploadSessionId); // working
 
-    const res = await fetch(`${API_BASE}/complete-upload`, {
+    const res = await fetch(`${API_BASE}/${videoId}/complete-upload`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -118,6 +120,7 @@ export async function completeUpload(
             uploadId,
             parts,
             uploadSessionId,
+            // videoId, passing it via url
         }),
         signal
     });
@@ -130,9 +133,10 @@ export async function completeUpload(
 
 export async function abortUpload(
     uploadId: string,
-    key: string
+    key: string,
+    videoId: string,
 ): Promise<void> {
-    await fetch(`${API_BASE}/abort-upload`, {
+    await fetch(`${API_BASE}/${videoId}/abort-upload`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"

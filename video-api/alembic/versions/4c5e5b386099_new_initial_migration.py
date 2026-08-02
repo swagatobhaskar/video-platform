@@ -1,8 +1,8 @@
-"""New Initial Migration
+"""New initial migration
 
-Revision ID: ca2d67773c17
+Revision ID: 4c5e5b386099
 Revises: 
-Create Date: 2026-07-10 00:39:20.273742
+Create Date: 2026-07-26 18:36:57.842643
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'ca2d67773c17'
+revision: str = '4c5e5b386099'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -58,6 +58,7 @@ def upgrade() -> None:
     sa.Column('language', sa.Enum('HINDI', 'BENGALI', name='languageenum'), nullable=True),
     sa.Column('duration_seconds', sa.Float(), nullable=True),
     sa.Column('publication_status', sa.Enum('DRAFT', 'PUBLISHED', 'ARCHIVED', name='videopublicationstatusenum'), nullable=False),
+    sa.Column('object_key', sa.UUID(), nullable=True),
     sa.Column('category_id', sa.UUID(), nullable=True),
     sa.Column('series_id', sa.UUID(), nullable=True),
     sa.Column('episode_number', sa.Integer(), nullable=True),
@@ -87,6 +88,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['series_id'], ['series.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_videos_object_key'), 'videos', ['object_key'], unique=True)
     op.create_index(op.f('ix_videos_slug'), 'videos', ['slug'], unique=True)
     op.create_index(op.f('ix_videos_title'), 'videos', ['title'], unique=False)
     op.create_table('upload_sessions',
@@ -171,6 +173,7 @@ def downgrade() -> None:
     op.drop_table('upload_sessions')
     op.drop_index(op.f('ix_videos_title'), table_name='videos')
     op.drop_index(op.f('ix_videos_slug'), table_name='videos')
+    op.drop_index(op.f('ix_videos_object_key'), table_name='videos')
     op.drop_table('videos')
     op.drop_index(op.f('ix_users_username'), table_name='users')
     op.drop_index(op.f('ix_users_email'), table_name='users')

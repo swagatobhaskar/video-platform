@@ -25,7 +25,7 @@ class PartRequest(BaseModel):
 class CompleteRequest(BaseModel):
     key: str
     uploadId: str | None = None
-    videoId: str | None = None
+    # videoId: str | None = None  # passing it via url
     uploadSessionId: str | None = None
     parts: list[Part]
     
@@ -33,3 +33,8 @@ class AbortRequest(BaseModel):
     key: str
     uploadId: str
     videoId: str
+
+class ThumbnailUploadComplete(BaseModel):
+    # uploadSessionId: str
+    thumbnail_object_key: str
+    

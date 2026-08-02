@@ -63,16 +63,52 @@ export function fileInputController({uploadFileType}: FileInputPreference) {
         handleProcessFile(files[0]);
     }
 
-    const validateVideoFile = (file: File) => {}
-    const validateImageFile = (file: File) => {}
+    const validateVideoFile = (file: File) : string | null => {
+        const allowedVideoTypes = [
+            "video/mp4",
+            // "video/webm",
+            // "video/quicktime", // .mov
+        ];
+
+        const maxFileSizeBytes = 10 * 1024 * 1024 * 1024; // 10 GB
+
+        if (!allowedVideoTypes.includes(file.type)) {
+            return "Unsupported video format. Please upload an MP4, WebM, or MOV video.";
+        }
+
+        if (file.size > maxFileSizeBytes) {
+            return "Video must not exceed 10 GB.";
+        }
+
+        return null;
+    }
+
+    const validateImageFile = (file: File) : string | null => {
+        const allowedImageTypes = [
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/gif",
+        ];
+        const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+
+        if (!allowedImageTypes.includes(file.type)) {
+            return "Unsupported image format. Please upload a PNG, JPEG, WebP, or GIF image.";
+        }
+
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+            return "Image must not exceed 5 MB.";
+        }
+
+        return null;
+    }
 
     const validateFile = (file: File) => {
         if (uploadFileType === "video") {
-            const validatedVideoFile = validateVideoFile(file);
-            // return file or error
+            return validateVideoFile(file);
         } else if (uploadFileType === "image") {
-            const validatedImageFile = validateImageFile(file);
-            // return file or error
+            // The function only returns error, otherwise null
+            return validateImageFile(file);
         }
     }
 
@@ -182,5 +218,6 @@ export function fileInputController({uploadFileType}: FileInputPreference) {
         handleDrop,
         handleFileSelect,
         cancelSelectedFile,
+        validateFile,
     }
 }

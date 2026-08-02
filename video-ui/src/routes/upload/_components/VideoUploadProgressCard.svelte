@@ -9,7 +9,7 @@
 	import UploadCompleteBar from "$lib/components/ui/uploadCompleteBar.svelte";
 
     import VideoProcessingProgress from './VideoProcessingProgress.svelte';
-	import VideoPicker from './VideoPicker.svelte';
+	// import VideoPicker from './VideoPicker.svelte';
 
     function handleUploadPlayPause() {}
 

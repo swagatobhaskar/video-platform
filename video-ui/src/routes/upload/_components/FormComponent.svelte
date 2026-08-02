@@ -1,5 +1,5 @@
 <script lang="ts">
-    // let { workflow } = $props();
+    // let { values } = $props();
 
     type SEOTag = {
         id: string;

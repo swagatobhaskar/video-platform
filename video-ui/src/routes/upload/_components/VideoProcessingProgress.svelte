@@ -1,5 +1,5 @@
 <script lang="ts">
-    // pole the progress percent API endpoint. Need video_id or task_id
+    // pole the progress percent API endpoint. Need video_id and/or task_id
 </script>
 
 <div class="rounded-xl border border-slate-100 bg-slate-50/40 px-4 py-3 min-h-16">

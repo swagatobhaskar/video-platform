@@ -3,6 +3,7 @@ from pathlib import Path
 from botocore.exceptions import (
     ClientError, BotoCoreError, EndpointConnectionError, NoCredentialsError
 )
+from app.database.session import engine
 from sqlalchemy.exc import SQLAlchemyError
 import os
 from tempfile import TemporaryDirectory
@@ -22,18 +23,21 @@ from app.database.models import (
     Video, VideoEvent, VideoProcessingStatusEnum, TranscodeTask
 )
 
+from app.config import get_settings
+settings = get_settings()
+
 logger = logging.getLogger(__name__)
 
 
 # Helper function to download mp4 files from Cloudflare R2 bucket
-def download_from_r2(file_name: str, local_download_path: str):
+def download_from_r2(object_key: str, local_download_path: str):
     
-    RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
+    RAW_VIDEO_BUCKET = settings.raw_videos_bucket
     
     try:
         s3.download_file(
             RAW_VIDEO_BUCKET,
-            file_name,
+            object_key,
             local_download_path
         )
     
@@ -61,13 +65,13 @@ def download_from_r2(file_name: str, local_download_path: str):
 # Helper function to upload .mpd, .m3u8, and .m4s chunks to Cloudflare R2 bucket
 def upload_output_directory_to_r2_bucket(
     local_dir: str | Path,
-    video_file_name: str,
+    video_object_key: str,
 ):
     
-    BUCKET: str = 'processed-videos-bucket'
+    PROCESSED_VIDEOS_BUCKET = settings.processed_videos_bucket
         
     local_dir = Path(local_dir)
-    remote_prefix = Path(video_file_name).stem
+    remote_prefix = Path(video_object_key).stem
     
     failed = []
     
@@ -80,7 +84,7 @@ def upload_output_directory_to_r2_bucket(
         try:
             s3.upload_file(
                 str(file_path),
-                BUCKET,
+                PROCESSED_VIDEOS_BUCKET,
                 key,
             )
     
@@ -97,15 +101,15 @@ def upload_output_directory_to_r2_bucket(
 
 
 # Delete from R2 bucket after successful processing and upload 
-def delete_original_video_from_bucket(file_name: str) -> None:
+def delete_original_video_from_bucket(object_key: str) -> None:
     RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
     
     s3.delete_object(
         Bucket=RAW_VIDEO_BUCKET,
-        Key=file_name
+        Key=object_key
     )
     
-    logger.info("Deleted source file '%s' from RAW bucket.", file_name)
+    logger.info("Deleted source file '%s' from RAW bucket.", object_key)
 
 
 #
@@ -170,7 +174,8 @@ async def update_task(db, task, status, progress):
     task.status = status
     task.progress_percent = progress
     task.heartbeat_at = datetime.now(UTC)
-    await db.commit() 
+    # await db.commit()
+    await db.flush()  # Flush changes to the database without committing
 
 
 async def update_video_event_record(db, video_id: str, event_type: str, payload: dict, transcode_task_id: str | None = None):
@@ -184,9 +189,10 @@ async def update_video_event_record(db, video_id: str, event_type: str, payload:
         transcode_task_id = transcode_task_id if transcode_task_id else None
     )
 
-    db.add(video_event)    
+    db.add(video_event)
     # No commit here. Commit will be done in the main task function after all operations are completed.
-    # await db.commit() 
+    # await db.commit()
+    await db.flush()  # Flush changes to the database without committing
 
 
 @celery.task(
@@ -197,13 +203,12 @@ async def update_video_event_record(db, video_id: str, event_type: str, payload:
     max_retries=3,
     task_ignore_result=True,
 )
-def process_video_worker_operations(self, file_name: str, video_id: str, upload_session_id: str, upload_id: str, transcode_task_id: str):
-    asyncio.run(_process_video_worker_operations(self, file_name, video_id, upload_session_id, upload_id, transcode_task_id))
-       
+def process_video_worker_operations(self, object_key: str, video_id: str, upload_session_id: str, upload_id: str, transcode_task_id: str):
+    asyncio.run(_process_video_worker_operations(self, object_key, video_id, upload_session_id, upload_id, transcode_task_id))
 
 async def _process_video_worker_operations(
     self,
-    file_name: str,
+    object_key: str,
     video_id: str,
     upload_session_id: str,
     upload_id: str,
@@ -211,6 +216,8 @@ async def _process_video_worker_operations(
     # can't use Depends(get_db) here because Celery tasks are not FastAPI endpoints,
     # they are normal Python functions. So, we need to manage the session manually.
 ):
+    # ** file_name is object_key
+    
     with TemporaryDirectory(prefix="transcode_") as temp_dir:
         
         async with AsyncSessionLocal() as db:
@@ -240,7 +247,7 @@ async def _process_video_worker_operations(
 
             temp_dir = Path(temp_dir)
             # temporary video file path
-            video_path = temp_dir / Path(file_name).name
+            video_path = temp_dir / Path(object_key).name
 
             # Celery task state
             self.update_state(
@@ -258,16 +265,16 @@ async def _process_video_worker_operations(
                 transcode_task_id=transcode_task.id,
                 payload={
                     "upload_id": upload_id,
-                    "object_key": upload_session_id,
-                    "file_name": file_name,
+                    "upload_session_id": upload_session_id,
+                    "object_key": object_key,
                     "temp_dir": str(temp_dir),
                     "worker_id": self.request.hostname,
                     "task_id": self.request.id,
                 }    
             )
 
-            # download_from_r2(file_name, str(video))
-            await asyncio.to_thread(download_from_r2, file_name, str(video_path))
+            # download_from_r2(object_key, str(video))
+            await asyncio.to_thread(download_from_r2, object_key, str(video_path))
 
             output_dir = temp_dir / "processed" / video_path.stem
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -310,8 +317,8 @@ async def _process_video_worker_operations(
                 transcode_task_id=transcode_task.id,
                 payload={
                     "upload_id": upload_id,
-                    "object_key": upload_session_id,
-                    "file_name": file_name,
+                    "upload_session_id": upload_session_id,
+                    "object_key": object_key,
                     "temp_dir": str(temp_dir),
                     "worker_id": self.request.hostname,
                     "task_id": self.request.id,
@@ -346,8 +353,8 @@ async def _process_video_worker_operations(
                 transcode_task_id=transcode_task.id,
                 payload={
                     "upload_id": upload_id,
-                    "object_key": upload_session_id,
-                    "file_name": file_name,
+                    "upload_session_id": upload_session_id,
+                    "object_key": object_key,
                     "temp_dir": str(temp_dir),
                     "worker_id": self.request.hostname,
                     "task_id": self.request.id,
@@ -365,12 +372,12 @@ async def _process_video_worker_operations(
 
             # upload_errors = upload_output_directory_to_r2_bucket(
             #     local_dir=output_dir,
-            #     video_file_name=video.stem,
+            #     video_object_key=video.stem,
             # )
 
             # Use functools.partial with asyncio.to_thread if the function has multiple keyword arguments.
             upload_errors = await asyncio.to_thread(
-                partial(upload_output_directory_to_r2_bucket, local_dir=output_dir, video_file_name=video_path.stem)
+                partial(upload_output_directory_to_r2_bucket, local_dir=output_dir, video_object_key=video_path.stem)
             )
 
             if upload_errors:
@@ -387,8 +394,27 @@ async def _process_video_worker_operations(
                 transcode_task_id=transcode_task.id,
                 payload={
                     "upload_id": upload_id,
-                    "object_key": upload_session_id,
-                    "file_name": file_name,
+                    "upload_session_id": upload_session_id,
+                    "object_key": object_key,
+                    "worker_id": self.request.hostname,
+                    "task_id": self.request.id,
+                    "transcode_result": transcode_result,
+                }    
+            )
+
+            # Add the object key to Video table
+            video_record.object_key = object_key
+
+            # Important: Add a VideoEvent record after assigning the object_key
+            await update_video_event_record(
+                db,
+                video_id=video_id,
+                event_type="OBJECT_KEY ASSIGNED TO VIDEO",
+                transcode_task_id=transcode_task.id,
+                payload={
+                    "upload_id": upload_id,
+                    "object_key": object_key,
+                    "uploaded_file_name": object_key,
                     "worker_id": self.request.hostname,
                     "task_id": self.request.id,
                     "transcode_result": transcode_result,
@@ -405,8 +431,8 @@ async def _process_video_worker_operations(
             # Delete from RAW bucket after successful processing and upload
             
             try:
-                # delete_original_video_from_bucket(file_name)
-                await asyncio.to_thread(delete_original_video_from_bucket, file_name)
+                # delete_original_video_from_bucket(object_key)
+                await asyncio.to_thread(delete_original_video_from_bucket, object_key)
                 
                 # Add a VideoEvent record
                 await update_video_event_record(
@@ -416,8 +442,8 @@ async def _process_video_worker_operations(
                     transcode_task_id=transcode_task.id,
                     payload={
                         "upload_id": upload_id,
-                        "object_key": upload_session_id,
-                        "file_name": file_name,
+                        "upload_session_id": upload_session_id,
+                        "object_key": object_key,
                         "worker_id": self.request.hostname,
                         "task_id": self.request.id,
                     }    
@@ -425,7 +451,7 @@ async def _process_video_worker_operations(
             except Exception as e:
                 # transcode_task.status = VideoProcessingStatusEnum.FAILED
                 # await db.commit()
-                logger.exception("Failed deleting source file '%s' from RAW bucket", file_name)
+                logger.exception("Failed deleting source file '%s' from RAW bucket", object_key)
                 # Not raising any exception because:
                 # Celery should not re-transcode if source file deletion fails
                 # Storage management will be handled later
@@ -438,8 +464,8 @@ async def _process_video_worker_operations(
                     transcode_task_id=transcode_task.id,
                     payload={
                         "upload_id": upload_id,
-                        "object_key": upload_session_id,
-                        "file_name": file_name,
+                        "pload_session_id": upload_session_id,
+                        "object_key": object_key,
                         "worker_id": self.request.hostname,
                         "task_id": self.request.id,
                     }    
@@ -462,8 +488,8 @@ async def _process_video_worker_operations(
                 transcode_task_id=transcode_task.id,
                 payload={
                     "upload_id": upload_id,
-                    "object_key": upload_session_id,
-                    "file_name": file_name,
+                    "upload_session_id": upload_session_id,
+                    "object_key": object_key,
                     "worker_id": self.request.hostname,
                     "task_id": self.request.id,
                 }    
@@ -480,11 +506,11 @@ async def _process_video_worker_operations(
     retry_backoff=True,
     max_retries=3,
     )
-def process_video_worker_operations(self, file_name: str):
+def process_video_worker_operations(self, object_key: str):
     
     # Download the file from R2 to local storage.
-    local_download_path = f"/tmp/{Path(file_name)}" # f"/tmp/{Path(file_path).name}"
-    download_from_r2(file_name, local_download_path)
+    local_download_path = f"/tmp/{Path(object_key)}" # f"/tmp/{Path(file_path).name}"
+    download_from_r2(object_key, local_download_path)
 
     video = Path(local_download_path)
 
@@ -506,7 +532,7 @@ def process_video_worker_operations(self, file_name: str):
 
     upload_errors = upload_output_directory_to_r2_bucket(
         local_dir=output_dir,
-        video_file_name=video.stem,
+        video_object_key=video.stem,
     )
     
     if upload_errors:
@@ -532,8 +558,8 @@ def process_video_worker_operations(self, file_name: str):
             logger.info("Deleted local source video: %s", video)
 
         # Optionally, delete the original uploaded file from R2
-        # s3.delete_object(Bucket=RAW_VIDEO_BUCKET, Key=file_name)
-        # logger.info("Deleted source file from R2: %s", file_name)
+        # s3.delete_object(Bucket=RAW_VIDEO_BUCKET, Key=object_key)
+        # logger.info("Deleted source file from R2: %s", object_key)
 
     except Exception as e:
         logger.warning("Cleanup failed: %s", e)

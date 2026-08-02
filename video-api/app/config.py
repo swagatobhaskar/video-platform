@@ -8,7 +8,6 @@ allowed_origins_list: List[str] = [
     "http://127.0.0.1:5173"
     ]
 
-
 class Settings(BaseSettings):
     app_name: str = "video cms platform api"
     env: str = "development"
@@ -19,9 +18,20 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int
     refresh_token_expire_days: int
     allowed_origins: List[str] = allowed_origins_list
+    # r2 creds
     r2_account_id: str
     r2_access_key_id: str
     r2_secret_access_key: str
+    # buckets
+    raw_videos_bucket: str
+    processed_videos_bucket: str
+    thumbnails_bucket: str
+    category_image_bucket: str
+    # buckets dev URLs
+    raw_videos_bucket_dev_url: str
+    thumbnails_bucket_dev_url: str
+    category_image_bucket_dev_url: str
+    processed_videos_bucket_dev_url: str
     
     model_config = SettingsConfigDict(
         env_file = ".env",

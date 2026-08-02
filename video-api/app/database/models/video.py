@@ -14,17 +14,23 @@ from .base import Base
 
 from typing import TYPE_CHECKING
 
+from .upload import UploadSessionStatusEnum
+from .processing import TranscodeTask, VideoEvent
+
 # TYPE_CHECKING imports are ignored at runtime, so they don't create circular imports
 if TYPE_CHECKING:
     from .upload import UploadSession, UploadSessionStatusEnum
     from .processing import TranscodeTask, VideoEvent
+
+from app.config import get_settings
+settings = get_settings()
 
 class Category(Base):
     __tablename__ = "categories"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    image_url: Mapped[str] = mapped_column(String(255), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # One category -> many videos
     videos: Mapped[List["Video"]] = relationship("Video", back_populates="category")
@@ -62,7 +68,9 @@ class Series(Base):
     )
 
     # One series -> many videos
-    videos: Mapped[List["Video"]] = relationship("Video", back_populates="series")
+    videos: Mapped[List["Video"]] = relationship("Video", back_populates="series", passive_deletes=True)
+    # With passive_delete=True, SQLAlchemy does not load or update the child rows
+    # The DB handles it internally because of the foreign key.
 
     def __repr__(self) -> str:
         return f"<Series(id={self.id}, name='{self.name}')>"
@@ -81,11 +89,11 @@ class Video(Base):
     __tablename__ = "videos"
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    title: Mapped[str] = mapped_column(String(255), unique=False, index=True, nullable=True)
-    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=True)
-    description: Mapped[str] = mapped_column(Text, nullable=True)
+    title: Mapped[str | None] = mapped_column(String(255), unique=False, index=True, nullable=True)
+    slug: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     language: Mapped[LanguageEnum] = mapped_column(Enum(LanguageEnum), nullable=True, default=LanguageEnum.BENGALI)  
-    duration_seconds: Mapped[float] = mapped_column(Float, nullable=True)  # convert to ISO 8601 duration format when returning in API response
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)  # convert to ISO 8601 duration format when returning in API response
     
     publication_status: Mapped[VideoPublicationStatusEnum] = mapped_column(
         Enum(VideoPublicationStatusEnum),
@@ -93,33 +101,37 @@ class Video(Base):
         default=VideoPublicationStatusEnum.DRAFT
     )
 
+    # The uploaded file name as is sent to R2. Assigned from UploadSession after upload is completed.
+    object_key: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), unique=True, index=True, nullable=True)
+
     # Many videos -> one category
-    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
+    category_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     category: Mapped["Category"] = relationship("Category", back_populates="videos")
     
     # Many videos -> one series
-    series_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("series.id", ondelete="SET NULL"), nullable=True)
+    series_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("series.id", ondelete="SET NULL"), nullable=True)
     series: Mapped["Series"] = relationship("Series", back_populates="videos")
-    episode_number: Mapped[int] = mapped_column(Integer, nullable=True)
+    episode_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Children
-    video_transcripts: Mapped[List["VideoTranscript"]] = relationship("VideoTranscript", back_populates="video", cascade="all, delete-orphan")
-    upload_sessions: Mapped[List["UploadSession"]] = relationship("UploadSession", back_populates="video", cascade="all, delete-orphan")
-    transcode_tasks: Mapped[List["TranscodeTask"]] = relationship("TranscodeTask", back_populates="video", cascade="all, delete-orphan")
+    # Using lazy="selectin" avoids calling .selectinload() in SQLAlchemy queries
+    video_transcripts: Mapped[List["VideoTranscript"]] = relationship("VideoTranscript", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
+    upload_sessions: Mapped[List["UploadSession"]] = relationship("UploadSession", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
+    transcode_tasks: Mapped[List["TranscodeTask"]] = relationship("TranscodeTask", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
     # renditions: Mapped[List[Rendition]] = relationship("Rendition", back_populates="video", cascade="all, delete-orphan")
-    video_events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="video", cascade="all, delete-orphan")
+    video_events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
 
     # SEO Fields
     seo_tags: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
-    focus_keyword: Mapped[str] = mapped_column(String(255), nullable=True)
+    focus_keyword: Mapped[str | None] = mapped_column(String(255), nullable=True)
     secondary_keywords: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
-    seo_summary_en: Mapped[str] = mapped_column(String(255), nullable=True)
+    seo_summary_en: Mapped[str | None] = mapped_column(String(255), nullable=True)
     keywords: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
-    meta_title: Mapped[str] = mapped_column(String(255), nullable=True)
-    meta_description: Mapped[str] = mapped_column(String(255), nullable=True)
-    thumbnail_alt_text: Mapped[str] = mapped_column(String(255), nullable=True)
-    search_intent: Mapped[str] = mapped_column(String(255), nullable=True)
-    transcript: Mapped[str] = mapped_column(Text, nullable=True)
+    meta_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    meta_description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    thumbnail_alt_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    search_intent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # content_rating (G, PG, PG-13, R)
     # age_restriction (0, 7, 13, 18)
@@ -127,28 +139,14 @@ class Video(Base):
     like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     dislike_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # e.g., if object_prefix = "bucket/abc123"
-    # Then construct:
-    # dash_manifest = f"{prefix}/dash/manifest.mpd"
-    # hls_manifest = f"{prefix}/hls/master.m3u8"
-    # Not required for my use case
-    # video_object_storage_prefix: Mapped[str] = mapped_column(String(255), nullable=True)
-
     # Thumbnail should be prefixed by the video_id
-    thumbnail_object_storage_prefix: Mapped[str] = mapped_column(String(255), nullable=True)
+    thumbnail_object_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     
-    bitrate: Mapped[int] = mapped_column(Integer, nullable=True)  # in kbps
-    codec: Mapped[str] = mapped_column(String, nullable=True)  # e.g., h264, vp9, av1
-    width: Mapped[int] = mapped_column(Integer, nullable=True)
-    height: Mapped[int] = mapped_column(Integer, nullable=True)
-    fps: Mapped[float] = mapped_column(Float, nullable=True)  # frames per second
-
-    # These aren't required, since file URL will be derived from:
-    # <CDN URL>/<video_id>/dash/manifest.mpd
-    # or, <CDN URL>/<video_id>/hls/master.m3u8
-    # video_dash_url: Mapped[str] = mapped_column(String(255), nullable=True)
-    # video_hls_url: Mapped[str] = mapped_column(String(255), nullable=True)
-    # thumbnail_url: Mapped[str] = mapped_column(String(255), nullable=True)
+    bitrate: Mapped[int | None] = mapped_column(Integer, nullable=True)  # in kbps
+    codec: Mapped[str | None] = mapped_column(String, nullable=True)  # e.g., h264, vp9, av1
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fps: Mapped[float | None] = mapped_column(Float, nullable=True)  # frames per second
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -164,23 +162,39 @@ class Video(Base):
     )
     
     # Admin manually clicks publish button to make the video live
-    published_at: Mapped[datetime] = mapped_column(
+    published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         # server_default=func.now(),
         nullable=True,  # Since the video is not published when it's created, we can't set server_default to now() and nullable to False.
     )
 
+    # @property may introduce hidden database access during Pydantic serialization.
+    # A cleaner approach is to make them explicit schema fields populated in your function through routequery.
+    
     @property
-    def dash_manifest_key(self):
-        return f"{self.id}/dash/manifest.mpd"
+    def dash_manifest_key(self) -> str | None:
+        if self.object_key:
+            return f"{settings.processed_videos_bucket_dev_url}/{self.object_key}/dash/manifest.mpd"
+        else:
+            return None
 
     @property
-    def hls_manifest_key(self):
-        return f"{self.id}/hls/master.m3u8"    # correction required here
+    def hls_manifest_key(self) -> str | None:
+        if self.object_key:
+            return f"{settings.processed_videos_bucket_dev_url}/{self.object_key}/dash/master.m3u8"
+        else:
+            return None
 
+    @property
+    def thumbnail_key(self) -> str | None:
+        if self.thumbnail_object_key:
+            return f"{settings.thumbnails_bucket_dev_url}/{self.thumbnail_object_key}.webp" # extension might be removable
+        else:
+            return None
+        
     @property
     def thumbnail_uploaded(self) -> bool:
-        return bool(self.thumbnail_object_storage_prefix)
+        return bool(self.thumbnail_object_key)
     
     # @property
     # def hls_url(self):
@@ -190,10 +204,6 @@ class Video(Base):
     # def dash_url(self):
     #     return f"{settings.CDN_BASE_URL}/{self.dash_manifest_key}"
 
-    # @property
-    # def thumbnail_key(self):
-    #     return f"{self.id}/thumbnails/thumbnail.jpg"
-    
     @property
     def transcript_uploaded(self) -> bool:
         return any(
@@ -260,7 +270,7 @@ class VideoTranscript(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     language_code: Mapped[str] = mapped_column(String(10), nullable=False, default="bn") # 'en', 'hi', 'bn'
-    transcript_text: Mapped[str] = mapped_column(Text, nullable=True)
+    transcript_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Many transcripts -> one video
     video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
