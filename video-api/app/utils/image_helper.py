@@ -1,5 +1,5 @@
 from io import BytesIO
-from PIL import Image, UnidentifiedImageError, ImageOps, DecompressionBombError
+from PIL import Image, UnidentifiedImageError, ImageOps
 from fastapi import UploadFile, HTTPException
 import uuid
 import logging
@@ -33,6 +33,8 @@ Image.MAX_IMAGE_PIXELS = 25_000_000 # Set it at the top
 # Its return type is None because it either raises exceptions or retruns nothing when passed
 def validate_image(file: UploadFile) -> None:
     stream = file.file
+
+    # Measure file size.
     # Ensure we start reading from the beginning.
     stream.seek(0)
 
@@ -47,8 +49,7 @@ def validate_image(file: UploadFile) -> None:
         raise HTTPException(400, "Image too large")
     
     # MAX_PIXELS = 25_000_000  # ~25 megapixels
-
-    stream.seek(0)
+    # stream.seek(0)
 
     try:
         with Image.open(stream) as image:
@@ -64,7 +65,9 @@ def validate_image(file: UploadFile) -> None:
             # verify() intentionally leaves the image unusable.
             image.verify()
 
+        # verify() leaves the stream at EOF.
         stream.seek(0)
+
         # This forces a full decode and catches some corrupt images that verify() alone won't.
         with Image.open(stream) as image:
             image.load()
@@ -75,8 +78,8 @@ def validate_image(file: UploadFile) -> None:
     except OSError:
         raise HTTPException(status_code=400, detail="Corrupted image file")
 
-    except DecompressionBombError:
-        raise HTTPException(status_code=400, detail="Image file is a decompression bomb")
+    # except DecompressionBombError:
+    #     raise HTTPException(status_code=400, detail="Image file is a decompression bomb")
 
     finally:
         # Reset because verify() consumes the image stream.

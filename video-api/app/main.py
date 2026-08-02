@@ -14,6 +14,7 @@ from app.routes.video_upload import router as VideoUploadRouter
 from app.routes.video import router as VideoRouter
 from app.routes.category import router as CategoryRouter
 from app.routes.series import router as SeriesRouter
+from app.routes.thumbnail_upload import router as ThumbnailRouter
 from app.routes._task_routes import router as TaskRouter
 
 settings = get_settings()
@@ -48,6 +49,7 @@ app.include_router(TaskRouter)
 app.include_router(VideoRouter)
 app.include_router(CategoryRouter)
 app.include_router(SeriesRouter)
+app.include_router(ThumbnailRouter)
 
 # Use settings as Dependency Injection
 @app.get("/")

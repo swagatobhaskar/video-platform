@@ -15,7 +15,6 @@ from app.utils.dependencies import get_current_user, get_db
 from app.utils import security
 from app.database.models import Video, Category
 from app.config import get_settings
-from app.utils.r2_helper import s3
 from app.utils.image_helper import (
     convert_to_webp, delete_image_from_r2, validate_image,
     upload_image_to_r2,
