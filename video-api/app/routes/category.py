@@ -6,7 +6,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-import mimetypes
+from botocore.exceptions import ClientError
 import logging
 
 from app.schemas import category_schema
@@ -17,8 +17,8 @@ from app.database.models import Video, Category
 from app.config import get_settings
 from app.utils.r2_helper import s3
 from app.utils.image_helper import (
-    convert_to_webp, delete_image_from_r2, validate_thumbnail_image,
-    upload_image_to_r2, safe_delete_from_r2
+    convert_to_webp, delete_image_from_r2, validate_image,
+    upload_image_to_r2,
 )
 
 router = APIRouter(prefix="/api/category", tags=["category"])
@@ -37,19 +37,25 @@ async def create_new_category(
     session: AsyncSession = Depends(get_db)
 ):
     image_key : str | None = None
-    file_bytes: bytes | None = None
 
     if image:
-        # validate
+        # validate_image(image)
+        await run_in_threadpool(validate_image, image)
 
-        if not image.content_type == "image/webp":
-            # convert to webp
-            file_bytes = convert_to_webp(image)
-        else:
-            file_bytes = await image.read()
-            # convert to BytesIO
+        # convert to webp
+        # img_buffer = convert_to_webp(image)
+        webp_buffer = await run_in_threadpool(convert_to_webp, image)
 
-        image_key: str = await upload_image_to_r2(img_buffer, BUCKET)
+        # image_key: str = await upload_image_to_r2(webp_buffer, BUCKET)
+        try:
+            image_key = await run_in_threadpool(
+                upload_image_to_r2,
+                webp_buffer,
+                BUCKET,
+            )
+        except ClientError:
+            logger.exception("Failed to upload image")
+            raise HTTPException(503, "Image upload failed")
 
     try:
         new_category = Category(name=name, image_url = image_key)
@@ -59,15 +65,26 @@ async def create_new_category(
 
     except IntegrityError:
         await session.rollback()
+        logger.exception("Failed creating category '%s'", name)
+
         if image_key:
-            await delete_image_from_r2(image_key, BUCKET)
+            logger.exception("Database commit aborted due to IntegrityError. Deleting uploaded category image %s", image_key)
+            try:
+                await run_in_threadpool(delete_image_from_r2, image_key, BUCKET)
+            except ClientError:
+                logger.exception("Failed to delete orphaned category image from R2: %s", image_key)
         raise HTTPException(status_code=409, detail="A category with that name already exists.")
 
     except SQLAlchemyError:
         await session.rollback()
-        if image_key:
-            # run_in_threadpool ?
-            await delete_image_from_r2(image_key, BUCKET)
+
+        if image_key is not None:
+            logger.exception("Database commit failed. Deleting uploaded category image %s", image_key)
+
+            try:
+                await run_in_threadpool(delete_image_from_r2, image_key, BUCKET)
+            except ClientError:
+                logger.exception("Failed to delete orphaned category image from R2: %s", image_key)
         raise HTTPException(status_code=500, detail="Database error.")
 
     return new_category
@@ -130,11 +147,15 @@ async def delete_category(category_id: uuid.UUID, session: AsyncSession = Depend
 
     except SQLAlchemyError as e:
         await session.rollback()
+        logger.exception("Failed to delete category .")
         raise HTTPException(500, "Database error")
 
     # The database delete succeeded, so it's safe to delete the image.
     if image_key:
-        await safe_delete_from_r2(image_key)
+        try:
+            await run_in_threadpool(delete_image_from_r2, image_key, BUCKET)
+        except ClientError:
+            logger.exception("Failed to delete orphaned category image from R2: %s", image_key)
 
 
 @router.patch("/{category_id}", response_model=category_schema.CategoryOut)
@@ -147,7 +168,7 @@ async def update_category(
     category = await session.get(Category, category_id)
 
     if category is None:
-        raise HTTPException(404, "Category not found")
+        raise HTTPException(404, f"Category {name} not found")
 
     # for key, value in req.model_dump(exclude_unset=True).items():
     #     setattr(category, key, value)
@@ -155,13 +176,30 @@ async def update_category(
         category.name = name
 
     old_image_key = category.image_url
-    new_image_key = None
+    new_image_key: str | None = None
 
     if image:
+        # Early rejection only. It can't prevent files hidden as an image
         if not image.content_type.startswith("image/"):
             raise HTTPException(400, "File must be an image.")
 
-        new_image_key = await upload_image_to_r2(image)
+        # validate image
+        await run_in_threadpool(validate_image, image)
+    
+        # Convert to WebP
+        webp_buffer = await run_in_threadpool(convert_to_webp, image)
+
+        # new_image_key = await upload_image_to_r2(image)
+        try:
+            new_image_key = await run_in_threadpool(
+                upload_image_to_r2,
+                webp_buffer,
+                BUCKET,
+            )
+        except ClientError:
+            logger.exception("Failed to upload image")
+            raise HTTPException(503, "Image upload failed")
+
         category.image_url = new_image_key
 
     try:
@@ -173,21 +211,31 @@ async def update_category(
 
         # Remove the newly-uploaded image because the DB update failed.
         if new_image_key:
-            await safe_delete_from_r2(new_image_key)
+            try:
+                await run_in_threadpool(delete_image_from_r2, new_image_key, BUCKET)
+            except ClientError:
+                logger.exception("Failed to delete orphaned new category image from R2: %s", new_image_key)
 
         raise HTTPException(409, "Category name already exists")
 
     except SQLAlchemyError:
         await session.rollback()
+        logger.exception("Database error occurred. Deleting new category image from R2: %s", new_image_key)
 
         if new_image_key:
-            await safe_delete_from_r2(new_image_key)
+            try:
+                await run_in_threadpool(delete_image_from_r2, new_image_key, BUCKET)
+            except ClientError:
+                logger.exception("Failed to delete orphaned new category image from R2: %s", new_image_key)
 
         raise HTTPException(500, "Database error")
 
     # DB update succeeded, so remove the old image.
     if new_image_key and old_image_key:
-        await safe_delete_from_r2(old_image_key)
+        try:
+            await run_in_threadpool(delete_image_from_r2, old_image_key, BUCKET)
+        except ClientError:
+            logger.exception("Failed to delete orphaned old category image from R2: %s", old_image_key)
 
     return category
 
@@ -199,14 +247,13 @@ async def add_video_to_category(
     video_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
 ):
-
     category = await session.get(Category, category_id)
     if category is None:
-        raise HTTPException(404, "Category not found")
+        raise HTTPException(404, "Requested category not found")
 
     video = await session.get(Video, video_id)
     if video is None:
-        raise HTTPException(404, "Video not found")
+        raise HTTPException(404, "Requested video not found")
 
     if video.category_id is not None:
         raise HTTPException(status_code=409, detail="Video already belongs to a category.")

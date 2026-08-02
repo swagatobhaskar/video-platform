@@ -26,6 +26,9 @@ async def upload_video_thumbnail(
     thumbnail_image: UploadFile = File(),
     session: AsyncSession = Depends(get_db),
 ):
+    if not thumbnail_image:
+        raise HTTPException(400, "Thumbnail image not found in request.")
+    
     result = await session.execute(
         select(Video).where(Video.id == video_id)
     )
@@ -35,12 +38,8 @@ async def upload_video_thumbnail(
     if not video:
         raise HTTPException(status_code=404, detail=f"Video {video_id} not found!")
 
-    # if thumbnail_image:
-
     # validate_image(thumbnail_image)
     await run_in_threadpool(validate_image, thumbnail_image)
-
-    # bypass conversion if image is WebP
 
     # webp_buffer = convert_to_webp(thumbnail_image)
     webp_buffer = await run_in_threadpool(convert_to_webp, thumbnail_image)
@@ -93,4 +92,3 @@ async def upload_video_thumbnail(
                 logger.exception("Failed to delete orphaned thumbnail from R2: %s", thumbnail_key)
 
         raise HTTPException(status_code=500, detail="Could not save thumbnail upload.")
-

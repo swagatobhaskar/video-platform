@@ -61,6 +61,7 @@ def validate_image(file: UploadFile) -> None:
             # Force Pillow to read the entire image structure.
             # Detects truncated/corrupted images.
             # verify() validates the file structure but doesn't fully decode the image.
+            # verify() intentionally leaves the image unusable.
             image.verify()
 
         stream.seek(0)
@@ -93,33 +94,44 @@ def convert_to_webp(img_file: UploadFile) -> BytesIO:
     # open the image in Pillow
     # Image.open() does not immediately decode the entire image; it reads enough
     # data to identify the format and loads pixel data lazily when needed.
-    image = Image.open(img_file.file)
+    
+    # image = Image.open(img_file.file)
+    # using context manager
+    with Image.open(img_file.file) as image:
 
-    # Many JPEGs store orientation in EXIF rather than rotating the pixels.
-    # If you don't account for it, some uploaded photos may appear sideways after conversion.
-    # Before resizing, add:
-    image = ImageOps.exif_transpose(image)
+        # do not convert if image is already WebP, and it's correctly sized
+        # directly return th file-like object
+        if (image.format == "WEBP" and image.width <= MAX_THUMBNAIL_SIZE[0]
+            and image.height <= MAX_THUMBNAIL_SIZE[1]
+        ):
+            img_file.file.seek(0)
+            return BytesIO(img_file.file.read())
 
-    # Convert to a mode that WebP supports while preserving transparency
-    # for images that have an alpha channel, e.g., PNG.
-    if image.mode in ("RGBA", "LA"):
-        pass
-    elif "transparency" in image.info:
-        image = image.convert("RGBA")
-    else:
-        image = image.convert("RGB")
+        # Many JPEGs store orientation in EXIF rather than rotating the pixels.
+        # If you don't account for it, some uploaded photos may appear sideways after conversion.
+        # Before resizing, add:
+        image = ImageOps.exif_transpose(image)
 
-    # Create an empty in-memory binary file.
-    # Pillow will write the encoded WebP file bytes into this buffer.
-    buffer = BytesIO()
+        # Convert to a mode that WebP supports while preserving transparency
+        # for images that have an alpha channel, e.g., PNG.
+        if image.mode in ("RGBA", "LA"):
+            pass
+        elif "transparency" in image.info:
+            image = image.convert("RGBA")
+        else:
+            image = image.convert("RGB")
 
-    # Resize while preserving the aspect ratio.
-    # The image will not be enlarged if it is already smaller than these dimensions.
-    image.thumbnail(MAX_THUMBNAIL_SIZE, Image.Resampling.LANCZOS) # (1920, 1080))
+        # Resize while preserving the aspect ratio.
+        # The image will not be enlarged if it is already smaller than these dimensions.
+        image.thumbnail(MAX_THUMBNAIL_SIZE, Image.Resampling.LANCZOS) # (1920, 1080))
 
-    # Using Pillow's save method, encode the image as WebP and write the resulting bytes into the in-memory buffer.
-    # Pillow won't automatically preserve EXIF unless requested, so you're already stripping most metadata.
-    image.save(buffer, format="WEBP", quality=85, method=6)
+        # Create an empty in-memory binary file.
+        # Pillow will write the encoded WebP file bytes into this buffer.
+        buffer = BytesIO()
+
+        # Using Pillow's save method, encode the image as WebP and write the resulting bytes into the in-memory buffer.
+        # Pillow won't automatically preserve EXIF unless requested, so you're already stripping most metadata.
+        image.save(buffer, format="WEBP", quality=85, method=6)
 
     logger.info("Produced WebP size: %d bytes", buffer.tell())
 
@@ -161,3 +173,15 @@ def delete_image_from_r2(key: str, bucket: str) -> None:
         Bucket=bucket,
         Key=key,
     )
+
+# def process_uploaded_image(image: UploadFile, bucket: str) -> str:
+#     validate_image(image)
+#     webp = convert_to_webp(image)
+#     return upload_image_to_r2(webp, bucket)
+
+# use it as:
+# image_key = await run_in_threadpool(
+#     process_uploaded_image,
+#     image,
+#     BUCKET,
+# )
