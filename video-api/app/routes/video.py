@@ -1,14 +1,14 @@
 import uuid
 from fastapi.routing import APIRouter
 from fastapi import HTTPException, status, Depends
-from sqlalchemy import select
+from sqlalchemy import select, exists, and_, not_
 from sqlalchemy.orm import selectinload
 
 from app.schemas import video_schema
 from app.database.session import AsyncSession
 from app.utils.dependencies import get_current_user, get_db
 from app.utils import security
-from app.database.models import Video, VideoPublicationStatusEnum, UploadSession
+from app.database.models import Video, VideoPublicationStatusEnum, UploadSession, UploadSessionStatusEnum
 from app.config import get_settings
 
 router = APIRouter(prefix="/api/video", tags=["video"])
@@ -39,6 +39,30 @@ async def get_video_admin_view(
     result = await session.execute(stmt)
 
     return result.scalars().all()
+
+
+@router.get("/requiring-user-action")
+async def get_videos_requiring_user_action(session: AsyncSession = Depends(get_db)):
+    # get the videos whose sate is draft and whose upload_sessions.status is not completed or aborted
+    # can_publish is a Python @property, so SQLAlchemy can't translate it into SQL.
+    # i.e., we can't use it in a query filter. So we need to use the actual conditions that define can_publish.
+    upload_session_exists = (
+        select(UploadSession.id)
+        .where(
+            UploadSession.video_id == Video.id,
+            UploadSession.status !=
+        )
+        .exists()
+    )
+
+    stmt = select(Video).where(
+        Video.publication_status == VideoPublicationStatusEnum.DRAFT,
+        not_(
+            and_(
+                uploaded_session_exists,
+            )
+        )
+    )
 
 # Add query parameter for Draft/Published/Archived videos
 @router.get("/", response_model=list[video_schema.VideoRead])
