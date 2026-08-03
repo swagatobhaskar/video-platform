@@ -217,8 +217,8 @@ class VideoRead(BaseModel):
 
     thumbnail_uploaded: bool
     transcript_uploaded: bool
-    metadata_complete: bool
-    seo_fields_complete: bool
+    # metadata_complete: bool
+    # seo_fields_complete: bool
     video_uploaded: bool
     can_publish: bool
 
@@ -229,3 +229,11 @@ class VideoAdminRead(BaseModel):
     transcode_tasks: list[TranscodeTaskRead] = Field(default_factory=list)
     video_events: list[VideoEventRead] = Field(default_factory=list)
 
+
+class VideoActionRequiredResponse(BaseModel):
+    video_id: uuid.UUID
+    title: str | None
+    upload_status: str | None
+    transcoded: bool = False
+    errors: dict[str, list[str]]
+    

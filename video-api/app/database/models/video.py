@@ -1,6 +1,6 @@
 from typing import List
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
 
 from sqlalchemy import (
@@ -15,7 +15,7 @@ from .base import Base
 from typing import TYPE_CHECKING
 
 from .upload import UploadSessionStatusEnum
-from .processing import TranscodeTask, VideoEvent
+from .processing import TranscodeTask, VideoEvent, VideoProcessingStatusEnum
 
 # TYPE_CHECKING imports are ignored at runtime, so they don't create circular imports
 if TYPE_CHECKING:
@@ -211,29 +211,94 @@ class Video(Base):
             for transcript in self.video_transcripts
         )
     
+    # @property
+    # def metadata_complete(self) -> bool:
+    #     return all([
+    #         self.title,
+    #         self.description,
+    #         self.category_id,
+    #         self.slug,
+    #         self.language,
+    #     ])
+
     @property
-    def metadata_complete(self) -> bool:
-        return all([
-            self.title,
-            self.description,
-            self.category_id,
-            self.slug,
-            self.language,
-        ])
+    def missing_metadata_fields(self) -> list[str]:
+        missing = []
+
+        if not self.title:
+            missing.append("title")
+
+        if not self.description:
+            missing.append("description")
+
+        if not self.slug:
+            missing.append("slug")
+
+        if self.category_id is None:
+            missing.append("category_id")
+
+        if self.language is None:
+            missing.append("language")
+
+        return missing
     
+    # @property
+    # def seo_fields_complete(self) -> bool:
+    #     return all([
+    #         self.search_intent,
+    #         self.focus_keyword,
+    #         self.keywords,
+    #         self.seo_tags,
+    #         self.seo_summary_en,
+    #         self.secondary_keywords,
+    #         self.thumbnail_alt_text,
+    #         self.meta_description,
+    #         self.meta_title,
+    #     ])
+
+    REQUIRED_SEO_FIELDS = (
+        "search_intent",
+        "focus_keyword",
+        "keywords",
+        "seo_tags",
+        "seo_summary_en",
+        "secondary_keywords",
+        "thumbnail_alt_text",
+        "meta_description",
+        "meta_title",
+    )
+
     @property
-    def seo_fields_complete(self) -> bool:
-        return all([
-            self.search_intent,
-            self.focus_keyword,
-            self.keywords,
-            self.seo_tags,
-            self.seo_summary_en,
-            self.secondary_keywords,
-            self.thumbnail_alt_text,
-            self.meta_description,
-            self.meta_title,
-        ])
+    def missing_seo_fields(self) -> list[str]:
+        missing = []
+
+        for field in self.REQUIRED_SEO_FIELDS:
+            value = getattr(self, field)
+
+            if value in [None, "", []]:
+                missing.append(field)
+
+        return missing
+
+    @property
+    def latest_transcode_task(self) -> "TranscodeTask | None":
+        if not self.transcode_tasks:
+            return None
+
+        return max(
+            self.transcode_tasks,
+            key=lambda x: x.created_at
+        )
+
+    @property
+    def transcoded(self) -> bool:
+        task = self.latest_transcode_task
+
+        return (
+            task is not None
+            and task.status == VideoProcessingStatusEnum.COMPLETED
+        )
+
 
     @property
     def video_uploaded(self) -> bool:
@@ -243,10 +308,70 @@ class Video(Base):
         )
 
     @property
+    def publish_errors(self) -> dict[str, list[str]]:
+        errors = {}
+
+        if not self.video_uploaded:
+            errors["video"] = ["Video has not been uploaded."]
+
+        if not self.transcoded:
+            errors["processing"] = ["Video processing is incomplete."]
+
+        if not self.thumbnail_uploaded:
+            errors["thumbnail"] = ["Thumbnail has not been uploaded."]
+
+        # if self.missing_metadata_fields:
+        #     errors.append(f"Missing metadata: {', '.join(self.missing_metadata_fields)}")
+
+        missing_metadata = self.missing_metadata_fields
+        if missing_metadata:
+            errors["metadata"] = missing_metadata
+
+        missing_seo = self.missing_seo_fields
+        if missing_seo:
+            errors["seo"] = missing_seo
+
+        return errors
+
+
+    @property
     def can_publish(self) -> bool:
-        return (
-            self.video_uploaded and self.thumbnail_uploaded and self.metadata_complete
+        # return (
+        #     self.video_uploaded and self.thumbnail_uploaded and self.metadata_complete
+        # )
+        return not self.publish_errors
+
+
+    # @property
+    # def active_upload_session(self) -> UploadSession | None:
+    #     for session in self.upload_sessions:
+    #         if session.status not in (
+    #             UploadSessionStatusEnum.COMPLETED,
+    #             UploadSessionStatusEnum.ABORTED,
+    #         ):
+    #             return session
+
+    #     return None
+
+    @property
+    def latest_upload_session(self) -> UploadSession | None:
+        if not self.upload_sessions:
+            return None
+
+        return max(
+            self.upload_sessions,
+            key=lambda x: x.created_at
         )
+
+    @property
+    def upload_status(self) -> str | None:
+        session = self.latest_upload_session
+
+        if not session:
+            return None
+
+        return session.status.value
+
 
     def __repr__(self) -> str:
         return f"<Video(id={self.id}, title='{self.title}', language='{self.language.value}')>"
