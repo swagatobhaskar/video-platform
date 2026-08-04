@@ -270,8 +270,6 @@ class VideoRead(BaseModel):
     thumbnail_alt_text: str | None
     search_intent: str | None
 
-    transcript: str | None
-
     thumbnail_object_key: str | None
 
     bitrate: int | None
