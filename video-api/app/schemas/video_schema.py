@@ -215,12 +215,14 @@ class VideoRead(BaseModel):
     hls_manifest_key: str | None
     thumbnail_object_key: str | None
 
-    thumbnail_uploaded: bool
-    transcript_uploaded: bool
-    # metadata_complete: bool
-    # seo_fields_complete: bool
-    video_uploaded: bool
-    can_publish: bool
+    # VideoRead schema should not show these
+    # 
+    # thumbnail_uploaded: bool
+    # transcript_uploaded: bool
+    # missing_metadata_fields: list[str]
+    # missing_seo_fields: list[str]
+    # video_uploaded: bool
+    # can_publish: bool
 
 
 class VideoAdminRead(BaseModel):

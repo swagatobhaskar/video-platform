@@ -101,7 +101,6 @@ class Video(Base):
         default=VideoPublicationStatusEnum.DRAFT
     )
 
-    # The uploaded file name as is sent to R2. Assigned from UploadSession after upload is completed.
     object_key: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), unique=True, index=True, nullable=True)
 
     # Many videos -> one category
@@ -115,11 +114,10 @@ class Video(Base):
 
     # Children
     # Using lazy="selectin" avoids calling .selectinload() in SQLAlchemy queries
-    video_transcripts: Mapped[List["VideoTranscript"]] = relationship("VideoTranscript", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
-    upload_sessions: Mapped[List["UploadSession"]] = relationship("UploadSession", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
-    transcode_tasks: Mapped[List["TranscodeTask"]] = relationship("TranscodeTask", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
-    # renditions: Mapped[List[Rendition]] = relationship("Rendition", back_populates="video", cascade="all, delete-orphan")
-    video_events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="video", cascade="all, delete-orphan") # lazy="selectin"
+    video_transcripts: Mapped[List["VideoTranscript"]] = relationship("VideoTranscript", back_populates="video", cascade="all, delete-orphan")
+    upload_sessions: Mapped[List["UploadSession"]] = relationship("UploadSession", back_populates="video", cascade="all, delete-orphan")
+    transcode_tasks: Mapped[List["TranscodeTask"]] = relationship("TranscodeTask", back_populates="video", cascade="all, delete-orphan")
+    video_events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="video", cascade="all, delete-orphan")
 
     # SEO Fields
     seo_tags: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
@@ -139,7 +137,6 @@ class Video(Base):
     like_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     dislike_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # Thumbnail should be prefixed by the video_id
     thumbnail_object_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     
     bitrate: Mapped[int | None] = mapped_column(Integer, nullable=True)  # in kbps
@@ -168,9 +165,10 @@ class Video(Base):
         nullable=True,  # Since the video is not published when it's created, we can't set server_default to now() and nullable to False.
     )
 
-    # @property may introduce hidden database access during Pydantic serialization.
-    # A cleaner approach is to make them explicit schema fields populated in your function through routequery.
-    
+    # Keep properties that only use fields already loaded, along with the model.
+    # Move properties that involve business rules.
+    # Move properties that traverse relationships.
+
     @property
     def dash_manifest_key(self) -> str | None:
         if self.object_key:
@@ -191,186 +189,6 @@ class Video(Base):
             return f"{settings.thumbnails_bucket_dev_url}/{self.thumbnail_object_key}.webp" # extension might be removable
         else:
             return None
-        
-    @property
-    def thumbnail_uploaded(self) -> bool:
-        return bool(self.thumbnail_object_key)
-    
-    # @property
-    # def hls_url(self):
-    #     return f"{settings.CDN_BASE_URL}/{self.hls_manifest_key}"
-
-    # @property
-    # def dash_url(self):
-    #     return f"{settings.CDN_BASE_URL}/{self.dash_manifest_key}"
-
-    @property
-    def transcript_uploaded(self) -> bool:
-        return any(
-            transcript.transcript_text
-            for transcript in self.video_transcripts
-        )
-    
-    # @property
-    # def metadata_complete(self) -> bool:
-    #     return all([
-    #         self.title,
-    #         self.description,
-    #         self.category_id,
-    #         self.slug,
-    #         self.language,
-    #     ])
-
-    @property
-    def missing_metadata_fields(self) -> list[str]:
-        missing = []
-
-        if not self.title:
-            missing.append("title")
-
-        if not self.description:
-            missing.append("description")
-
-        if not self.slug:
-            missing.append("slug")
-
-        if self.category_id is None:
-            missing.append("category_id")
-
-        if self.language is None:
-            missing.append("language")
-
-        return missing
-    
-    # @property
-    # def seo_fields_complete(self) -> bool:
-    #     return all([
-    #         self.search_intent,
-    #         self.focus_keyword,
-    #         self.keywords,
-    #         self.seo_tags,
-    #         self.seo_summary_en,
-    #         self.secondary_keywords,
-    #         self.thumbnail_alt_text,
-    #         self.meta_description,
-    #         self.meta_title,
-    #     ])
-
-    REQUIRED_SEO_FIELDS = (
-        "search_intent",
-        "focus_keyword",
-        "keywords",
-        "seo_tags",
-        "seo_summary_en",
-        "secondary_keywords",
-        "thumbnail_alt_text",
-        "meta_description",
-        "meta_title",
-    )
-
-    @property
-    def missing_seo_fields(self) -> list[str]:
-        missing = []
-
-        for field in self.REQUIRED_SEO_FIELDS:
-            value = getattr(self, field)
-
-            if value in [None, "", []]:
-                missing.append(field)
-
-        return missing
-
-    @property
-    def latest_transcode_task(self) -> "TranscodeTask | None":
-        if not self.transcode_tasks:
-            return None
-
-        return max(
-            self.transcode_tasks,
-            key=lambda x: x.created_at
-        )
-
-    @property
-    def transcoded(self) -> bool:
-        task = self.latest_transcode_task
-
-        return (
-            task is not None
-            and task.status == VideoProcessingStatusEnum.COMPLETED
-        )
-
-
-    @property
-    def video_uploaded(self) -> bool:
-        return any(
-            session.status == UploadSessionStatusEnum.COMPLETED
-            for session in self.upload_sessions
-        )
-
-    @property
-    def publish_errors(self) -> dict[str, list[str]]:
-        errors = {}
-
-        if not self.video_uploaded:
-            errors["video"] = ["Video has not been uploaded."]
-
-        if not self.transcoded:
-            errors["processing"] = ["Video processing is incomplete."]
-
-        if not self.thumbnail_uploaded:
-            errors["thumbnail"] = ["Thumbnail has not been uploaded."]
-
-        # if self.missing_metadata_fields:
-        #     errors.append(f"Missing metadata: {', '.join(self.missing_metadata_fields)}")
-
-        missing_metadata = self.missing_metadata_fields
-        if missing_metadata:
-            errors["metadata"] = missing_metadata
-
-        missing_seo = self.missing_seo_fields
-        if missing_seo:
-            errors["seo"] = missing_seo
-
-        return errors
-
-
-    @property
-    def can_publish(self) -> bool:
-        # return (
-        #     self.video_uploaded and self.thumbnail_uploaded and self.metadata_complete
-        # )
-        return not self.publish_errors
-
-
-    # @property
-    # def active_upload_session(self) -> UploadSession | None:
-    #     for session in self.upload_sessions:
-    #         if session.status not in (
-    #             UploadSessionStatusEnum.COMPLETED,
-    #             UploadSessionStatusEnum.ABORTED,
-    #         ):
-    #             return session
-
-    #     return None
-
-    @property
-    def latest_upload_session(self) -> UploadSession | None:
-        if not self.upload_sessions:
-            return None
-
-        return max(
-            self.upload_sessions,
-            key=lambda x: x.created_at
-        )
-
-    @property
-    def upload_status(self) -> str | None:
-        session = self.latest_upload_session
-
-        if not session:
-            return None
-
-        return session.status.value
 
 
     def __repr__(self) -> str:

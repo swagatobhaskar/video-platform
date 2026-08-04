@@ -176,6 +176,7 @@ async def get_video_list(
         selectinload(Video.series),
         selectinload(Video.video_transcripts),
         selectinload(Video.upload_sessions),
+        selectinload(Video.transcode_tasks),
     )
 
     if status:
