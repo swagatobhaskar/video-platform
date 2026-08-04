@@ -6,8 +6,9 @@ from fastapi import HTTPException, status, Depends
 from pytz import timezone
 from sqlalchemy import select, exists, and_, not_, update
 from sqlalchemy.orm import selectinload
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
+from app.services.video_service import VideoPublishError, VideoService
 from app.schemas import video_schema
 from app.database.session import AsyncSession
 from app.utils.dependencies import get_current_user, get_db
@@ -46,7 +47,7 @@ async def get_video_admin_view(
     return result.scalars().all()
 
 
-@router.patch("/{video_id}/publish")
+@router.patch("/{video_id}/publish", response_model=video_schema.VideoRead)
 async def publish_video(
     video_id: uuid.UUID,
     session: AsyncSession = Depends(get_db),
@@ -54,49 +55,43 @@ async def publish_video(
     stmt = await session.execute(
         select(Video)
         .options(
+            selectinload(Video.category),
+            selectinload(Video.series),
             selectinload(Video.upload_sessions),
             selectinload(Video.transcode_tasks),
             selectinload(Video.video_transcripts),
         )
         .where(
             Video.id == video_id,
-            Video.publication_status == VideoPublicationStatusEnum.DRAFT
+            Video.publication_status.in_([
+                VideoPublicationStatusEnum.DRAFT,
+                VideoPublicationStatusEnum.ARCHIVED,
+            ])  
         )
     )
 
     video = stmt.scalar_one_or_none()
 
     if video is None:
-        raise HTTPException(status_code=404, detail="Video not found.")
+        raise HTTPException(status_code=404, detail="Video not found or already published.")
 
-    if not video.can_publish:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": "Video cannot be published. The following fields are required.",
-                "errors": video.publish_errors,
-            },
-        )
+    video_service = VideoService(video, session)
+
     try:
-        video.publication_status = VideoPublicationStatusEnum.PUBLISHED
-
-        # Do not overwrite publish date if it was already publish at a past date
-        if video.published_at is None:
-            video.published_at = datetime.now(timezone.utc)
+        await video_service.publish()
         
-        await session.commit()
-        # await session.refresh(video)  # optional
+    except VideoPublishError as exc:
+        raise HTTPException(status_code=400, detail=exc.errors)
 
-        return {
-            "message": "Video published successfully.",
-            "status": video.publication_status.value,
-            "published_at": video.published_at,
-        }
-    
     except SQLAlchemyError:
-        await session.rollback()
-        logger.exception("Database error. Failed to publish video %s", video_id)
-        raise HTTPException(status_code=500, detail="Failed to archive video.")
+        raise HTTPException(status_code=500, detail="Failed to publish video.")
+
+    return video
+    # return {
+    #     "message": "Video published successfully.",
+    #     "status": video.publication_status.value,
+    #     "published_at": video.published_at,
+    # }
 
 
 @router.patch("/{video_id}/archive")
@@ -146,18 +141,19 @@ async def get_videos_requiring_user_action(session: AsyncSession = Depends(get_d
     videos = stmt.scalars().all()
 
     response = []
-
+    
     for video in videos:
-        if video.can_publish:
+        video_service = VideoService(video, session)
+        if video_service.can_publish:
             continue
 
         response.append(
             {
                 "video_id": video.id,
                 "title": video.title,
-                "upload_status": video.upload_status,
-                "transcoded": video.transcoded,
-                "errors": video.publish_errors,
+                "upload_status": video_service.upload_status,
+                "transcoded": video_service.transcoded,
+                "errors": video_service.publish_errors,
             }
         )
 
@@ -239,3 +235,101 @@ async def get_video_detail(video_id: uuid.UUID, session: AsyncSession = Depends(
 
     return video
 
+
+@router.patch("/{video_id}/metadata", response_model=video_schema.VideoMetadataRead)
+async def update_video_metadata(
+    video_id: uuid.UUID,
+    req: video_schema.VideoMetadataUpdate,
+    session: AsyncSession = Depends(get_db)
+):
+    stmt = (
+        select(Video)
+        .options(
+            selectinload(Video.category),
+            selectinload(Video.series),
+            selectinload(Video.video_transcripts),
+        )
+        .where(Video.id == video_id)
+    )
+
+    result = await session.execute(stmt)
+    video = result.scalar_one_or_none()
+
+    if not video:
+        raise HTTPException(status_code=404, detail=f"Video {video_id} not found.")
+
+    video_service = VideoService(video, session)
+
+    # Without exclude_unset=True, PATCH requests may overwrite
+    # existing fields with NULL.
+    update_data = req.model_dump(exclude_unset=True)
+
+    try:
+        # Without exclude_unset=True, you would accidentally overwrite existing values with NULL.
+        await video_service.update_data(data = update_data)
+
+        return video
+
+    except IntegrityError:
+        await session.rollback()
+        raise HTTPException(status_code=400, detail="Invalid data. Update violates database constraints.")
+
+    except SQLAlchemyError:
+        await session.rollback()
+        logger.exception("Database error while updating video %s", video_id)
+        raise HTTPException(status_code=500, detail="Failed to update video.")
+    
+
+@router.patch("/{video_id}/seo", response_model=video_schema.VideoSEORead)
+async def update_video_seo_data(
+    video_id: uuid.UUID,
+    req: video_schema.VideoSEOUpdate,
+    session: AsyncSession = Depends(get_db)
+):
+    stmt = (
+        select(Video)
+        .options(selectinload(Video.video_transcripts))
+        .where(Video.id == video_id)
+    )
+
+    result = await session.execute(stmt)
+    video = result.scalar_one_or_none()
+
+    if not video:
+        raise HTTPException(status_code=404, detail=f"Video {video_id} not found.")
+
+    video_service = VideoService(video, session)
+
+    # Without exclude_unset=True, PATCH requests may overwrite
+    # existing fields with NULL.
+    seo_data = req.model_dump(exclude_unset=True)
+
+    try:
+        # Without exclude_unset=True, you would accidentally overwrite existing values with NULL.
+        await video_service.update_data(data = seo_data)
+
+        return video
+
+    except SQLAlchemyError:
+        await session.rollback()
+        logger.exception("Database error while updating video %s", video_id)
+        raise HTTPException(status_code=500, detail="Failed to update video.")
+
+
+@router.patch("/{video_id}/transcript")
+async def update_video_transcript(
+    video_id: uuid.UUID,
+    session: AsyncSession = Depends(get_db),
+):
+    result = await session.execute(
+        select(Video)
+        .options(selectinload(Video.video_transcripts))
+        .where(Video.id == video_id)
+    )
+
+    video = result.scalar_one_or_none()
+
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    

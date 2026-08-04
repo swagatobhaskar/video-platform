@@ -92,39 +92,76 @@ class TranscodeTaskRead(BaseModel):
     updated_at: datetime
 
 
-class VideoCreate(BaseModel):
+# class VideoCreate(BaseModel):
+#     title: str | None = None
+#     slug: str | None = None
+#     description: str | None = None
+
+#     language: LanguageEnum | None = None
+
+#     category_id: uuid.UUID | None = None
+#     series_id: uuid.UUID | None = None
+#     episode_number: int | None = None
+
+#     seo_tags: list[str] = Field(default_factory=list)
+#     keywords: list[str] = Field(default_factory=list)
+#     secondary_keywords: list[str] = Field(default_factory=list)
+
+#     focus_keyword: str | None = None
+#     seo_summary_en: str | None = None
+#     meta_title: str | None = None
+#     meta_description: str | None = None
+#     thumbnail_alt_text: str | None = None
+#     search_intent: str | None = None
+
+
+# class VideoUpdate(BaseModel):
+#     title: str | None = None
+#     slug: str | None = None
+#     description: str | None = None
+#     language: LanguageEnum | None = None
+
+#     category_id: uuid.UUID | None = None
+#     series_id: uuid.UUID | None = None
+#     episode_number: int | None = None
+
+#     seo_tags: list[str] | None = None
+#     keywords: list[str] | None = None
+#     secondary_keywords: list[str] | None = None
+
+#     focus_keyword: str | None = None
+#     seo_summary_en: str | None = None
+#     meta_title: str | None = None
+#     meta_description: str | None = None
+#     thumbnail_alt_text: str | None = None
+#     search_intent: str | None = None
+
+
+class VideoMetadataUpdate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     title: str | None = None
     slug: str | None = None
     description: str | None = None
-
     language: LanguageEnum | None = None
-
     category_id: uuid.UUID | None = None
     series_id: uuid.UUID | None = None
     episode_number: int | None = None
 
-    seo_tags: list[str] = Field(default_factory=list)
-    keywords: list[str] = Field(default_factory=list)
-    secondary_keywords: list[str] = Field(default_factory=list)
 
-    focus_keyword: str | None = None
-    seo_summary_en: str | None = None
-    meta_title: str | None = None
-    meta_description: str | None = None
-    thumbnail_alt_text: str | None = None
-    search_intent: str | None = None
-
-
-class VideoUpdate(BaseModel):
+class VideoMetadataRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
     title: str | None = None
     slug: str | None = None
     description: str | None = None
     language: LanguageEnum | None = None
-
     category_id: uuid.UUID | None = None
     series_id: uuid.UUID | None = None
     episode_number: int | None = None
 
+
+class VideoSEOUpdate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     seo_tags: list[str] | None = None
     keywords: list[str] | None = None
     secondary_keywords: list[str] | None = None
@@ -137,13 +174,58 @@ class VideoUpdate(BaseModel):
     search_intent: str | None = None
 
 
+class VideoSEORead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    seo_tags: list[str] | None = None
+    keywords: list[str] | None = None
+    secondary_keywords: list[str] | None = None
+
+    focus_keyword: str | None = None
+    seo_summary_en: str | None = None
+    meta_title: str | None = None
+    meta_description: str | None = None
+    thumbnail_alt_text: str | None = None
+    search_intent: str | None = None
+
+
+"""
+Example SEO data format:
+{
+  "seo_tags": [
+    "technology",
+    "artificial intelligence",
+    "AI news",
+    "machine learning"
+  ],
+  "keywords": [
+    "AI technology trends",
+    "latest AI developments",
+    "future of artificial intelligence"
+  ],
+  "secondary_keywords": [
+    "deep learning",
+    "automation",
+    "AI tools",
+    "digital transformation"
+  ],
+  "focus_keyword": "artificial intelligence trends",
+  "seo_summary_en": "Explore the latest artificial intelligence trends, innovations, and how AI is transforming industries worldwide.",
+  "meta_title": "Artificial Intelligence Trends and Latest Innovations",
+  "meta_description": "Discover the latest AI trends, emerging technologies, and how artificial intelligence is shaping the future of businesses and everyday life.",
+  "thumbnail_alt_text": "Artificial intelligence technology concept with digital graphics",
+  "search_intent": "informational"
+}
+"""
+
+
 class VideoSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     title: str | None
     slug: str | None
-
+    object_key: str | None = None
     thumbnail_object_key: str | None
 
     publication_status: VideoPublicationStatusEnum
@@ -215,7 +297,7 @@ class VideoRead(BaseModel):
     hls_manifest_key: str | None
     thumbnail_object_key: str | None
 
-    # VideoRead schema should not show these
+    # These now come from VideoService
     # 
     # thumbnail_uploaded: bool
     # transcript_uploaded: bool
