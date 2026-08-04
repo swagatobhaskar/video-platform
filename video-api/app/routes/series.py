@@ -123,10 +123,11 @@ async def update_series(
 
 
 # Add video to series
-@router.post("/{series_id}/video/{video_id}", response_model=series_schema.SeriesDetailOutWithVideo)
+@router.post("/{series_id}/video/{video_id}/{episode_number}", response_model=series_schema.SeriesDetailOutWithVideo)
 async def add_video_to_series(
     series_id: uuid.UUID,
     video_id: uuid.UUID,
+    episode_number: int | None = None,
     session: AsyncSession = Depends(get_db),
 ):
     series = await session.get(Series, series_id)
@@ -141,6 +142,11 @@ async def add_video_to_series(
         raise HTTPException(status_code=409, detail="Video already belongs to a series.")
 
     video.series = series
+
+    # Need to check the logic
+    if episode_number:
+        video.episode_number = episode_number
+
     # or:
     # video.series_id = series.id
     try:
@@ -155,7 +161,10 @@ async def add_video_to_series(
     # this doesn't match I think!
     result = await session.execute(
         select(Series)
-        .options(selectinload(Series.videos).load_only(Video.id, Video.title))
+        .options(
+            selectinload(Series.videos)
+            .load_only(Video.id, Video.title, Video.episode_number)
+        )
         .where(Series.id == series_id)
     )
 
