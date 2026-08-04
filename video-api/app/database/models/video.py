@@ -129,7 +129,7 @@ class Video(Base):
     meta_description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     thumbnail_alt_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
     search_intent: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # content_rating (G, PG, PG-13, R)
     # age_restriction (0, 7, 13, 18)
