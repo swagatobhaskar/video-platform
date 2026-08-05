@@ -163,6 +163,34 @@ async def get_videos_requiring_user_action(session: AsyncSession = Depends(get_d
     return response
 
 
+
+@router.get("/upload-history", response_model=list[video_schema.VideoUploadHistoryRead])
+async def get_upload_history(session: AsyncSession = Depends(get_db)):
+    result = await session.execute(
+        select(Video)
+        .options(
+            # Since UploadSession and TranscodeTask are now one-to-one, you can also consider joinedload.
+            joinedload(Video.upload_session),
+            joinedload(Video.transcode_task)
+        )
+    )
+
+    videos = result.scalars().all()
+    
+    response = []
+
+    for video in videos:
+        response.append(
+            video_schema.VideoUploadHistoryRead(
+                **video_schema.VideoUploadHistoryRead.model_validate(video).model_dump(),
+                video_status=video.upload_status,
+                progress_percent=video.task_progress_percent,
+            )
+        )
+        
+    return response
+    
+
 # Add query parameter for Draft/Published/Archived videos
 @router.get("/", response_model=list[video_schema.VideoRead])
 async def get_video_list(
@@ -335,30 +363,3 @@ async def update_video_transcript(
     if not video:
         raise HTTPException(status_code=404, detail="Video not found.")
 
-
-@router.get("/upload-history", response_model=video_schema.VideoUploadHistoryRead)
-async def get_upload_history(session: AsyncSession = Depends(get_db)):
-    result = await session.execute(
-        select(Video)
-        .options(
-            # Since UploadSession and TranscodeTask are now one-to-one, you can also consider joinedload.
-            joinedload(Video.upload_session),
-            joinedload(Video.transcode_task)
-        )
-    )
-
-    videos = result.scalars().all()
-    
-    response = []
-
-    for video in videos:
-        response.append(
-            video_schema.VideoUploadHistoryRead(
-                **video_schema.VideoUploadHistoryRead.model_validate(video).model_dump(),
-                video_status=video.upload_status,
-                progress_percent=video.get_task_progress_percent,
-            )
-        )
-        
-        return response
-    

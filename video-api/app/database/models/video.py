@@ -201,8 +201,10 @@ class Video(Base):
 
 
     @property
-    def get_task_progress_percent(self) -> int:
-        return self.transcode_task.progress_percent
+    def task_progress_percent(self) -> int | None:
+        if self.transcode_task:
+            return self.transcode_task.progress_percent
+        return None
 
 
     def __repr__(self) -> str:
