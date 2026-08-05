@@ -31,7 +31,7 @@ class UploadSession(Base):
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
-    # Many upload sessions -> one video
+    # one upload sessions -> one video
     video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), unique=True, nullable=False) # nullable=True)
     video: Mapped["Video"] = relationship("Video", back_populates="upload_session")
 

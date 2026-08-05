@@ -116,8 +116,8 @@ class Video(Base):
     video_transcripts: Mapped[List["VideoTranscript"]] = relationship("VideoTranscript", back_populates="video", cascade="all, delete-orphan")
     video_events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="video", cascade="all, delete-orphan")
     # one-to-one relation with UploadSession and TranscodeTask
-    upload_session: Mapped[List["UploadSession"]] = relationship("UploadSession", back_populates="video", uselist=False, cascade="all, delete-orphan")
-    transcode_task: Mapped[List["TranscodeTask"]] = relationship("TranscodeTask", back_populates="video", uselist=False, cascade="all, delete-orphan")
+    upload_session: Mapped["UploadSession"] = relationship("UploadSession", back_populates="video", uselist=False, cascade="all, delete-orphan")
+    transcode_task: Mapped["TranscodeTask"] = relationship("TranscodeTask", back_populates="video", uselist=False, cascade="all, delete-orphan")
 
     # SEO Fields
     seo_tags: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
@@ -188,6 +188,21 @@ class Video(Base):
             return f"{settings.thumbnails_bucket_dev_url}/{self.thumbnail_object_key}.webp" # extension might be removable
         else:
             return None
+
+    @property
+    def upload_status(self) -> str:
+        if self.transcode_task:
+            return self.transcode_task.status.value
+
+        if self.upload_session:
+            return self.upload_session.status.value
+
+        return "unknown"
+
+
+    @property
+    def get_task_progress_percent(self) -> int:
+        return self.transcode_task.progress_percent
 
 
     def __repr__(self) -> str:

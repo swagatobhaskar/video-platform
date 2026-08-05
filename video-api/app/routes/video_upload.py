@@ -273,7 +273,7 @@ async def complete_upload(video_id: str, req: CompleteRequest, session: AsyncSes
                 UploadSession.video_id == video_id
             )
         )
-        upload_session = result.scalars().first() # scalar_one_or_none()
+        upload_session = result.scalar_one_or_none()  # scalars().first()
         
         if not upload_session:
             raise HTTPException(status_code=404, detail="Upload session not found for the given video ID")
@@ -307,7 +307,7 @@ async def complete_upload(video_id: str, req: CompleteRequest, session: AsyncSes
                 UploadSession.video_id == video_id    
             )
         )
-        upload_session = result.scalars().first()
+        upload_session = result.scalar_one_or_none()  # scalars().first()
     
         if upload_session:
             upload_session.status = UploadSessionStatusEnum.FAILED
@@ -322,7 +322,7 @@ async def complete_upload(video_id: str, req: CompleteRequest, session: AsyncSes
         # Create A TranscodeTask entry
         transcode_task = TranscodeTask(
             video_id=video_id,
-            upload_session_id=req.uploadSessionId,
+            # upload_session_id=req.uploadSessionId,
             status=VideoProcessingStatusEnum.PENDING,
         )
 

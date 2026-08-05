@@ -294,8 +294,7 @@ async def _process_video_worker_operations(
             probe_result = await asyncio.to_thread(probe_video, str(video_path))
             
             # Update Video table with FFprobe result
-            result = await db.execute(
-                select(Video).where(Video.id == video_id))
+            result = await db.execute(select(Video).where(Video.id == video_id))
             video_record = result.scalar_one_or_none()
             
             if video_record is None:
@@ -415,6 +414,7 @@ async def _process_video_worker_operations(
                     "upload_id": upload_id,
                     "object_key": object_key,
                     "uploaded_file_name": object_key,
+                    "upload_session_id": upload_session_id,
                     "worker_id": self.request.hostname,
                     "task_id": self.request.id,
                     "transcode_result": transcode_result,
@@ -464,7 +464,7 @@ async def _process_video_worker_operations(
                     transcode_task_id=transcode_task.id,
                     payload={
                         "upload_id": upload_id,
-                        "pload_session_id": upload_session_id,
+                        "upload_session_id": upload_session_id,
                         "object_key": object_key,
                         "worker_id": self.request.hostname,
                         "task_id": self.request.id,

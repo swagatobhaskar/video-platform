@@ -38,8 +38,8 @@ class TranscodeTask(Base):
     video: Mapped["Video"] = relationship("Video", back_populates="transcode_task")
     
     # Many upload sessions -> one video
-    upload_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("upload_sessions.id", ondelete="CASCADE"), nullable=False)
-    upload_session: Mapped["UploadSession"] = relationship("UploadSession")
+    # upload_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("upload_sessions.id", ondelete="CASCADE"), unique=True, nullable=False)
+    # upload_session: Mapped["UploadSession"] = relationship("UploadSession")
 
     status: Mapped[VideoProcessingStatusEnum] = mapped_column(
         Enum(VideoProcessingStatusEnum),
@@ -56,7 +56,7 @@ class TranscodeTask(Base):
     # The ID assigned by the queue system. Celery's unique ID for the task execution
     task_id: Mapped[str] = mapped_column(String(255), nullable=True)
     error_message: Mapped[str] = mapped_column(Text, nullable=True)
-    retry_count: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     
     events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="transcode_task")
 
