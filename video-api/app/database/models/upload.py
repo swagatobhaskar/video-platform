@@ -32,8 +32,8 @@ class UploadSession(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     # Many upload sessions -> one video
-    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=True)
-    video: Mapped["Video"] = relationship("Video", back_populates="upload_sessions")
+    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), unique=True, nullable=False) # nullable=True)
+    video: Mapped["Video"] = relationship("Video", back_populates="upload_session")
 
     # object_key = “path in object storage” / what file in R2 this upload session is writing to / Where you store it in R2
     object_key: Mapped[str] = mapped_column(String(255), nullable=True)

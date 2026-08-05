@@ -1,8 +1,8 @@
-"""New initial migration
+"""New Initial Migration
 
-Revision ID: 4c5e5b386099
+Revision ID: 050f78fb8699
 Revises: 
-Create Date: 2026-07-26 18:36:57.842643
+Create Date: 2026-08-05 17:11:58.877455
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '4c5e5b386099'
+revision: str = '050f78fb8699'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -71,11 +71,10 @@ def upgrade() -> None:
     sa.Column('meta_description', sa.String(length=255), nullable=True),
     sa.Column('thumbnail_alt_text', sa.String(length=255), nullable=True),
     sa.Column('search_intent', sa.String(length=255), nullable=True),
-    sa.Column('transcript', sa.Text(), nullable=True),
     sa.Column('view_count', sa.Integer(), nullable=False),
     sa.Column('like_count', sa.Integer(), nullable=False),
     sa.Column('dislike_count', sa.Integer(), nullable=False),
-    sa.Column('thumbnail_object_storage_prefix', sa.String(length=255), nullable=True),
+    sa.Column('thumbnail_object_key', sa.String(length=255), nullable=True),
     sa.Column('bitrate', sa.Integer(), nullable=True),
     sa.Column('codec', sa.String(), nullable=True),
     sa.Column('width', sa.Integer(), nullable=True),
@@ -93,7 +92,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_videos_title'), 'videos', ['title'], unique=False)
     op.create_table('upload_sessions',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('video_id', sa.UUID(), nullable=True),
+    sa.Column('video_id', sa.UUID(), nullable=False),
     sa.Column('object_key', sa.String(length=255), nullable=True),
     sa.Column('video_upload_id', sa.Text(), nullable=True),
     sa.Column('file_size_bytes', sa.BigInteger(), nullable=True),
@@ -104,8 +103,10 @@ def upgrade() -> None:
     sa.Column('status', sa.Enum('pending', 'uploading', 'paused', 'completed', 'failed', 'aborted', name='uploadsessionstatusenum'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('completed_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['video_id'], ['videos.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('video_id')
     )
     op.create_table('video_transcripts',
     sa.Column('id', sa.UUID(), nullable=False),
@@ -120,7 +121,7 @@ def upgrade() -> None:
     )
     op.create_table('transcode_tasks',
     sa.Column('id', sa.UUID(), nullable=False),
-    sa.Column('video_id', sa.UUID(), nullable=True),
+    sa.Column('video_id', sa.UUID(), nullable=False),
     sa.Column('upload_session_id', sa.UUID(), nullable=False),
     sa.Column('status', sa.Enum('PENDING', 'QUEUED', 'QUEUE_FAILED', 'DOWNLOADING_VIDEO', 'PROBING', 'TRANSCODING', 'UPLOADING', 'CLEANUP', 'COMPLETED', 'FAILED', name='videoprocessingstatusenum'), nullable=False),
     sa.Column('progress_percent', sa.Integer(), nullable=True),
@@ -135,7 +136,8 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['upload_session_id'], ['upload_sessions.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['video_id'], ['videos.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('video_id')
     )
     op.create_table('upload_parts',
     sa.Column('id', sa.UUID(), nullable=False),

@@ -34,9 +34,9 @@ class TranscodeTask(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
         
     # Many upload sessions -> one video
-    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), nullable=True)
-    video: Mapped["Video"] = relationship("Video", back_populates="transcode_tasks")
-        
+    video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), unique=True, nullable=False) # nullable=True)
+    video: Mapped["Video"] = relationship("Video", back_populates="transcode_task")
+    
     # Many upload sessions -> one video
     upload_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("upload_sessions.id", ondelete="CASCADE"), nullable=False)
     upload_session: Mapped["UploadSession"] = relationship("UploadSession")
@@ -141,6 +141,29 @@ class VideoEvent(Base):
         return f"<VideoEvent(id={self.id}, transcode_task_id={self.transcode_task_id}, \
              video_id={self.video_id}, event_type={self.event_type})>"
     
+"""
+class VideoEventType(str, enum.Enum):
+    UPLOAD_STARTED = "UPLOAD_STARTED"
+    PART_UPLOADED = "PART_UPLOADED"
+    UPLOAD_PAUSED = "UPLOAD_PAUSED"
+    UPLOAD_RESUMED = "UPLOAD_RESUMED"
+    UPLOAD_RETRY = "UPLOAD_RETRY"
+    UPLOAD_FAILED = "UPLOAD_FAILED"
+    UPLOAD_ABORTED = "UPLOAD_ABORTED"
+
+    CELERY_DOWNLOAD_STARTED = "CELERY_DOWNLOAD_STARTED"
+    FFPROBE_COMPLETED = "FFPROBE_COMPLETED"
+    TRANSCODE_STARTED = "TRANSCODE_STARTED"
+    TRANSCODE_COMPLETED = "TRANSCODE_COMPLETED"
+
+    SEGMENTS_UPLOAD_STARTED = "SEGMENTS_UPLOAD_STARTED"
+    SEGMENTS_UPLOAD_FINISHED = "SEGMENTS_UPLOAD_FINISHED"
+
+event_type = mapped_column(Enum(VideoEventType))
+
+"""
+
+
 
 # class RenditionTypeEnum(enum.Enum):
 #     HLS = "hls"

@@ -112,12 +112,12 @@ class Video(Base):
     series: Mapped["Series"] = relationship("Series", back_populates="videos")
     episode_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    # Children
     # Using lazy="selectin" avoids calling .selectinload() in SQLAlchemy queries
     video_transcripts: Mapped[List["VideoTranscript"]] = relationship("VideoTranscript", back_populates="video", cascade="all, delete-orphan")
-    upload_sessions: Mapped[List["UploadSession"]] = relationship("UploadSession", back_populates="video", cascade="all, delete-orphan")
-    transcode_tasks: Mapped[List["TranscodeTask"]] = relationship("TranscodeTask", back_populates="video", cascade="all, delete-orphan")
     video_events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="video", cascade="all, delete-orphan")
+    # one-to-one relation with UploadSession and TranscodeTask
+    upload_session: Mapped[List["UploadSession"]] = relationship("UploadSession", back_populates="video", uselist=False, cascade="all, delete-orphan")
+    transcode_task: Mapped[List["TranscodeTask"]] = relationship("TranscodeTask", back_populates="video", uselist=False, cascade="all, delete-orphan")
 
     # SEO Fields
     seo_tags: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
@@ -129,7 +129,6 @@ class Video(Base):
     meta_description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     thumbnail_alt_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
     search_intent: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # content_rating (G, PG, PG-13, R)
     # age_restriction (0, 7, 13, 18)
