@@ -26,6 +26,7 @@
 
     const fetchAllVideos = async () => {
         try {
+            loading = true;
             const response = await fetch('http://127.0.0.1:8000/api/video');
 
             if (!response.ok) {
@@ -41,6 +42,8 @@
             error = err instanceof Error
 				? err.message
 				: "Unknown error";
+        } finally {
+            loading = false;
         }
     };
 
