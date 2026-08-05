@@ -312,18 +312,15 @@ class VideoUploadHistoryRead(BaseModel):
     title: str | None
     slug: str | None
     language: LanguageEnum = LanguageEnum.BENGALI
-    duration_seconds: float | None
-    publication_status: VideoPublicationStatusEnum
-    category_id: uuid.UUID | None
-    series_id: uuid.UUID | None
+    # category_id: uuid.UUID | None
+    # series_id: uuid.UUID | None
     episode_number: int | None
     thumbnail_object_key: str | None
     created_at: datetime
-    updated_at: datetime
-    published_at: datetime | None
     category: CategoryRead | None = None
     series: SeriesRead | None = None
     video_status: str
+    progress_percent: int | None
 
 
 class VideoAdminRead(BaseModel):

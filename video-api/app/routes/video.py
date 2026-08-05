@@ -5,7 +5,7 @@ from fastapi.routing import APIRouter
 from fastapi import HTTPException, status, Depends
 from pytz import timezone
 from sqlalchemy import select, exists, and_, not_, update
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 from app.services.video_service import VideoPublishError, VideoService
@@ -13,7 +13,10 @@ from app.schemas import video_schema
 from app.database.session import AsyncSession
 from app.utils.dependencies import get_current_user, get_db
 from app.utils import security
-from app.database.models import Video, VideoPublicationStatusEnum, UploadSession, UploadSessionStatusEnum
+from app.database.models import (
+    Video, VideoPublicationStatusEnum, UploadSession,
+    UploadSessionStatusEnum, VideoProcessingStatusEnum
+)
 from app.config import get_settings
 
 router = APIRouter(prefix="/api/video", tags=["video"])
@@ -31,8 +34,8 @@ async def get_video_admin_view(
     stmt = (
         select(Video)
         .options(
-            selectinload(Video.upload_sessions).selectinload(UploadSession.parts),
-            selectinload(Video.transcode_tasks),
+            selectinload(Video.upload_session).selectinload(UploadSession.parts),
+            selectinload(Video.transcode_task),
             # selectinload(Video.transcode_tasks).selectinload(TranscodeTask.upload_session),
             selectinload(Video.video_events),
              # selectinload(Video.video_events).selectinload(VideoEvent.transcode_task),
@@ -57,8 +60,8 @@ async def publish_video(
         .options(
             selectinload(Video.category),
             selectinload(Video.series),
-            selectinload(Video.upload_sessions),
-            selectinload(Video.transcode_tasks),
+            selectinload(Video.upload_session),
+            selectinload(Video.transcode_task),
             selectinload(Video.video_transcripts),
         )
         .where(
@@ -130,8 +133,8 @@ async def get_videos_requiring_user_action(session: AsyncSession = Depends(get_d
     stmt = await session.execute(
         select(Video)
         .options(
-            selectinload(Video.upload_sessions),
-            selectinload(Video.transcode_tasks),
+            selectinload(Video.upload_session),
+            selectinload(Video.transcode_task),
         )
         .where(
             Video.publication_status == VideoPublicationStatusEnum.DRAFT
@@ -171,8 +174,8 @@ async def get_video_list(
         selectinload(Video.category),
         selectinload(Video.series),
         selectinload(Video.video_transcripts),
-        selectinload(Video.upload_sessions),
-        selectinload(Video.transcode_tasks),
+        selectinload(Video.upload_session),
+        selectinload(Video.transcode_task),
     )
 
     if status:
@@ -187,8 +190,8 @@ async def delete_video(video_id: uuid.UUID, session: AsyncSession = Depends(get_
     stmt = await session.execute(
         select(Video)
         .options(
-            selectinload(Video.upload_sessions),
-            selectinload(Video.transcode_tasks),
+            selectinload(Video.upload_session),
+            selectinload(Video.transcode_task),
         )
         .where(Video.id == video_id)
     )
@@ -224,8 +227,8 @@ async def get_video_detail(video_id: uuid.UUID, session: AsyncSession = Depends(
             selectinload(Video.category),
             selectinload(Video.series),
             selectinload(Video.video_transcripts),
-            selectinload(Video.upload_sessions),    
-            selectinload(Video.transcode_tasks),
+            selectinload(Video.upload_session),    
+            selectinload(Video.transcode_task),
         )
     )
     video = result.scalar_one_or_none()
@@ -333,21 +336,29 @@ async def update_video_transcript(
         raise HTTPException(status_code=404, detail="Video not found.")
 
 
-@router.get("/upload-history")
+@router.get("/upload-history", response_model=video_schema.VideoUploadHistoryRead)
 async def get_upload_history(session: AsyncSession = Depends(get_db)):
     result = await session.execute(
         select(Video)
         .options(
-            selectinload(Video.upload_sessions),
-            selectinload(Video.transcode_tasks)
+            # Since UploadSession and TranscodeTask are now one-to-one, you can also consider joinedload.
+            joinedload(Video.upload_session),
+            joinedload(Video.transcode_task)
         )
     )
 
     videos = result.scalars().all()
-
+    
     response = []
 
-    # for video in videos:
-        # fetch the upload session
-        # upload_session = 
+    for video in videos:
+        response.append(
+            video_schema.VideoUploadHistoryRead(
+                **video_schema.VideoUploadHistoryRead.model_validate(video).model_dump(),
+                video_status=video.upload_status,
+                progress_percent=video.get_task_progress_percent,
+            )
+        )
+        
+        return response
     
