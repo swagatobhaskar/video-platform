@@ -305,10 +305,31 @@ class VideoRead(BaseModel):
     # can_publish: bool
 
 
+class VideoUploadHistoryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    title: str | None
+    slug: str | None
+    language: LanguageEnum = LanguageEnum.BENGALI
+    duration_seconds: float | None
+    publication_status: VideoPublicationStatusEnum
+    category_id: uuid.UUID | None
+    series_id: uuid.UUID | None
+    episode_number: int | None
+    thumbnail_object_key: str | None
+    created_at: datetime
+    updated_at: datetime
+    published_at: datetime | None
+    category: CategoryRead | None = None
+    series: SeriesRead | None = None
+    video_status: str
+
+
 class VideoAdminRead(BaseModel):
     # these fields aren't in VideoRead
-    upload_sessions: list[UploadSessionRead] = Field(default_factory=list)
-    transcode_tasks: list[TranscodeTaskRead] = Field(default_factory=list)
+    upload_session: UploadSessionRead = Field(default_factory=list)
+    transcode_task: TranscodeTaskRead = Field(default_factory=list)
     video_events: list[VideoEventRead] = Field(default_factory=list)
 
 

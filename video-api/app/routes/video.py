@@ -332,4 +332,22 @@ async def update_video_transcript(
     if not video:
         raise HTTPException(status_code=404, detail="Video not found.")
 
+
+@router.get("/upload-history")
+async def get_upload_history(session: AsyncSession = Depends(get_db)):
+    result = await session.execute(
+        select(Video)
+        .options(
+            selectinload(Video.upload_sessions),
+            selectinload(Video.transcode_tasks)
+        )
+    )
+
+    videos = result.scalars().all()
+
+    response = []
+
+    # for video in videos:
+        # fetch the upload session
+        # upload_session = 
     
