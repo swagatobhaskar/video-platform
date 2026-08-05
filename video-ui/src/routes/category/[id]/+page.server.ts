@@ -9,7 +9,9 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
         throw new Error('Failed to fetch users');
     }
 
+    const category = await res.json();
+
     return {
-        category: await res.json()
+        category
     };
 };

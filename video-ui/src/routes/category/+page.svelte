@@ -3,17 +3,14 @@
   import {resolve} from "$app/paths";
 </script>
 
-<div class="bg-slate-50 min-h-screen py-10">
+<div class="min-h-screen py-10">
   <section class="mx-auto max-w-7xl px-4">
     <h1 class="mb-8 text-3xl font-bold text-slate-800">
-      কার্টুন ক্যাটাগরি
+      Cartoon Categories
     </h1>
 
     <div class="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7">
       {#each data.categories as category (category.id)}
-        <!-- <div
-          class="group overflow-hidden rounded-xl bg-white shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-        > -->
         <a
           href={resolve(`/category/${category.id}`)}
           class="group overflow-hidden rounded-xl bg-white shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
@@ -30,7 +27,6 @@
               {category.name}
             </h2>
           </div>
-        <!-- </div> -->
          </a>
       {/each}
     </div>
