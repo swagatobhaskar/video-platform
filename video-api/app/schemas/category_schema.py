@@ -25,7 +25,7 @@ class CategoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     name: str
-    image_url: str | None
+    r2_category_image_key: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -43,7 +43,7 @@ class CategoryOutWithVideo(CategoryBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    image_url: str | None = None
+    r2_category_image_key: str | None
     created_at: datetime
     updated_at: datetime
     videos: list[CategoryVideoOut] = []

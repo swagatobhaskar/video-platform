@@ -46,9 +46,17 @@ class Category(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+    @property
+    def r2_category_image_key(self) -> str | None:
+        if self.image_url:
+            return f"{settings.category_image_bucket_dev_url}/{self.image_url}"
+        else:
+            return None
         
     def __repr__(self) -> str:
         return f"<Category(id={self.id}, name='{self.name}')>"
+
     
 class Series(Base):
     __tablename__ = "series"

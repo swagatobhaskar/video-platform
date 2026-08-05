@@ -116,7 +116,7 @@ async def get_category_detail(category_id: uuid.UUID, session: AsyncSession = De
     return {
         "id": category.id,
         "name": category.name,
-        "image_url": category.image_url,
+        "r2_category_image_key": category.r2_category_image_key,
         "created_at": category.created_at,
         "updated_at": category.updated_at,
         "videos": [
