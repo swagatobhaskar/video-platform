@@ -10,5 +10,5 @@ export type Category = {
     created_at: string;
     updated_at: string;
     r2_category_image_key: string | null;
-    videos: [Video];
+    videos: Video[];
 }
