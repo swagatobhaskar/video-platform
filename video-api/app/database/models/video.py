@@ -150,7 +150,7 @@ class Video(Base):
     codec: Mapped[str | None] = mapped_column(String, nullable=True)  # e.g., h264, vp9, av1
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    fps: Mapped[float | None] = mapped_column(Float, nullable=True)  # frames per second
+    fps: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -33,14 +33,10 @@ class TranscodeTask(Base):
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
         
-    # Many upload sessions -> one video
+    # One transcode task -> one video
     video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), unique=True, nullable=False) # nullable=True)
     video: Mapped["Video"] = relationship("Video", back_populates="transcode_task")
     
-    # Many upload sessions -> one video
-    # upload_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("upload_sessions.id", ondelete="CASCADE"), unique=True, nullable=False)
-    # upload_session: Mapped["UploadSession"] = relationship("UploadSession")
-
     status: Mapped[VideoProcessingStatusEnum] = mapped_column(
         Enum(VideoProcessingStatusEnum),
         nullable=False,
@@ -121,7 +117,6 @@ class VideoEvent(Base):
     video: Mapped["Video"] = relationship("Video", back_populates="video_events")
 
     event_type: Mapped[str] = mapped_column(String(100), nullable=False, default="NOT_STARTED")
-    # message: Mapped[str] = mapped_column(Text, nullable=True)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
