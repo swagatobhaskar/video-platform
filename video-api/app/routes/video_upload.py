@@ -707,6 +707,7 @@ async def retry_failed_upload(
     }
 
 
+# What is this route doing ??
 @router.post("/{video_id}/restart-upload")
 async def restart_video_upload(video_id: str, session: AsyncSession = Depends(get_db)):
     result = await session.execute(
@@ -715,34 +716,35 @@ async def restart_video_upload(video_id: str, session: AsyncSession = Depends(ge
         # .order_by(UploadSession.created_at.desc())  # not required since Video <--> UploadSession are now 1:1
     )
 
-    old_session = result.scalars().first()
+    upload_session = result.scalars().first()
 
-    if old_session is None:
+    if not upload_session:
         raise HTTPException(status_code=404, detail="Upload session not found.")
 
+    # Not required since the same UploadSession is used in a One-to-One relation
+    #
     # Continue the upload by creating a new uploadsession linked to the same video_id
-    new_session = UploadSession(
-        video_id=video_id,
-        file_size_bytes=old_session.file_size_bytes,
-        mime_type=old_session.mime_type,
-        original_filename=old_session.original_filename,
-        total_parts=old_session.total_parts,
-        status=UploadSessionStatusEnum.PENDING,
-    )
+    # new_session = UploadSession(
+    #     video_id=video_id,
+    #     file_size_bytes=old_session.file_size_bytes,
+    #     mime_type=old_session.mime_type,
+    #     original_filename=old_session.original_filename,
+    #     total_parts=old_session.total_parts,
+    #     status=UploadSessionStatusEnum.PENDING,
+    # )
 
     # delete old session
-    session.delete(old_session)
+    # session.delete(old_session)
 
-    session.add(new_session)
-    await session.flush()
+    # session.add(new_session)
+    # await session.flush()
 
     session.add(
         VideoEvent(
             video_id=video_id,
             event_type="UPLOAD_RESTARTED",
             payload={
-                "old_upload_session_id": str(old_session.id),
-                "new_upload_session_id": str(new_session.id),
+                "upload_session_id": str(upload_session.id),
             },
         )
     )
@@ -754,7 +756,7 @@ async def restart_video_upload(video_id: str, session: AsyncSession = Depends(ge
 
     return {
         "videoId": video_id,
-        "uploadSessionId": str(new_session.id),
+        "uploadSessionId": str(upload_session.id),
     }
     # Frontend
     # Restart button
