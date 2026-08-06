@@ -1,11 +1,11 @@
 
 export async function load({ fetch }) {
 
-    const response = await fetch('http://127.0.0.1:8000/api/video');
+    const response = await fetch('http://127.0.0.1:8000/api/video/upload-history');
 
     if (!response.ok) {
         throw new Error(
-            `Failed to fetch videos: ${response.status}`
+            `Failed to fetch video upload history: ${response.status}`
         );
     }
 

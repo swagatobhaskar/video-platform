@@ -6,7 +6,7 @@ export const load: PageServerLoad = async ({ params, fetch }) => {
     );
 
     if (!res.ok) {
-        throw new Error('Failed to fetch users');
+        throw new Error('Failed to fetch categories');
     }
 
     const category = await res.json();
