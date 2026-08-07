@@ -3,7 +3,7 @@ import shutil
 import logging
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Depends
 from celery.result import AsyncResult
-from sqlalchemy import select, Uuid
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from fastapi.responses import JSONResponse
@@ -13,7 +13,7 @@ import redis
 from datetime import datetime, timezone
 
 from app.utils.r2_helper import s3
-from app.utils.dependencies import get_db
+from app.dependencies import get_db
 from app.celery_worker import celery
 from app.tasks.transcode.transcode_task import process_video_worker_operations
 
@@ -24,7 +24,7 @@ from app.database.models import (
 from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
 from app.database.session import AsyncSession
 
-from app.config import get_settings
+from app.core.config import get_settings
 settings = get_settings()
 
 router = APIRouter(prefix="/api/video/upload", tags=["video", "upload"])
