@@ -4,18 +4,28 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.config import get_settings, Settings
+from app.core.config import get_settings, Settings
 from app.database.session import engine
 # from app.database.models.base import Base
 
-from app.routes.user import router as UserRouter
-from app.routes.auth import router as AuthRouter
-from app.routes.video_upload import router as VideoUploadRouter
-from app.routes.video import router as VideoRouter
-from app.routes.category import router as CategoryRouter
-from app.routes.series import router as SeriesRouter
-from app.routes.thumbnail_upload import router as ThumbnailRouter
-from app.routes._task_routes import router as TaskRouter
+from app.api.routes.user import router as UserRouter
+from app.api.routes.auth import router as AuthRouter
+from app.api.routes.video_upload import router as VideoUploadRouter
+from app.api.routes.video import router as VideoRouter
+from app.api.routes.category import router as CategoryRouter
+from app.api.routes.series import router as SeriesRouter
+from app.api.routes.thumbnail_upload import router as ThumbnailRouter
+from app.api.routes._task_routes import router as TaskRouter
+
+from app.api.exception_handlers import (
+    upload_not_found_handler,
+    upload_already_completed_handler,
+)
+
+from app.exceptions.upload import (
+    UploadNotFound,
+    UploadAlreadyCompleted,
+)
 
 settings = get_settings()
 
@@ -40,6 +50,16 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+app.add_exception_handler(
+    UploadNotFound,
+    upload_not_found_handler,
+)
+
+app.add_exception_handler(
+    UploadAlreadyCompleted,
+    upload_already_completed_handler,
 )
 
 app.include_router(UserRouter)
