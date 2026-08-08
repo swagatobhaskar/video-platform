@@ -33,20 +33,20 @@ class UploadSession(Base):
     # one upload sessions -> one video
     video_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), unique=True, nullable=False) # nullable=True)
     video: Mapped["Video"] = relationship("Video", back_populates="upload_session")
-    object_key: Mapped[str] = mapped_column(String(255), nullable=True)
-    video_upload_id: Mapped[str] = mapped_column(Text, nullable=True)
-    file_size_bytes: Mapped[BigInteger] = mapped_column(BigInteger, nullable=True)
-    mime_type: Mapped[str] = mapped_column(String(255), nullable=True)
+    object_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    video_upload_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # What the user uploaded
-    original_filename: Mapped[str] = mapped_column(String(255), nullable=True)
+    original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     
     # optional, can be calculated after upload is complete using ETags of all parts/chunks and stored in videos table
     # checksum: Mapped[str] = mapped_column(String(255), nullable=True)
 
     # total number of parts/chunks the video is divided into for multipart upload
-    total_parts: Mapped[int] = mapped_column(Integer, nullable=True)
+    total_parts: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # number of parts/chunks successfully uploaded so far
-    uploaded_parts_count: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
+    uploaded_parts_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # One upload session -> many upload parts
     parts: Mapped[List["UploadPart"]] = relationship("UploadPart", back_populates="upload_session", cascade="all, delete-orphan")

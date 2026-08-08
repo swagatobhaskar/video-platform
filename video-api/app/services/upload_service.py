@@ -32,5 +32,5 @@ class UploadService:
     async def complete(self, video_id, upload_id):
         pass
 
-    async def record_part(self, video_id):
+    async def record_uploaded_part(self, video_id):
         pass
