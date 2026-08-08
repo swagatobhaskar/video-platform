@@ -5,10 +5,13 @@ from fastapi import Request, HTTPException, status, Depends
 from jose import JWTError, jwt
 import uuid
 
-from app.config import get_settings
+from app.core.config import get_settings
 from app.database.session import AsyncSessionLocal
 from app.database.session import AsyncSession
 from app.database.models import User
+
+from app.services.upload_service import UploadService
+from app.repositories.upload_repository import UploadRepository
 
 settings = get_settings()
 
@@ -66,4 +69,16 @@ def verify_csrf(request: Request):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid CSRF token! Value does not match with X-CSRF-Header!"
         )
-    
+
+
+def get_upload_repository(
+    session: AsyncSession = Depends(get_db)
+) -> UploadRepository:
+    return UploadRepository(session)
+
+
+def get_upload_service(
+    repo: UploadRepository = Depends(get_upload_repository),
+    session: AsyncSession = Depends(get_db)
+) -> UploadService:
+    return UploadService(repo, session)
