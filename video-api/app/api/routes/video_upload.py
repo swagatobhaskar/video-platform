@@ -13,7 +13,7 @@ import redis
 from datetime import datetime, timezone
 
 from app.utils.r2_helper import s3
-from app.dependencies import get_db
+from app.dependencies import get_db, get_upload_service
 from app.celery_worker import celery
 from app.tasks.transcode.transcode_task import process_video_worker_operations
 
@@ -23,6 +23,8 @@ from app.database.models import (
 )
 from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
 from app.database.session import AsyncSession
+
+from app.services.upload_service import UploadService
 
 from app.core.config import get_settings
 settings = get_settings()
@@ -51,30 +53,31 @@ logger = logging.getLogger(__name__)
 RAW_VIDEO_BUCKET = settings.raw_videos_bucket
 
 @router.post("/new-upload-record")
-async def create_new_upload_record(session: AsyncSession = Depends(get_db)):
-    try:
-        new_video = Video()
-        session.add(new_video)
+async def create_new_upload_record(upload_service: UploadService = Depends(get_upload_service)):
+    # try:
+    #     new_video = Video()
+    #     session.add(new_video)
 
-        new_upload_session = UploadSession(video=new_video)
-        session.add(new_upload_session)
-        await session.commit()
-        await session.refresh(new_video)
-        await session.refresh(new_upload_session)  # if session uses expire_on_commit=False
+    #     new_upload_session = UploadSession(video=new_video)
+    #     session.add(new_upload_session)
+    #     await session.commit()
+    #     await session.refresh(new_video)
+    #     await session.refresh(new_upload_session)  # if session uses expire_on_commit=False
 
-        print("New Upload Session id: ", new_upload_session.id)
-        print("New Video id: ", new_video.id)
+    #     print("New Upload Session id: ", new_upload_session.id)
+    #     print("New Video id: ", new_video.id)
 
-        return {
-            "success": True,
-            "uploadSessionId": str(new_upload_session.id),
-            "videoId": str(new_video.id)
-        }
+    #     return {
+    #         "success": True,
+    #         "uploadSessionId": str(new_upload_session.id),
+    #         "videoId": str(new_video.id)
+    #     }
     
-    except SQLAlchemyError:
-        await session.rollback()
-        logger.exception("Failed to create new upload session and new video!")
-        raise HTTPException(status_code=500, detail="Failed to create new upload session and new video!")
+    # except SQLAlchemyError:
+    #     await session.rollback()
+    #     logger.exception("Failed to create new upload session and new video!")
+    #     raise HTTPException(status_code=500, detail="Failed to create new upload session and new video!")
+    await upload_service.new_upload_record()
 
 
 @router.post('/{video_id}/initiate-upload')
