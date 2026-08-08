@@ -17,12 +17,12 @@ from app.dependencies import get_db, get_upload_service
 from app.celery_worker import celery
 from app.tasks.transcode.transcode_task import process_video_worker_operations
 
-from app.database.models import (
+from app.models import (
     Video, UploadSession, UploadSessionStatusEnum, TranscodeTask, VideoProcessingStatusEnum,
     UploadPart, VideoEvent, VideoPublicationStatusEnum, VideoTranscript
 )
 from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
-from app.database.session import AsyncSession
+from app.core.database import AsyncSession
 
 from app.services.upload_service import UploadService
 

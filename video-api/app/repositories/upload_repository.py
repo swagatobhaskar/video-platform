@@ -2,8 +2,8 @@ from uuid import UUID
 from sqlalchemy import select, update, delete
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError, DBAPIError, OperationalError
 
-from app.database.models import UploadSession, UploadPart
-from app.database.session import AsyncSession
+from app.models import UploadSession, UploadPart
+from app.core.database import AsyncSession
 
 class UploadRepository:
     def __init__(self, session: AsyncSession):

@@ -1,6 +1,6 @@
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
-from app.database.session import AsyncSession
+from app.core.database import AsyncSession
 from app.repositories.upload_repository import UploadRepository
 from app.repositories.video_repository import VideoRepository
 

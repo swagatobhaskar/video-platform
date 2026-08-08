@@ -6,9 +6,9 @@ from jose import JWTError, jwt
 import uuid
 
 from app.core.config import get_settings
-from app.database.session import AsyncSessionLocal
-from app.database.session import AsyncSession
-from app.database.models import User
+from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSession
+from app.models import User
 
 from app.services.upload_service import UploadService
 from app.repositories.upload_repository import UploadRepository

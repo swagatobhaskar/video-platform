@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.core.config import get_settings, Settings
-from app.database.session import engine
+from app.core.database import engine
 # from app.database.models.base import Base
 
 from app.api.routes.user import router as UserRouter
