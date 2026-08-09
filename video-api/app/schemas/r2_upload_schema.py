@@ -1,7 +1,7 @@
 from uuid import UUID
 from pydantic import BaseModel, Field
 
-from app.database.models.video import LanguageEnum
+from app.models import LanguageEnum
 
 class InitiateUploadRequest(BaseModel):
     fileName: str

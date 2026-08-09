@@ -1,16 +1,12 @@
-
-from datetime import datetime, timezone, UTC
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from slugify import slugify
 import logging
 import uuid
 
-from app.database.session import AsyncSession
-from app.database.models import (
+from app.models import (
     Video, UploadSessionStatusEnum, VideoPublicationStatusEnum,
-    VideoProcessingStatusEnum, UploadSession, TranscodeTask
+    VideoProcessingStatusEnum
 )
 
 logger = logging.getLogger(__name__)
@@ -160,13 +156,13 @@ class VideoManager:
         return not self.publish_errors
 
 
-    async def publish(self):
-        if not self.can_publish:
-            # raise ValueError(f"Video cannot be published: {self.publish_errors}")
-            raise VideoPublishError(self.publish_errors)
+    # async def publish(self):
+    #     if not self.can_publish:
+    #         # raise ValueError(f"Video cannot be published: {self.publish_errors}")
+    #         raise VideoPublishError(self.publish_errors)
 
-        self.video.publication_status = VideoPublicationStatusEnum.PUBLISHED
-        self.video.published_at = datetime.now(UTC)
+    #     self.video.publication_status = VideoPublicationStatusEnum.PUBLISHED
+    #     self.video.published_at = datetime.now(UTC)
 
         # VideoManager wont commit
         #

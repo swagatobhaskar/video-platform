@@ -199,37 +199,47 @@ async def initiate_upload(
 async def get_presigned_url(
     video_id: str,
     req: PartRequest,
-    session: AsyncSession = Depends(get_db)    
+    # session: AsyncSession = Depends(get_db),
+    upload_service: UploadService = Depends(get_upload_service)
 ):
-    url = s3.generate_presigned_url(
-        ClientMethod="upload_part",
-        Params={
-            "Bucket": RAW_VIDEO_BUCKET,
-            "Key": req.key,
-            "UploadId": req.uploadId,
-            "PartNumber": req.partNumber,
-        },
-        ExpiresIn=3600,
+    return upload_service.get_presigned_url(
+        bucket=RAW_VIDEO_BUCKET,
+        video_id=video_id,
+        upload_id=req.uploadId,
+        object_key=req.key,
+        part_number=req.partNumber
     )
-    try:
-        video_event = VideoEvent(
-            video_id = video_id,
-            event_type="GENERATED_PRESIGNED_URL",
-            payload={
-                "upload_id": req.uploadId,
-                "object_key": req.key,
-                "part_number": req.partNumber
-            }
-        )
 
-        session.add(video_event)
-        await session.commit()
-    except SQLAlchemyError as e:
-        await session.rollback()
-        logger.exception("VideoEvent creation failed at /get-presigned-url.")
+    # url = s3.generate_presigned_url(
+    #     ClientMethod="upload_part",
+    #     Params={
+    #         "Bucket": RAW_VIDEO_BUCKET,
+    #         "Key": req.key,
+    #         "UploadId": req.uploadId,
+    #         "PartNumber": req.partNumber,
+    #     },
+    #     ExpiresIn=3600,
+    # )
+    
+    # try:
+        # video_event = VideoEvent(
+        #     video_id = video_id,
+        #     event_type="GENERATED_PRESIGNED_URL",
+        #     payload={
+        #         "upload_id": req.uploadId,
+        #         "object_key": req.key,
+        #         "part_number": req.partNumber
+        #     }
+        # )
+
+    #     session.add(video_event)
+    #     await session.commit()
+    # except SQLAlchemyError as e:
+    #     await session.rollback()
+    #     logger.exception("VideoEvent creation failed at /get-presigned-url.")
     
     # print("Generated presigned URL: ", url)
-    return {"uploadUrl": url}
+    # return {"uploadUrl": url}
 
 
 def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
@@ -243,8 +253,15 @@ def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
 
 
 @router.post("/{video_id}/complete-upload")
-async def complete_upload(video_id: str, req: CompleteRequest, session: AsyncSession = Depends(get_db)):
-    
+async def complete_upload(video_id: str, req: CompleteRequest, session: AsyncSession = Depends(get_db), upload_service: UploadService = Depends(get_upload_service)):
+    upload_service.complete(
+        video_id=video_id,
+        upload_session_id=req.uploadSessionId,
+        upload_id=req.uploadId,
+        bucket=RAW_VIDEO_BUCKET,
+        object_key=req.key
+    )
+    """
     # Later Additions:
         # Ordering check
         # ETag validation
@@ -395,7 +412,7 @@ async def complete_upload(video_id: str, req: CompleteRequest, session: AsyncSes
                 Task will be queued when the service is available."
         ),
     }
-
+    """
 
 @router.post("/{video_id}/abort-upload")
 async def abort_upload(video_id: str, req: AbortRequest, session:AsyncSession = Depends(get_db)):

@@ -4,10 +4,7 @@ from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 from app.core.database import AsyncSession
-from app.models import (
-    Video, VideoPublicationStatusEnum, UploadSession,
-    UploadSessionStatusEnum, VideoEvent,
-)
+from app.models import Video, VideoEvent
 
 class VideoEventRepository:
 

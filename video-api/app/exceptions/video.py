@@ -1,0 +1,2 @@
+class VideoPublishError(Exception):
+    pass
