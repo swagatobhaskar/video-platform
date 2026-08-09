@@ -1,9 +1,10 @@
 from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
-from app.database.session import AsyncSession
-from app.database.models import (
+from app.core.database import AsyncSession
+from app.models import (
     Video, VideoPublicationStatusEnum, UploadSession,
     UploadSessionStatusEnum, VideoEvent,
 )
@@ -40,7 +41,21 @@ class VideoRepository:
         self.session.add(video)
         # await self.session.commit()
         # await self.session.refresh(video)
-        self.session.flush(video)
+        await self.session.flush(video)
+        return video
+
+
+    async def update(self, video_id: UUID, **data) -> Video | None:
+        video = await self.get(video_id)
+
+        if not video:
+            return None
+
+        for key, value in data.items():
+            setattr(video, key, value)
+
+        await self.session.flush()
+        # the repository doesn't need to know about the rollback. The transaction handles it.
         return video
 
     """

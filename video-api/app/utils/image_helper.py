@@ -4,8 +4,7 @@ from fastapi import UploadFile, HTTPException
 import uuid
 import logging
 
-from .r2_helper import s3
-from app.config import get_settings
+from app.core.config import get_settings
 settings = get_settings()
 
 logger = logging.getLogger(__name__)
@@ -150,41 +149,24 @@ def convert_to_webp(img_file: UploadFile) -> BytesIO:
 
 
 # Instead of using pre-signed url this time, the image is uploaded through the backend
-def upload_image_to_r2(img_buffer: BytesIO, bucket: str) -> str: #dict[str, str]:
-    key = f"{uuid.uuid4()}.webp"
-    print("Image key: ", key)
+# def upload_image_to_r2(img_buffer: BytesIO, bucket: str) -> str: #dict[str, str]:
+#     key = f"{uuid.uuid4()}.webp"
+#     print("Image key: ", key)
 
     # s3.put_object() is preferred over s3.upload_fileobj() when the contents are coming as bytes, which is here
     # After conversion, bytes of the WebP file is coming directly, instead of a file-like object
-    s3.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=img_buffer, # img_file_bytes,
-        ContentType="image/webp",
-    )
+    # s3.put_object(
+    #     Bucket=bucket,
+    #     Key=key,
+    #     Body=img_buffer, # img_file_bytes,
+    #     ContentType="image/webp",
+    # )
 
-    return key
-
-    # return {
-    #     "key": key, # filename
-    #     "url": f"{settings.thumbnails_bucket_dev_url}/{key}",
-    # }
+    # return key
 
 
-def delete_image_from_r2(key: str, bucket: str) -> None:
-    s3.delete_object(
-        Bucket=bucket,
-        Key=key,
-    )
-
-# def process_uploaded_image(image: UploadFile, bucket: str) -> str:
-#     validate_image(image)
-#     webp = convert_to_webp(image)
-#     return upload_image_to_r2(webp, bucket)
-
-# use it as:
-# image_key = await run_in_threadpool(
-#     process_uploaded_image,
-#     image,
-#     BUCKET,
-# )
+# def delete_image_from_r2(key: str, bucket: str) -> None:
+#     s3.delete_object(
+#         Bucket=bucket,
+#         Key=key,
+#     )

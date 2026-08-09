@@ -2,6 +2,11 @@ from uuid import UUID
 from sqlalchemy import select, update, delete
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError, DBAPIError, OperationalError
 
+from app.exceptions.upload import (
+    UploadNotFound, UploadServiceError,
+    NewUploadCreationFailed, UploadAlreadyCompleted,
+    InvalidUploadState
+)
 from app.models import UploadSession, UploadPart
 from app.core.database import AsyncSession
 
@@ -16,12 +21,12 @@ class UploadRepository:
 
         try:
             self.session.add(upload_session)
-            await self.session.flush() # refresh(upload_session) ?
+            await self.session.flush()
 
         except SQLAlchemyError:
             # log
             await self.session.rollback()
-            raise 
+            raise NewUploadCreationFailed()
 
         return upload_session
 
@@ -46,7 +51,7 @@ class UploadRepository:
             await self.session.flush()
         except SQLAlchemyError:
             await self.session.rollback()
-            raise
+            raise 
 
         return upload_session
 
