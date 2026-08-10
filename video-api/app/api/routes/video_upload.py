@@ -179,7 +179,7 @@ async def get_presigned_url(
     # session: AsyncSession = Depends(get_db),
     upload_service: UploadService = Depends(get_upload_service)
 ):
-    return upload_service.get_presigned_url(
+    return await upload_service.get_presigned_url(
         bucket=RAW_VIDEO_BUCKET,
         video_id=video_id,
         upload_id=req.uploadId,
@@ -235,7 +235,7 @@ async def complete_upload(
     req: CompleteRequest,
     upload_service: UploadService = Depends(get_upload_service)
 ):
-    upload_service.complete(
+    return await upload_service.complete(
         video_id=video_id,
         upload_session_id=req.uploadSessionId,
         upload_id=req.uploadId,
@@ -401,7 +401,7 @@ async def abort_upload(
     req: AbortRequest,
     upload_service: UploadService = Depends(get_upload_service)
 ):
-    return upload_service.abort(
+    return await upload_service.abort(
         video_id=video_id,
         upload_id=req.uploadId,
         bucket=RAW_VIDEO_BUCKET,
@@ -452,7 +452,7 @@ async def abort_upload(
 
 @router.post("/{upload_id}/video/{video_id}/pause-upload")
 async def pause_video_upload(video_id: str, upload_id: str, upload_service: UploadService = Depends(get_upload_service)):
-    return upload_service.pause(video_id=video_id, upload_id=upload_id)
+    return await upload_service.pause(video_id=video_id, upload_id=upload_id)
     """
     result = await session.execute(
         select(UploadSession).where(
@@ -490,7 +490,7 @@ async def pause_video_upload(video_id: str, upload_id: str, upload_service: Uplo
 
 @router.post("/{upload_id}/video/{video_id}/resume-upload")
 async def resume_video_upload(video_id: str, upload_id: str, upload_service: UploadService = Depends(get_upload_service)):
-    upload_service.resume(video_id=video_id, upload_id=upload_id, bucket=RAW_VIDEO_BUCKET)
+    return await upload_service.resume(video_id=video_id, upload_id=upload_id, bucket=RAW_VIDEO_BUCKET)
     """
     result = await session.execute(
         select(UploadSession).where(
@@ -556,7 +556,7 @@ async def record_uploaded_part(
     part: Part,
     upload_service: UploadService = Depends(get_upload_service)
 ):
-    upload_service.record_uploaded_part(
+    return await upload_service.record_uploaded_part(
         video_id=video_id,
         upload_id=upload_id,
         part=part,

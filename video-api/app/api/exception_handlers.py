@@ -2,6 +2,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from app.exceptions.upload import UploadNotFound, UploadAlreadyCompleted, NewUploadCreationFailed
+from app.exceptions.storage import StorageProviderError
+
 
 async def upload_not_found_handler(request: Request, exc: UploadNotFound):
     return JSONResponse(
@@ -37,3 +39,14 @@ async def new_upload_creation_failed_handler(request: Request, exc: NewUploadCre
         },
     )
 
+# @app.exception_handler(StorageProviderError)
+async def storage_provider_error_handler(
+    request: Request,
+    exc: StorageProviderError,
+):
+    return JSONResponse(
+        status_code=502,
+        content={
+            "detail": str(exc),
+        },
+    )

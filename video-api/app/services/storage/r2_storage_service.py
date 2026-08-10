@@ -26,18 +26,21 @@ class R2StorageService:
             raise StorageProviderError() from exc
 
     def generate_presigned_url(self, bucket: str, object_key: str, upload_id: str, part_number: int) -> str:
-        url = s3.generate_presigned_url(
-            ClientMethod="upload_part",
-            Params={
-                "Bucket": bucket,
-                "Key": object_key,
-                "UploadId": upload_id,
-                "PartNumber": part_number,
-            },
-            ExpiresIn=3600,
-        )
-        return url
-
+        try:
+            return self.client.generate_presigned_url(
+                ClientMethod="upload_part",
+                Params={
+                    "Bucket": bucket,
+                    "Key": object_key,
+                    "UploadId": upload_id,
+                    "PartNumber": part_number,
+                },
+                ExpiresIn=3600,
+            )
+        except ClientError as exc:
+            raise StorageProviderError(
+                "Failed to generate presigned upload URL"
+            ) from exc
 
     def get_uploaded_parts(self, bucket: str, key: str, uploadId: str):
         response = self.client.list_parts(

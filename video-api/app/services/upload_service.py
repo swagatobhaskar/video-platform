@@ -152,7 +152,7 @@ class UploadService:
             raise
         
 
-    async def get_presigned_url(self, bucket: str, video_id: uuid.UUID, upload_id: str, object_key: str, part_number: int):
+    async def get_presigned_url(self, *, bucket: str, video_id: uuid.UUID, upload_id: str, object_key: str, part_number: int):
         url = self.storage_service.generate_presigned_url(
             bucket=bucket,
             object_key=object_key,
@@ -160,18 +160,21 @@ class UploadService:
             part_number=part_number
         )
 
-        # Create VideoEvent
-        self.video_event_repository.create_video_event(
-            video_id = video_id,
-            event_type="GENERATED_PRESIGNED_URL",
-            payload={
-                "upload_id": upload_id,
-                "object_key": object_key,
-                "part_number": part_number,
-            }
-        )
+        # letting R2StorageService StorageProviderError propagate through.
 
-        await self.session.commit()
+        # may be this event is not required. it will produce hundreds of entries per video
+        # Create VideoEvent
+        # await self.video_event_repository.create_video_event(
+        #     video_id = video_id,
+        #     event_type="GENERATED_PRESIGNED_URL",
+        #     payload={
+        #         "upload_id": upload_id,
+        #         "object_key": object_key,
+        #         "part_number": part_number,
+        #     }
+        # )
+
+        # await self.session.commit()
         return {"uploadUrl": url}   
 
 
