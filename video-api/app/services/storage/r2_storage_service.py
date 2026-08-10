@@ -10,17 +10,20 @@ class R2StorageService:
 
     def create_multipart_upload(self, bucket: str, object_key: str, content_type: str):
         try:
-            response = self.client.create_multipart_upload(
+            return self.client.create_multipart_upload(
                 Bucket=bucket,
                 Key=object_key,
                 ContentType=content_type,
             )
 
-            return response
-        except ClientError: # or other s3 exceptions
+        except ClientError as exc: # or other s3 exceptions
             # log
-            self.abort_multipart_upload(object_key=object_key, bucket=bucket, upload_id=response['upload_id'])
-            raise StorageProviderError()
+            # you don't need to abort if create_multipart_upload() itself failed.
+            # NOT REQUIRED:
+            # self.abort_multipart_upload(object_key=object_key, bucket=bucket, upload_id=response['upload_id'])
+            # R2 cleanup belongs in the service workflow
+            # you shouldn't pretend R2 + DB are one transaction.
+            raise StorageProviderError() from exc
 
     def generate_presigned_url(self, bucket: str, object_key: str, upload_id: str, part_number: int) -> str:
         url = s3.generate_presigned_url(

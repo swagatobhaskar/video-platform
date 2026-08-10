@@ -20,11 +20,13 @@ from app.api.routes._task_routes import router as TaskRouter
 from app.api.exception_handlers import (
     upload_not_found_handler,
     upload_already_completed_handler,
+    new_upload_creation_failed_handler,
 )
 
 from app.exceptions.upload import (
     UploadNotFound,
     UploadAlreadyCompleted,
+    NewUploadCreationFailed,
 )
 
 settings = get_settings()
@@ -55,6 +57,11 @@ app.add_middleware(
 app.add_exception_handler(
     UploadNotFound,
     upload_not_found_handler,
+)
+
+app.add_exception_handler(
+    NewUploadCreationFailed,
+    new_upload_creation_failed_handler,
 )
 
 app.add_exception_handler(

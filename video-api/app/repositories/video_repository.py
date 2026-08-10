@@ -27,7 +27,7 @@ class VideoRepository:
         return result.scalar_one_or_none()
 
     
-    async def create_video(
+    async def create(
         self,
         title: str | None = None,
         publication_status: VideoPublicationStatusEnum = VideoPublicationStatusEnum.DRAFT,
@@ -41,7 +41,7 @@ class VideoRepository:
         self.session.add(video)
         # await self.session.commit()
         # await self.session.refresh(video)
-        await self.session.flush(video)
+        await self.session.flush()
         return video
 
 

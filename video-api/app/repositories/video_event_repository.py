@@ -30,7 +30,7 @@ class VideoEventRepository:
     ) -> VideoEvent:
         video_event = VideoEvent(**data)
         self.session.add(video_event)
-        self.session.flush(video_event)
+        self.session.flush()
         return video_event
 
 

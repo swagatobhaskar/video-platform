@@ -19,23 +19,53 @@ class UploadRepository:
     async def create(self, **data) -> UploadSession:
         upload_session = UploadSession(**data)
 
-        try:
-            self.session.add(upload_session)
-            await self.session.flush()
+        # try:
+        self.session.add(upload_session)
+        await self.session.flush()
 
-        except SQLAlchemyError:
+        # except SQLAlchemyError:
             # log
-            await self.session.rollback()
-            raise NewUploadCreationFailed()
+            # await self.session.rollback()  # Do not rollback inside the repository.
+            # raise NewUploadCreationFailed()
 
         return upload_session
 
 
-    async def get(self, upload_session_id: UUID) -> UploadSession | None:
-        result = await self.session.execute(
-            select(UploadSession).where(UploadSession.id == upload_session_id)
-        )
+    async def get(self, upload_session_id: UUID, video_id: UUID | None = None) -> UploadSession | None:
+        if not video_id:
+            result = await self.session.execute(
+                select(UploadSession).where(UploadSession.id == upload_session_id)
+            )
+        else:
+            result = await self.session.execute(
+                select(UploadSession).where(UploadSession.video_id == video_id)
+            )
         return result.scalar_one_or_none()
+
+
+    async def get_for_video(self, upload_session_id: UUID, video_id: UUID) -> UploadSession | None:
+        result = await self.session.execute(
+            select(UploadSession).where(
+                UploadSession.id == upload_session_id,
+                UploadSession.video_id == video_id,
+            )
+        )
+
+        return result.scalar_one_or_none()
+
+
+    async def mark_upload_in_progress(
+        self,
+        upload_session: UploadSession,
+        *,
+        object_key: str,
+        video_upload_id: str,
+        file_size_bytes: int,
+        mime_type: str,
+        original_filename: str,
+        total_parts: int,
+    ):
+        pass
 
 
     async def update(self, upload_session_id: UUID, **data) -> UploadSession | None:
@@ -45,13 +75,17 @@ class UploadRepository:
             return None
 
         for key, value in data.items():
+
+            # if key == upload_session.uploaded_parts_count:
+            #     setattr(upload_session, key, upload_session.uploaded_parts_count += 1)
+                
             setattr(upload_session, key, value)
 
-        try:
-            await self.session.flush()
-        except SQLAlchemyError:
-            await self.session.rollback()
-            raise 
+        # try:
+        await self.session.flush()
+        # except SQLAlchemyError:
+        #     await self.session.rollback()
+        #     raise 
 
         return upload_session
 
@@ -62,12 +96,12 @@ class UploadRepository:
         if upload_session is None:
             return False
 
-        try:
-            await self.session.delete(upload_session)
-            await self.session.flush()
-        except SQLAlchemyError:
-            await self.session.rollback()
-            raise
+        # try:
+        await self.session.delete(upload_session)
+        await self.session.flush()
+        # except SQLAlchemyError:
+        #     await self.session.rollback()
+        #     raise
 
         return True
 
@@ -75,13 +109,13 @@ class UploadRepository:
     async def create_part(self, **data) -> UploadPart:
         part = UploadPart(**data)
 
-        try:
-            self.session.add(part)
-            await self.session.flush()
-        except SQLAlchemyError:
-            # log
-            await self.session.rollback()
-            raise 
+        # try:
+        self.session.add(part)
+        await self.session.flush()
+        # except SQLAlchemyError:
+        #     # log
+        #     await self.session.rollback()
+        #     raise 
 
         return part
 
@@ -102,11 +136,11 @@ class UploadRepository:
         for key, value in data.items():
             setattr(part, key, value)
 
-        try:
-            await self.session.flush()
-        except SQLAlchemyError:
-            await self.session.rollback()
-            raise
+        # try:
+        await self.session.flush()
+        # except SQLAlchemyError:
+        #     await self.session.rollback()
+        #     raise
 
         return part
     
