@@ -10,6 +10,7 @@ from app.repositories.upload_repository import UploadRepository
 from app.repositories.video_repository import VideoRepository
 from app.repositories.video_event_repository import VideoEventRepository
 from app.repositories.transcode_repository import TranscodeRepository
+from app.repositories.outbox_repository import OutboxMessageRepository
 
 from app.schemas.r2_upload_schema import Part
 
@@ -28,6 +29,7 @@ class UploadService:
         video_repository: VideoRepository,
         video_event_repository: VideoEventRepository,
         transcode_repository: TranscodeRepository,
+        outbox_repository: OutboxMessageRepository,
         storage_service: R2StorageService,
         session: AsyncSession,
     ):
@@ -35,6 +37,7 @@ class UploadService:
         self.video_repository = video_repository
         self.video_event_repository = video_event_repository
         self.transcode_repository = transcode_repository
+        self.outbox_repository = outbox_repository
         self.storage_service = storage_service
         self.session = session
 
@@ -160,7 +163,7 @@ class UploadService:
 
         # letting R2StorageService StorageProviderError propagate through.
 
-        # may be this event is not required. it will produce hundreds of entries per video
+        # may be this event is not required as it will produce hundreds of entries per video.
         # Create VideoEvent
         # await self.video_event_repository.create_video_event(
         #     video_id = video_id,
@@ -185,17 +188,17 @@ class UploadService:
         if len(uploaded_parts) != len(parts):
             raise ValueError("Mismatch between uploaded parts and client parts")
 
-        # complete
-        await self.storage_service.complete_upload(key=object_key, uploadId=upload_id, parts=parts)
-
         # get upload session
         upload_session = await self.upload_repository.get_by_video_and_upload_id(upload_session_id, video_id)
 
         if upload_session is None:
             raise UploadSessionNotFound() 
 
+        # R2 complete
+        await self.storage_service.complete_upload(key=object_key, uploadId=upload_id, parts=parts)
+
         try:
-            # Update sesion
+            # Update sesion -> COMPLETED
             await self.upload_repository.update(
                 upload_session_id,
                 status = UploadSessionStatusEnum.COMPLETED,
@@ -214,31 +217,58 @@ class UploadService:
                 }
             )
 
-            await self.session.commit()
-        except SQLAlchemyError:
-            await self.session.rollback()
-            # log
-            try:
-                await self.upload_repository.mark_failed(upload_session_id)
-                await self.session.commit()
-            except SQLAlchemyError:
-                await self.session.rollback()
-                # logger.exception("Failed to mark upload session as FAILED")
-            raise
-            
-        try:
+            # Transcode task
             transcode_task = await self.transcode_repository.create(
                 video_id=video_id,
                 status=VideoProcessingStatusEnum.PENDING
             )
 
+
+            # Create an OutboxMessage event
+            await self.outbox_repository.create(
+                event_type="VIDEO_TRANSCODE_REQUESTED",
+                aggregate_type="transcode_task",
+                aggregate_id=transcode_task.id,
+                payload={
+                    "object_key": object_key,
+                    "video_id": str(video_id),
+                    # "upload_id": upload_id,
+                    "upload_session_id": str(upload_session_id),
+                    "transcode_task_id": str(transcode_task.id),
+                },
+            )
+
             await self.session.commit()
         except SQLAlchemyError:
             await self.session.rollback()
-            # logger.exception("Failed creating TranscodeTask")
+            # # logger.exception(
+            #     "Failed to persist completed upload state",
+            #     extra={
+            #         "video_id": str(video_id),
+            #         "upload_session_id": str(upload_session_id),
+            #     },
+            # )
+            try:
+                await self.upload_repository.mark_failed(upload_session_id)
+                await self.session.commit()
+            except SQLAlchemyError:
+                await self.session.rollback()
+                # logger.exception(
+                #     "Failed to mark upload session as FAILED",
+                #     extra={
+                #         "upload_session_id": str(upload_session_id),
+                #     },
+                # )
             raise
 
+        return {
+            "success": True,
+            "status": "upload completed",
+            "message": "Upload completed. Processing task will be queued.",
+        }
+
         # Phase 3: Send Task to Redis
+        """
         task_id: str | None = None
         try:
             # start celery transcode task
@@ -268,8 +298,6 @@ class UploadService:
                 except SQLAlchemyError:
                     await self.session.rollback()
                     # logger.exception("Failed to mark TranscodeTask as QUEUE_FAILED")
-                
-        # task_id = str(task.id)
 
         try:
             await self.transcode_repository.update(
@@ -292,6 +320,7 @@ class UploadService:
                     Task will be queued when the service is available."
             ),
         }
+        """
         
 
     async def pause(self, video_id: uuid.UUID, upload_id: str):

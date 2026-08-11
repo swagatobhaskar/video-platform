@@ -81,9 +81,7 @@ async def initiate_upload(
         # Use {UUID}-{filename} instead of just filename
         # import uuid
         # object_key = f"{uuid.uuid4()}" #-{req.fileName}"
-
-        
-        
+       
         # response = s3.create_multipart_upload(
         #     Bucket=RAW_VIDEO_BUCKET,
         #     Key=object_key,

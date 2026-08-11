@@ -26,7 +26,7 @@ class VideoProcessingStatusEnum(enum.Enum):
     UPLOADING = "uploading"
     CLEANUP = "cleanup"
     COMPLETED = "completed"
-    # FAILED = "failed"
+    FAILED = "failed"
     
 class TranscodeTask(Base):
     __tablename__ = "transcode_tasks"
@@ -135,28 +135,6 @@ class VideoEvent(Base):
     def __repr__(self) -> str:
         return f"<VideoEvent(id={self.id}, transcode_task_id={self.transcode_task_id}, \
              video_id={self.video_id}, event_type={self.event_type})>"
-    
-"""
-class VideoEventType(str, enum.Enum):
-    UPLOAD_STARTED = "UPLOAD_STARTED"
-    PART_UPLOADED = "PART_UPLOADED"
-    UPLOAD_PAUSED = "UPLOAD_PAUSED"
-    UPLOAD_RESUMED = "UPLOAD_RESUMED"
-    UPLOAD_RETRY = "UPLOAD_RETRY"
-    UPLOAD_FAILED = "UPLOAD_FAILED"
-    UPLOAD_ABORTED = "UPLOAD_ABORTED"
-
-    CELERY_DOWNLOAD_STARTED = "CELERY_DOWNLOAD_STARTED"
-    FFPROBE_COMPLETED = "FFPROBE_COMPLETED"
-    TRANSCODE_STARTED = "TRANSCODE_STARTED"
-    TRANSCODE_COMPLETED = "TRANSCODE_COMPLETED"
-
-    SEGMENTS_UPLOAD_STARTED = "SEGMENTS_UPLOAD_STARTED"
-    SEGMENTS_UPLOAD_FINISHED = "SEGMENTS_UPLOAD_FINISHED"
-
-event_type = mapped_column(Enum(VideoEventType))
-
-"""
 
 
 class OutboxStatusEnum(enum.Enum):

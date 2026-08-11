@@ -217,6 +217,16 @@ async def _process_video_worker_operations(
     # they are normal Python functions. So, we need to manage the session manually.
 ):
     # ** file_name is object_key
+
+    # Load TranscodeTask
+
+    # If already completed:
+    #     return
+
+    # If another worker is already processing it:
+    #     return / handle appropriately
+
+    # Otherwise claim it and start processing
     
     with TemporaryDirectory(prefix="transcode_") as temp_dir:
         
