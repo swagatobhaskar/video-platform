@@ -4,7 +4,7 @@ from datetime import datetime
 import enum
 
 from sqlalchemy import (
-    String, DateTime, func, Text, Enum, ForeignKey, Integer, Boolean
+    String, DateTime, func, Text, Enum, ForeignKey, Integer, Boolean, Index
     )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -19,14 +19,14 @@ if TYPE_CHECKING:
 class VideoProcessingStatusEnum(enum.Enum):
     PENDING = "pending"
     QUEUED = "queued"  # after file is sent to redis
-    QUEUE_FAILED = "queue_failed"
+    # QUEUE_FAILED = "queue_failed"
     DOWNLOADING_VIDEO = "downloading_video"
     PROBING = "probing"
     TRANSCODING = "transcoding"
     UPLOADING = "uploading"
     CLEANUP = "cleanup"
     COMPLETED = "completed"
-    FAILED = "failed"
+    # FAILED = "failed"
     
 class TranscodeTask(Base):
     __tablename__ = "transcode_tasks"
@@ -43,32 +43,32 @@ class TranscodeTask(Base):
         default=VideoProcessingStatusEnum.PENDING
     )
 
-    progress_percent: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
+    progress_percent: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
 
     # Which worker machine/process is currently executing the job
     # though, required if you eventually run multiple dedicated transcoding machines.
-    worker_id: Mapped[str] = mapped_column(String(255), nullable=True)
+    worker_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     
     # The ID assigned by the queue system. Celery's unique ID for the task execution
-    task_id: Mapped[str] = mapped_column(String(255), nullable=True)
-    error_message: Mapped[str] = mapped_column(Text, nullable=True)
+    task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     
     events: Mapped[List["VideoEvent"]] = relationship("VideoEvent", back_populates="transcode_task")
 
-    started_at: Mapped[datetime] = mapped_column(
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         # server_default=func.now(),
         nullable=True,
     )
         
-    finished_at: Mapped[datetime] = mapped_column(
+    finished_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         # server_default=func.now(),
         nullable=True,
     )
         
-    heartbeat_at: Mapped[datetime] = mapped_column(
+    heartbeat_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         # server_default=func.now(),
         nullable=True,
@@ -109,7 +109,7 @@ class VideoEvent(Base):
     
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    transcode_task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("transcode_tasks.id"), nullable=True)
+    transcode_task_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("transcode_tasks.id"), nullable=True)
     transcode_task: Mapped["TranscodeTask"] = relationship("TranscodeTask", back_populates="events")
 
     # Many events -> one video
@@ -117,7 +117,7 @@ class VideoEvent(Base):
     video: Mapped["Video"] = relationship("Video", back_populates="video_events")
 
     event_type: Mapped[str] = mapped_column(String(100), nullable=False, default="NOT_STARTED")
-    payload: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -159,6 +159,69 @@ event_type = mapped_column(Enum(VideoEventType))
 """
 
 
+class OutboxStatusEnum(enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+class OutboxMessage(Base):
+    __tablename__ = "outbox_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # What kind of command/event is this?
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    # Entity this message belongs to.
+    # For your case this would be the TranscodeTask ID.
+    aggregate_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    aggregate_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    # Data required by the consumer/worker.
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+    status: Mapped[OutboxStatusEnum] = mapped_column(
+        Enum(
+            OutboxStatusEnum,
+            values_callable=lambda enum_cls: [
+                item.value for item in enum_cls
+            ],
+        ),
+        nullable=False,
+        default=OutboxStatusEnum.PENDING,
+    )
+
+    # Number of delivery attempts.
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Error from the most recent delivery attempt.
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # When the message was successfully delivered.
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_outbox_pending_available",
+            "status",
+            "available_at",
+        ),
+    )
+
+
+    def __repr__(self) -> str:
+            return f"<OutboxMessage(id={self.id}, event_type={self.event_type}, \
+                 aggregate_id={self.aggregate_id}, aggregate_type={self.aggregate_type}), status={self.status}>"
 
 # class RenditionTypeEnum(enum.Enum):
 #     HLS = "hls"
