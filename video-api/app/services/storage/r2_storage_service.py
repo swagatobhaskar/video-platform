@@ -3,15 +3,19 @@ from botocore.exceptions import ClientError
 
 from app.exceptions.storage import StorageProviderError
 from .base import s3
+from app.core.config import get_settings
+settings = get_settings()
+
+RAW_VIDEO_BUCKET = settings.raw_videos_bucket
 
 class R2StorageService:
     def __init__(self, client=s3):
         self.client = client
 
-    def create_multipart_upload(self, bucket: str, object_key: str, content_type: str):
+    def create_multipart_upload(self, object_key: str, content_type: str):
         try:
             return self.client.create_multipart_upload(
-                Bucket=bucket,
+                Bucket=RAW_VIDEO_BUCKET,
                 Key=object_key,
                 ContentType=content_type,
             )
@@ -20,17 +24,17 @@ class R2StorageService:
             # log
             # you don't need to abort if create_multipart_upload() itself failed.
             # NOT REQUIRED:
-            # self.abort_multipart_upload(object_key=object_key, bucket=bucket, upload_id=response['upload_id'])
+            # self.abort_multipart_upload(object_key=object_key, bucket=RAW_VIDEO_BUCKET, upload_id=response['upload_id'])
             # R2 cleanup belongs in the service workflow
             # you shouldn't pretend R2 + DB are one transaction.
             raise StorageProviderError() from exc
 
-    def generate_presigned_url(self, bucket: str, object_key: str, upload_id: str, part_number: int) -> str:
+    def generate_presigned_url(self, object_key: str, upload_id: str, part_number: int) -> str:
         try:
             return self.client.generate_presigned_url(
                 ClientMethod="upload_part",
                 Params={
-                    "Bucket": bucket,
+                    "Bucket": RAW_VIDEO_BUCKET,
                     "Key": object_key,
                     "UploadId": upload_id,
                     "PartNumber": part_number,
@@ -42,9 +46,9 @@ class R2StorageService:
                 "Failed to generate presigned upload URL"
             ) from exc
 
-    def get_uploaded_parts(self, bucket: str, key: str, uploadId: str):
+    def get_uploaded_parts(self, key: str, uploadId: str):
         response = self.client.list_parts(
-            Bucket=bucket,
+            Bucket=RAW_VIDEO_BUCKET,
             Key=key,
             UploadId=uploadId
         )
@@ -52,9 +56,9 @@ class R2StorageService:
         return response.get("Parts", [])
 
 
-    def complete_upload(self, bucket: str, key: str, uploadId: str, parts: dict[str, int]):
-        s3.complete_multipart_upload(
-            Bucket=bucket,
+    def complete_upload(self, key: str, uploadId: str, parts: dict[str, int]):
+        self.client.complete_multipart_upload(
+            Bucket=RAW_VIDEO_BUCKET,
             Key=key,
             UploadId=uploadId,
             MultipartUpload={
@@ -69,25 +73,25 @@ class R2StorageService:
             },
         )
 
-    def abort_multipart_upload(self, bucket: str, object_key: str, upload_id: str):
+    def abort_multipart_upload(self, object_key: str, upload_id: str):
         self.client.abort_multipart_upload(
-            Bucket=bucket,
+            Bucket=RAW_VIDEO_BUCKET,
             Key=object_key,
             UploadId=upload_id
         )
 
 
-    def upload_thumbnail(self, bucket: str, key: str, img_buffer: BytesIO) -> str:
-        s3.put_object(
-            Bucket=bucket,
+    def upload_thumbnail(self, key: str, img_buffer: BytesIO) -> str:
+        self.client.put_object(
+            Bucket=RAW_VIDEO_BUCKET,
             Key=key,
             Body=img_buffer,
             ContentType="image/webp",
         )
         return key
 
-    def delete_image_from_storage(self, key: str, bucket: str) -> None:
+    def delete_image_from_storage(self, key: str, ) -> None:
         self.client.delete_object(
-            Bucket=bucket,
+            Bucket=RAW_VIDEO_BUCKET,
             Key=key,
         )

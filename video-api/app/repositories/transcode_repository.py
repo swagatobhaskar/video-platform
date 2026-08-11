@@ -14,35 +14,30 @@ class TranscodeRepository:
         return result.scalars().all()
     
 
-    async def get(self, video_id: UUID) -> TranscodeTask | None:
+    async def get(self, transcode_task_id: UUID) -> TranscodeTask | None:
         result = await self.session.execute(
-            select(TranscodeTask).where(TranscodeTask.id == video_id)
+            select(TranscodeTask).where(TranscodeTask.id == transcode_task_id)
         )
         return result.scalar_one_or_none()
+
 
     async def create(self, **data):
         transcode_task = TranscodeTask(**data)
 
-        try:
-            self.session.add(transcode_task)
-            await self.session.flush()
-
-        except SQLAlchemyError:
-            # log
-            await self.session.rollback()
-            raise
+        self.session.add(transcode_task)
+        await self.session.flush()
 
         return transcode_task
     
 
-    async def update(self, transcode_task_id, **data):
-        transcode_task = await self.session.get(transcode_task_id)
+    async def update(self, transcode_task_id: UUID, **data) -> TranscodeTask | None:
+        transcode_task = await self.get(transcode_task_id)
         
-        if not transcode_task_id:
+        if transcode_task_id is None:
             return None
 
         for key, value in data.items():
-            setattr(transcode_task_id, key, value)
+            setattr(transcode_task, key, value)
 
         await self.session.flush()
         # the repository doesn't need to know about the rollback. The transaction handles it.

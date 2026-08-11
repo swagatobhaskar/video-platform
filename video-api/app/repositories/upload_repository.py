@@ -7,7 +7,7 @@ from app.exceptions.upload import (
     NewUploadCreationFailed, UploadAlreadyCompleted,
     InvalidUploadState
 )
-from app.models import UploadSession, UploadPart
+from app.models import UploadSession, UploadPart, UploadSessionStatusEnum
 from app.core.database import AsyncSession
 
 class UploadRepository:
@@ -30,17 +30,41 @@ class UploadRepository:
 
         return upload_session
 
-
-    async def get(self, upload_session_id: UUID, video_id: UUID | None = None) -> UploadSession | None:
-        if not video_id:
-            result = await self.session.execute(
-                select(UploadSession).where(UploadSession.id == upload_session_id)
-            )
-        else:
-            result = await self.session.execute(
-                select(UploadSession).where(UploadSession.video_id == video_id)
-            )
+    async def get_by_id(self, upload_session_id: UUID) -> UploadSession | None:
+        result = await self.session.execute(
+            select(UploadSession).where(UploadSession.id == upload_session_id)
+        )
         return result.scalar_one_or_none()
+
+
+    async def get_by_video_and_upload_id(self, upload_session_id: UUID, video_id: UUID) -> UploadSession | None:
+        result = await self.session.execute(
+            select(UploadSession).where(
+                UploadSession.id == upload_session_id,
+                UploadSession.video_id == video_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+
+    async def get_by_video(self, upload_session_id: UUID, video_id: UUID | None = None) -> UploadSession | None:
+        result = await self.session.execute(
+            select(UploadSession).where(
+                # UploadSession.id == upload_session_id,
+                UploadSession.video_id == video_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    # A database-level atomic increment is safer.
+    async def increment_uploaded_parts(self, upload_session_id: UUID) -> None:
+        await self.session.execute(
+            update(UploadSession)
+            .where(UploadSession.id == upload_session_id)
+            .values(
+                uploaded_parts_count=UploadSession.uploaded_parts_count + 1
+            )
+        )
 
 
     async def get_for_video(self, upload_session_id: UUID, video_id: UUID) -> UploadSession | None:
@@ -143,4 +167,30 @@ class UploadRepository:
         #     raise
 
         return part
+
+
+    async def get_failed_paused_upload(self, video_id: UUID):
+        result = await self.session.execute(
+            select(UploadSession).where(
+                # UploadSession.video_upload_id == upload_id,
+                UploadSession.video_id == video_id,
+                UploadSession.status.in_([
+                    UploadSessionStatusEnum.FAILED,
+                    UploadSessionStatusEnum.PAUSED,
+                ])
+            )
+            .order_by(UploadSession.created_at.desc())
+        )
+    
+        return result.scalars().first()
+
+
+    async def mark_failed(self, upload_session_id: UUID):
+        upload_session = await self.session.execute(
+            update(UploadSession)
+            .where(UploadSession.id == upload_session_id)
+            .values(status=UploadSessionStatusEnum.FAILED)
+        )
+        await self.session.flush()
+        return upload_session
     

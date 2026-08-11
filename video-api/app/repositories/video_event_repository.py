@@ -24,13 +24,10 @@ class VideoEventRepository:
         return result.scalar_one_or_none()
 
     
-    async def create_video_event(
-        self,
-        **data
-    ) -> VideoEvent:
+    async def create_video_event(self, **data) -> VideoEvent:
         video_event = VideoEvent(**data)
         self.session.add(video_event)
-        self.session.flush()
+        await self.session.flush()
         return video_event
 
 

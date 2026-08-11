@@ -11,6 +11,8 @@ from app.repositories.video_repository import VideoRepository
 from app.repositories.video_event_repository import VideoEventRepository
 from app.repositories.transcode_repository import TranscodeRepository
 
+from app.schemas.r2_upload_schema import Part
+
 from app.services.storage.r2_storage_service import R2StorageService
 
 from app.exceptions.upload import NewUploadCreationFailed, UploadServiceError, UploadSessionNotFound
@@ -64,7 +66,6 @@ class UploadService:
         self,
         upload_session_id: uuid.UUID,
         video_id: uuid.UUID,
-        bucket: str,
         content_type: str,
         file_name: str,
         file_size_bytes: int,
@@ -91,7 +92,6 @@ class UploadService:
 
             # 3. Create multipart upload in R2
             response = self.storage_service.create_multipart_upload(
-                bucket=bucket,
                 object_key=object_key,
                 content_type=content_type,
             )
@@ -141,7 +141,6 @@ class UploadService:
             if upload_id is not None:
                 try:
                     self.storage_service.abort_multipart_upload(
-                        bucket=bucket,
                         object_key=object_key,
                         upload_id=upload_id,
                     )
@@ -152,9 +151,8 @@ class UploadService:
             raise
         
 
-    async def get_presigned_url(self, *, bucket: str, video_id: uuid.UUID, upload_id: str, object_key: str, part_number: int):
+    async def get_presigned_url(self, *, upload_id: str, object_key: str, part_number: int):
         url = self.storage_service.generate_presigned_url(
-            bucket=bucket,
             object_key=object_key,
             upload_id=upload_id,
             part_number=part_number
@@ -178,9 +176,8 @@ class UploadService:
         return {"uploadUrl": url}   
 
 
-    async def complete(self, video_id: uuid.UUID, upload_session_id: uuid.UUID, upload_id: str, bucket: str, object_key: str, parts):
-        uploaded_parts = self.storage_service.get_uploaded_parts(
-            bucket=bucket,
+    async def complete(self, video_id: uuid.UUID, upload_session_id: uuid.UUID, upload_id: str, object_key: str, parts: list[Part]):
+        uploaded_parts = await self.storage_service.get_uploaded_parts(
             uploadId=upload_id,
             key=object_key
         )
@@ -189,39 +186,57 @@ class UploadService:
             raise ValueError("Mismatch between uploaded parts and client parts")
 
         # complete
-        self.storage_service.complete_upload(bucket=bucket, key=object_key, uploadId=upload_id, parts=parts)
+        await self.storage_service.complete_upload(key=object_key, uploadId=upload_id, parts=parts)
 
         # get upload session
-        upload_session = self.upload_repository.get(upload_session_id)
+        upload_session = await self.upload_repository.get_by_video_and_upload_id(upload_session_id, video_id)
 
-        # create a video_event
-        self.video_event_repository.create_video_event(
-            video_id=video_id,
-            event_type="CHUNKS_UPLOAD_COMPLETED",
-            payload={
-                "upload_id": upload_id,
-                "object_key": object_key,
-                "file_name": upload_session.original_filename,
-            }
-        )
+        if upload_session is None:
+            raise UploadSessionNotFound() 
 
         try:
             # Update sesion
-            self.upload_repository.update(
+            await self.upload_repository.update(
                 upload_session_id,
                 status = UploadSessionStatusEnum.COMPLETED,
                 completed_at = datetime.now(timezone.utc),
                 uploaded_parts_count = len(uploaded_parts),
             )
+
+            # create a video_event
+            await self.video_event_repository.create_video_event(
+                video_id=video_id,
+                event_type="CHUNKS_UPLOAD_COMPLETED",
+                payload={
+                    "upload_id": upload_id,
+                    "object_key": object_key,
+                    "file_name": upload_session.original_filename,
+                }
+            )
+
+            await self.session.commit()
         except SQLAlchemyError:
-            self.upload_repository.update(status = UploadSessionStatusEnum.FAILED)
+            await self.session.rollback()
+            # log
+            try:
+                await self.upload_repository.mark_failed(upload_session_id)
+                await self.session.commit()
+            except SQLAlchemyError:
+                await self.session.rollback()
+                # logger.exception("Failed to mark upload session as FAILED")
+            raise
+            
+        try:
+            transcode_task = await self.transcode_repository.create(
+                video_id=video_id,
+                status=VideoProcessingStatusEnum.PENDING
+            )
 
-        transcode_task = self.transcode_repository.create(
-            video_id=video_id,
-            status=VideoProcessingStatusEnum.PENDING
-        )
-
-        await self.session.commit()
+            await self.session.commit()
+        except SQLAlchemyError:
+            await self.session.rollback()
+            # logger.exception("Failed creating TranscodeTask")
+            raise
 
         # Phase 3: Send Task to Redis
         task_id: str | None = None
@@ -234,20 +249,39 @@ class UploadService:
                 upload_session_id=upload_session_id,
                 transcode_task_id=str(transcode_task.id),
             )
-            
+
             task_id = str(task.id)
 
-            # update transcode task
-            self.transcode_repository.update(status = VideoProcessingStatusEnum.QUEUED)
+            # await self.transcode_repository.update(status = VideoProcessingStatusEnum.QUEUED)
         except (
                 redis.exceptions.ConnectionError,
                 kombu.exceptions.OperationalError,
                 RuntimeError
             ) as e:
-                # update transcode task
-                self.transcode_repository.update(status = VideoProcessingStatusEnum.QUEUE_FAILED)
-                await self.session.commit()
+                # logger.exception("Failed to queue transcode task")
+                try:
+                    await self.transcode_repository.update(
+                        transcode_task.id,
+                        status=VideoProcessingStatusEnum.QUEUE_FAILED,
+                    )
+                    await self.session.commit()
+                except SQLAlchemyError:
+                    await self.session.rollback()
+                    # logger.exception("Failed to mark TranscodeTask as QUEUE_FAILED")
                 
+        # task_id = str(task.id)
+
+        try:
+            await self.transcode_repository.update(
+                transcode_task.id,
+                status = VideoProcessingStatusEnum.QUEUED
+            )
+            await self.session.commit()
+        except SQLAlchemyError:
+            await self.session.rollback()
+            # logger.exception("Failed to update transcode task status")
+            raise
+
         return {
             "success": True,
             "taskId": task_id if task_id else "Transcoding QUEUE_FAILED",
@@ -285,7 +319,7 @@ class UploadService:
         return { "success": True, "status": "paused"}
         
 
-    async def resume(self, video_id: uuid.UUID, upload_id: str, bucket: str, object_key: str):
+    async def resume(self, video_id: uuid.UUID, upload_id: str):
         # select upload session
         upload_session = self.upload_repository.get(video_id)
 
@@ -297,7 +331,6 @@ class UploadService:
         
         # Ask R2 which parts actually exist
         uploaded_parts = self.storage_service.get_uploaded_parts(
-            bucket=bucket,
             key=upload_session.object_key,
             uploadId=upload_id
         )
@@ -323,9 +356,8 @@ class UploadService:
         }
 
 
-    async def abort(self, video_id: uuid.UUID, upload_id: str, bucket: str, object_key: str):
+    async def abort(self, video_id: uuid.UUID, upload_id: str, object_key: str):
         self.storage_service.abort_multipart_upload(
-            bucket=bucket,
             object_key=object_key,
             upload_id=upload_id
         )
@@ -355,36 +387,51 @@ class UploadService:
         return {"success": True, "status": "aborted"}
 
     
-    async def record_uploaded_part(self, video_id: uuid.UUID, upload_id: str, part):
+    async def record_uploaded_part(self, video_id: uuid.UUID, upload_id: str, part: Part):
         # select upload session
-        upload_session = self.upload_repository.get(video_id=video_id)
+        upload_session = await self.upload_repository.get_by_video(video_id=video_id)
 
-        # create upload part
-        upload_part = self.upload_repository.create_part(
-            upload_session_id=upload_session.id,
-            part_number=part.PartNumber,
-            etag=part.ETag,
-            size_bytes=part.SizeBytes,
-        )
+        if upload_session is None:
+            raise UploadSessionNotFound()
 
-        # update upload session
-        self.upload_repository.update(
-            upload_session_id=upload_session.id,
-            uploaded_parts_count += 1
-        )
+        try:
+            # create upload part
+            await self.upload_repository.create_part(
+                upload_session_id=upload_session.id,
+                part_number=part.PartNumber,
+                etag=part.ETag,
+                size_bytes=part.SizeBytes,
+            )
 
-        # Add a VideoEvent
-        self.video_event_repository.create_video_event(
-            event_type = "CHUNK_UPLOADED",
-            video_id=video_id,
-            payload = {
-                "upload_session_id": str(upload_session.id),
-                "upload_id": upload_id,
-                "partNumber": part.PartNumber,
-                "ETag": part.ETag,
-                "size_bytes": part.SizeBytes,
+            # update upload session
+            await self.upload_repository.increment_uploaded_parts(upload_session.id)
+
+            # Add a VideoEvent
+            await self.video_event_repository.create_video_event(
+                event_type = "CHUNK_UPLOADED",
+                video_id=video_id,
+                payload = {
+                    "upload_session_id": str(upload_session.id),
+                    "upload_id": upload_id,
+                    "partNumber": part.PartNumber,
+                    "ETag": part.ETag,
+                    "size_bytes": part.SizeBytes,
+                }
+            )
+
+            await self.session.commit()
+
+        except IntegrityError:
+            await self.session.rollback()
+            return {
+                "success": True,
+                "message": "uploaded part already recorded",
             }
-        )
+        # your service shouldn't know about: HTTPException. That's an HTTP-layer concern.
+
+        except Exception:
+            await self.session.rollback()
+            raise
 
         return {
             "success": True,
@@ -392,32 +439,19 @@ class UploadService:
         }
 
 
-    async def retry(self, video_id: uuid.UUID, bucket: str,):
-        result = await self.session.execute(
-            select(UploadSession).where(
-                # UploadSession.video_upload_id == upload_id,
-                UploadSession.video_id == video_id,
-                UploadSession.status.in_([
-                    UploadSessionStatusEnum.FAILED,
-                    UploadSessionStatusEnum.PAUSED,
-                ])
-            )
-            .order_by(UploadSession.created_at.desc())
-        )
-    
-        upload_session = result.scalars().first()
-    
+    async def retry(self, video_id: uuid.UUID):
+        upload_session = await self.upload_repository.get_failed_paused_upload(video_id=video_id)
+        
         if upload_session is None:
-            raise HTTPException(status=404, detail="No failed upload session found.")
+            raise UploadSessionNotFound()
     
         # Ask R2 which parts actually exist
         uploaded_parts = self.storage_service.get_uploaded_parts(
-            bucket=bucket,
             key=upload_session.object_key,
             uploadId=upload_session.video_upload_id,
         )
-    
-        upload_session.status = UploadSessionStatusEnum.UPLOADING
+
+        await self.upload_repository.update(status = UploadSessionStatusEnum.UPLOADING)
     
         # Add a VideoEvent
         self.video_event_repository.create_video_event(
@@ -442,4 +476,3 @@ class UploadService:
             "uploaded_parts": uploaded_parts,
         }
     
-        

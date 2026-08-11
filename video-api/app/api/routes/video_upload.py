@@ -51,7 +51,8 @@ logger = logging.getLogger(__name__)
     
 #     return {"info": f"Video thumbnail {file.filename} saved at {thumbnail_file_location}"}
 
-RAW_VIDEO_BUCKET = settings.raw_videos_bucket
+# Route doesn't need to know about bucket
+# RAW_VIDEO_BUCKET = settings.raw_videos_bucket
 
 @router.post("/new-upload-record")
 async def create_new_upload_record(upload_service: UploadService = Depends(get_upload_service)):
@@ -66,7 +67,6 @@ async def initiate_upload(
     upload_service: UploadService = Depends(get_upload_service)
 ):
     return await upload_service.initiate(
-        bucket=RAW_VIDEO_BUCKET,
         contentType=req.contentType,
         fileName=req.fileName,
         upload_session_id=req.uploadSessionId,
@@ -180,7 +180,6 @@ async def get_presigned_url(
     upload_service: UploadService = Depends(get_upload_service)
 ):
     return await upload_service.get_presigned_url(
-        bucket=RAW_VIDEO_BUCKET,
         video_id=video_id,
         upload_id=req.uploadId,
         object_key=req.key,
@@ -239,7 +238,6 @@ async def complete_upload(
         video_id=video_id,
         upload_session_id=req.uploadSessionId,
         upload_id=req.uploadId,
-        bucket=RAW_VIDEO_BUCKET,
         object_key=req.key
     )
     """
@@ -404,7 +402,6 @@ async def abort_upload(
     return await upload_service.abort(
         video_id=video_id,
         upload_id=req.uploadId,
-        bucket=RAW_VIDEO_BUCKET,
         object_key=req.key
     )
 
@@ -490,7 +487,7 @@ async def pause_video_upload(video_id: str, upload_id: str, upload_service: Uplo
 
 @router.post("/{upload_id}/video/{video_id}/resume-upload")
 async def resume_video_upload(video_id: str, upload_id: str, upload_service: UploadService = Depends(get_upload_service)):
-    return await upload_service.resume(video_id=video_id, upload_id=upload_id, bucket=RAW_VIDEO_BUCKET)
+    return await upload_service.resume(video_id=video_id, upload_id=upload_id)
     """
     result = await session.execute(
         select(UploadSession).where(
@@ -664,8 +661,12 @@ async def get_transcode_processing_status(
 @router.post("/{video_id}/retry-upload")
 async def retry_failed_upload(
     video_id: str,
-    session: AsyncSession = Depends(get_db)
+    # session: AsyncSession = Depends(get_db),
+    upload_service: UploadService = Depends(get_upload_service)
 ):
+    return await upload_service.retry(video_id=video_id)
+
+    """
     # Find the latest failed/paused upload session
     result = await session.execute(
         select(UploadSession).where(
@@ -738,60 +739,10 @@ async def retry_failed_upload(
         "objectKey": upload_session.object_key,
         "uploaded_parts": uploaded_parts,
     }
+    """
 
-
-# What is this route doing ??
-# @router.post("/{video_id}/restart-upload")
-# async def restart_video_upload(video_id: str, session: AsyncSession = Depends(get_db)):
-#     result = await session.execute(
-#         select(UploadSession)
-#         .where(UploadSession.video_id == video_id)
-        # .order_by(UploadSession.created_at.desc())  # not required since Video <--> UploadSession are now 1:1
-    # )
-
-    # upload_session = result.scalars().first()
-
-    # if not upload_session:
-    #     raise HTTPException(status_code=404, detail="Upload session not found.")
-
-    # Not required since the same UploadSession is used in a One-to-One relation
+    # RESTART UPLOAD
     #
-    # Continue the upload by creating a new uploadsession linked to the same video_id
-    # new_session = UploadSession(
-    #     video_id=video_id,
-    #     file_size_bytes=old_session.file_size_bytes,
-    #     mime_type=old_session.mime_type,
-    #     original_filename=old_session.original_filename,
-    #     total_parts=old_session.total_parts,
-    #     status=UploadSessionStatusEnum.PENDING,
-    # )
-
-    # delete old session
-    # session.delete(old_session)
-
-    # session.add(new_session)
-    # await session.flush()
-
-    # session.add(
-    #     VideoEvent(
-    #         video_id=video_id,
-    #         event_type="UPLOAD_RESTARTED",
-    #         payload={
-    #             "upload_session_id": str(upload_session.id),
-    #         },
-    #     )
-    # )
-
-    # await session.commit()
-
-    # there is no uploaded_parts. The old chunks belong to another multipart upload.
-    # Which might will be removed.
-
-    # return {
-    #     "videoId": video_id,
-    #     "uploadSessionId": str(upload_session.id),
-    # }
-
     # Frontend
     # Restart button
     # ↓
