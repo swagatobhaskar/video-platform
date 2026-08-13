@@ -97,10 +97,19 @@ class OutboxMessageRepository:
         pass
 
     async def mark_completed(self, message_id: UUID):
-        pass
+        message = await self.get(message_id)
+
+        if message is None:
+            return
+
+        message.status = OutboxStatusEnum.COMPLETED
+        message.processed_at = datetime.now(timezone.utc)
+
+        await self.session.flush()
+
 
     async def mark_retry(self, message_id: UUID, error: str):
-        message = await self.get(OutboxMessage, message_id)
+        message = await self.get(message_id)
 
         if message is None:
             return
@@ -114,8 +123,17 @@ class OutboxMessageRepository:
 
         await self.session.flush()
 
+
     async def mark_failed(self, message_id: UUID, error: str):
-        pass
+        message = await self.get(message_id)
+
+        if message is None:
+            return
+
+        message.status = OutboxStatusEnum.FAILED
+        message.last_error = error
+
+        await self.session.flush()
 
 
 class OutboxProcessor:
@@ -149,7 +167,7 @@ class OutboxProcessor:
             kombu.exceptions.OperationalError,
             RuntimeError,
         ) as exc:
-            await self.outbox_repository.maark_retry(message.id, error=str(exc))
+            await self.outbox_repository.mark_retry(message.id, error=str(exc))
             await self.session.commit()
             # logger.exception("Failed to publish outbox message")
             return
@@ -162,10 +180,7 @@ class OutboxProcessor:
                 task_id=str(task.id),
             )
 
-            await self.outbox_repository.mark_completed(
-                message.id,
-            )
-
+            await self.outbox_repository.mark_completed(message.id)
             await self.session.commit()
 
         except SQLAlchemyError:

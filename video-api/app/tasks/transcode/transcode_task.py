@@ -3,7 +3,7 @@ from pathlib import Path
 from botocore.exceptions import (
     ClientError, BotoCoreError, EndpointConnectionError, NoCredentialsError
 )
-from app.database.session import engine
+from app.core.database import engine, AsyncSessionLocal
 from sqlalchemy.exc import SQLAlchemyError
 import os
 from tempfile import TemporaryDirectory
@@ -15,15 +15,14 @@ from functools import partial
 from sqlalchemy import select
 
 from .utils import probe_video, generate_renditions, create_output_directories, build_ffmpeg_command
-from app.celery_worker import celery
-from app.utils.r2_helper import s3
+from app.workers.celery_worker import celery
+from app.services.storage.base import s3
 
-from app.database.session import AsyncSessionLocal
-from app.database.models import (
+from app.models import (
     Video, VideoEvent, VideoProcessingStatusEnum, TranscodeTask
 )
 
-from app.config import get_settings
+from app.core.config import get_settings
 settings = get_settings()
 
 logger = logging.getLogger(__name__)
