@@ -29,7 +29,7 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
-BUCKET = settings.category_image_bucket
+# BUCKET = settings.category_image_bucket
 
 @router.post("/", response_model=category_schema.CategoryOut, status_code=201)
 async def create_new_category(
@@ -287,7 +287,7 @@ async def add_video_to_category(
 async def remove_video_from_category(
     category_id: uuid.UUID,
     video_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db),
+    # session: AsyncSession = Depends(get_db),
 ):
     category = await session.get(Category, category_id)
 

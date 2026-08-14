@@ -4,12 +4,15 @@ from typing import AsyncGenerator
 from fastapi import Request, HTTPException, status, Depends
 from jose import JWTError, jwt
 import uuid
+from functools import lru_cache
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.database import AsyncSession
 from app.models import User
 
+from app.services.storage.base import create_s3_client
+from app.services.storage.image_service import ImageStorage
 from app.services.upload_service import UploadService
 from app.repositories.upload_repository import UploadRepository
 from app.repositories.video_repository import VideoRepository
@@ -91,3 +94,13 @@ def get_transcode_repository(session: AsyncSession = Depends(get_db)) -> Transco
 
 def get_category_repository(session: AsyncSession = Depends(get_db)) -> CategoryRepository:
     return CategoryRepository(session)
+
+
+@lru_cache
+def get_s3_client():
+    return create_s3_client()
+
+
+def get_image_storage():
+    return ImageStorage(client=get_s3_client())
+
