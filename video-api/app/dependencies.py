@@ -12,6 +12,9 @@ from app.models import User
 
 from app.services.upload_service import UploadService
 from app.repositories.upload_repository import UploadRepository
+from app.repositories.video_repository import VideoRepository
+from app.repositories.transcode_repository import TranscodeRepository
+from app.repositories.category_repository import CategoryRepository
 
 settings = get_settings()
 
@@ -71,14 +74,20 @@ def verify_csrf(request: Request):
         )
 
 
-def get_upload_repository(
-    session: AsyncSession = Depends(get_db)
-) -> UploadRepository:
+def get_upload_repository(session: AsyncSession = Depends(get_db)) -> UploadRepository:
     return UploadRepository(session)
-
 
 def get_upload_service(
     repo: UploadRepository = Depends(get_upload_repository),
     session: AsyncSession = Depends(get_db)
 ) -> UploadService:
     return UploadService(repo, session)
+
+def get_video_repository(session: AsyncSession = Depends(get_db)) -> VideoRepository:
+    return VideoRepository(session)
+
+def get_transcode_repository(session: AsyncSession = Depends(get_db)) -> TranscodeRepository:
+    return TranscodeRepository(session)
+
+def get_category_repository(session: AsyncSession = Depends(get_db)) -> CategoryRepository:
+    return CategoryRepository(session)

@@ -9,12 +9,14 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from botocore.exceptions import ClientError
 import logging
 
+from app.repositories.category_repository import CategoryRepository
+
 from app.schemas import category_schema
-from app.database.session import AsyncSession
-from app.utils.dependencies import get_current_user, get_db
+# from app.database.session import AsyncSession
+from app.dependencies import get_current_user, get_category_repository
 from app.utils import security
-from app.database.models import Video, Category
-from app.config import get_settings
+# from app.models import Video, Category
+from app.core.config import get_settings
 from app.utils.image_helper import (
     convert_to_webp, delete_image_from_r2, validate_image,
     upload_image_to_r2,
@@ -33,7 +35,7 @@ BUCKET = settings.category_image_bucket
 async def create_new_category(
     name: str = Form(...),
     image: UploadFile | None = File(None),
-    session: AsyncSession = Depends(get_db)
+    # session: AsyncSession = Depends(get_db)
 ):
     image_key : str | None = None
 
@@ -90,25 +92,26 @@ async def create_new_category(
     
 
 @router.get("/", response_model=list[category_schema.CategoryOut])
-async def get_category_list(session: AsyncSession = Depends(get_db)):
-    result = await session.execute(select(Category))
-    all_categories = result.scalars().all()
-    return all_categories
+async def get_category_list(category_repo: CategoryRepository = Depends(get_category_repository)):
+    return await category_repo.list()
 
 
 @router.get("/{category_id}")
 # @router.get("/{category_id}", response_model=category_schema.CategoryOut)
-async def get_category_detail(category_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
+async def get_category_detail(category_id: uuid.UUID, category_repo: CategoryRepository = Depends(get_category_repository)):
 
-    result = await session.execute(
-        select(Category)
-        .options(selectinload(Category.videos).load_only(Video.id, Video.title))
-        .where(Category.id == category_id)
-    )
-    category = result.scalar_one_or_none()
+    # result = await session.execute(
+    #     select(Category)
+    #     .options(selectinload(Category.videos).load_only(Video.id, Video.title))
+    #     .where(Category.id == category_id)
+    # )
+    # category = result.scalar_one_or_none()
+
+    category = await category_repo.get_with_videos(category_id)
 
     if not category:
-        raise HTTPException(status_code=404, detail=f"Category {category_id} not found!")
+        # raise HTTPException(status_code=404, detail=f"Category {category_id} not found!")
+        raise CategoryNotFound()
 
     # If using the schema based response
     # return category_schema.CategoryOut.model_validate(category)

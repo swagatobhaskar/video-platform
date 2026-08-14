@@ -2,22 +2,10 @@
 class ThumbnailService:
 
     async def upload_thumbnail():
+        pass
 
-        validate_image()
+    async def validate_image():
+        pass
 
-        convert()
-
-        storage.upload_image()
-
-        save_database()
-
-        create_event()
-
-
-"""
-Your route becomes
-
-@router.post(...)
-async def upload(...):
-    return await thumbnail_service.upload_thumbnail(...)
-"""
+    async def convert():
+        pass

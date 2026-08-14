@@ -1,29 +1,27 @@
-import os
-import shutil
+# import os
+# import shutil
 import logging
-from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends # , File, UploadFile, Form
 from celery.result import AsyncResult
 from sqlalchemy import select
 # from sqlalchemy.orm import selectinload, joinedload
 # from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from fastapi.responses import JSONResponse
+# from fastapi.responses import JSONResponse
 # from botocore.exceptions import ClientError
-import kombu
-import redis
-from datetime import datetime, timezone
+# import kombu
+# import redis
+# from datetime import datetime, timezone
 
 # from app.utils.r2_helper import s3
-from app.dependencies import get_db, get_upload_service
-from app.celery_worker import celery
+from app.dependencies import get_upload_service, get_video_repository, get_transcode_repository
 # from app.tasks.transcode.transcode_task import process_video_worker_operations
-
-from app.models import (
-    Video, UploadSession, UploadSessionStatusEnum, TranscodeTask, VideoProcessingStatusEnum,
-    UploadPart, VideoEvent, VideoPublicationStatusEnum, VideoTranscript
-)
+from app.workers.celery_worker import celery
+# from app.models import Video, TranscodeTask
 from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
-from app.core.database import AsyncSession
+# from app.core.database import AsyncSession
 
+from app.repositories.video_repository import VideoRepository
+from app.repositories.transcode_repository import TranscodeRepository
 from app.services.upload_service import UploadService
 # from app.services.storage.r2_storage_service import R2StorageService
 
@@ -622,28 +620,32 @@ async def record_uploaded_part(
 
 
 @router.get("/{video_id}/processing-status/{transcode_task_id}")
-async def get_transcode_processing_status(
+async def get_video_processing_status(
     video_id: str,
     transcode_task_id: str,
-    session: AsyncSession = Depends(get_db)
+    video_repo: VideoRepository = Depends(get_video_repository),
+    transcode_repo: TranscodeRepository = Depends(get_transcode_repository),
 ):
-    result = await session.execute(select(Video).where(Video.id == video_id))
-    video = await result.scalar_one_or_none()
-
+    video = await video_repo.get(video_id)
     if not video:
-        raise HTTPException(status_code=404, detail=f"Video with id {video_id} not found!")
+        raise VideoNotFound()
+
+    # if not video:
+    #     raise HTTPException(status_code=404, detail=f"Video with id {video_id} not found!")
     
     if video.transcode_task_id != transcode_task_id:
-        raise HTTPException(status_code=503, detail="Task id doesn't belong to the video")
-    
-    task_result = await session.execute(
-        select(TranscodeTask).where(TranscodeTask.id == transcode_task_id)
-    )
-    transcode_task = task_result.scalar_one_or_none()
+        # raise HTTPException(status_code=503, detail="Task id doesn't belong to the video")
+        raise TranscodeTaskMismatch()
+
+
+    transcode_task = await transcode_repo.get(transcode_task_id)
+
+    if not transcode_task:
+        raise TranscodeTaskNotFound()
 
     # If transcode_task_id is not present
-    if not transcode_task:
-        raise HTTPException(status_code=400, detail=f"Transcode task {transcode_task_id} not found!")
+    # if not transcode_task:
+    #     raise HTTPException(status_code=400, detail=f"Transcode task {transcode_task_id} not found!")
 
     status = AsyncResult(transcode_task_id, app=celery)
 

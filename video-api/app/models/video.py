@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from .upload import UploadSession, UploadSessionStatusEnum
     from .processing import TranscodeTask, VideoEvent
 
-from app.config import get_settings
+from app.core.config import get_settings
 settings = get_settings()
 
 class Category(Base):
