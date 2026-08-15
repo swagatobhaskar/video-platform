@@ -2,25 +2,27 @@ import uuid
 from pathlib import Path
 from fastapi.routing import APIRouter
 from fastapi import HTTPException, status, Depends, File, Form, UploadFile
-from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from botocore.exceptions import ClientError
+# from fastapi.concurrency import run_in_threadpool
+# from sqlalchemy import select
+# from sqlalchemy.orm import selectinload
+# from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+# from botocore.exceptions import ClientError
 import logging
 
 from app.repositories.category_repository import CategoryRepository
 
 from app.schemas import category_schema
 # from app.database.session import AsyncSession
-from app.dependencies import get_current_user, get_category_repository
+from app.dependencies import get_current_user, get_category_repository, get_category_service
+from app.services.category_service import CategoryService
 from app.utils import security
 # from app.models import Video, Category
 from app.core.config import get_settings
-from app.utils.image_helper import (
-    convert_to_webp, delete_image_from_r2, validate_image,
-    upload_image_to_r2,
-)
+
+# from app.utils.image_helper import (
+#     convert_to_webp, delete_image_from_r2, validate_image,
+#     upload_image_to_r2,
+# )
 
 router = APIRouter(prefix="/api/category", tags=["category"])
 
@@ -35,8 +37,11 @@ logger = logging.getLogger(__name__)
 async def create_new_category(
     name: str = Form(...),
     image: UploadFile | None = File(None),
-    # session: AsyncSession = Depends(get_db)
+    category_service: CategoryService = Depends(get_category_service),
 ):
+    return await category_service.create(name, image)
+
+    """
     image_key : str | None = None
 
     if image:
@@ -89,7 +94,7 @@ async def create_new_category(
         raise HTTPException(status_code=500, detail="Database error.")
 
     return new_category
-    
+    """
 
 @router.get("/", response_model=list[category_schema.CategoryOut])
 async def get_category_list(category_repo: CategoryRepository = Depends(get_category_repository)):
@@ -98,20 +103,18 @@ async def get_category_list(category_repo: CategoryRepository = Depends(get_cate
 
 @router.get("/{category_id}")
 # @router.get("/{category_id}", response_model=category_schema.CategoryOut)
-async def get_category_detail(category_id: uuid.UUID, category_repo: CategoryRepository = Depends(get_category_repository)):
-
-    # result = await session.execute(
-    #     select(Category)
-    #     .options(selectinload(Category.videos).load_only(Video.id, Video.title))
-    #     .where(Category.id == category_id)
-    # )
-    # category = result.scalar_one_or_none()
-
-    category = await category_repo.get_with_videos(category_id)
+async def get_category_detail(category_id: uuid.UUID, category_service: CategoryService = Depends(get_category_service)):
+    return await category_service.get_category_detail(category_id)
+    """
+    result = await session.execute(
+        select(Category)
+        .options(selectinload(Category.videos).load_only(Video.id, Video.title))
+        .where(Category.id == category_id)
+    )
+    category = result.scalar_one_or_none()
 
     if not category:
-        # raise HTTPException(status_code=404, detail=f"Category {category_id} not found!")
-        raise CategoryNotFound()
+        raise HTTPException(status_code=404, detail=f"Category {category_id} not found!")
 
     # If using the schema based response
     # return category_schema.CategoryOut.model_validate(category)
@@ -130,12 +133,14 @@ async def get_category_detail(category_id: uuid.UUID, category_repo: CategoryRep
             for video in category.videos
         ],
     }
+    """
 
 
 # Keep the videos, just remove their category.
 @router.delete("/{category_id}", status_code=204)
-async def delete_category(category_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
-    
+async def delete_category(category_id: uuid.UUID, category_service: CategoryService = Depends(get_category_service)):
+    return await category_service.delete(category_id)
+    """
     category = await session.get(Category, category_id)
 
     if category is None:
@@ -158,15 +163,17 @@ async def delete_category(category_id: uuid.UUID, session: AsyncSession = Depend
             await run_in_threadpool(delete_image_from_r2, image_key, BUCKET)
         except ClientError:
             logger.exception("Failed to delete orphaned category image from R2: %s", image_key)
-
+    """
 
 @router.patch("/{category_id}", response_model=category_schema.CategoryOut)
 async def update_category(
     category_id: uuid.UUID,
     name: str | None = Form(None),
     image: UploadFile | None = File(None),
-    session: AsyncSession = Depends(get_db),
+    category_service: CategoryService = Depends(get_category_service),
 ):
+    return await category_service.update(category_id, name, image)
+    """
     category = await session.get(Category, category_id)
 
     if category is None:
@@ -240,15 +247,17 @@ async def update_category(
             logger.exception("Failed to delete orphaned old category image from R2: %s", old_image_key)
 
     return category
-
+    """
 
 # Add a video to a category
 @router.post("/{category_id}/video/{video_id}", response_model=category_schema.CategoryOutWithVideo)
 async def add_video_to_category(
     category_id: uuid.UUID,
     video_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db),
+    category_service: CategoryService = Depends(get_category_service),
 ):
+    return await category_service.add_video_to_category(category_id, video_id)
+    """
     category = await session.get(Category, category_id)
     if category is None:
         raise HTTPException(404, "Requested category not found")
@@ -280,15 +289,18 @@ async def add_video_to_category(
     )
 
     return result.scalar_one()
-
+    """
 
 # Remove video from a category
 @router.delete("/{category_id}/video/{video_id}", response_model=category_schema.CategoryOutWithVideo)
 async def remove_video_from_category(
     category_id: uuid.UUID,
     video_id: uuid.UUID,
+    category_service: CategoryService = Depends(get_category_service),
     # session: AsyncSession = Depends(get_db),
 ):
+    return await category_service.remove_video_from_category(category_id, video_id)
+    """
     category = await session.get(Category, category_id)
 
     if category is None:
@@ -326,3 +338,4 @@ async def remove_video_from_category(
     )
 
     return result.scalar_one()
+    """

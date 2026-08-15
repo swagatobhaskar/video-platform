@@ -42,16 +42,29 @@ class CategoryRepository:
         )
         self.session.add(new_category)
         await self.session.flush()
+        return new_category
 
 
-    async def update(self, id: uuid.UUID, **data) -> Category | None:
-        category = self.get(id)
+    # async def update(self, id: uuid.UUID, **data) -> Category | None:
+    async def update(self,
+        category: Category,
+        *,
+        name: str | None = None,
+        image_url: str | None = None,
+    ) -> Category:
+        category = await self.get(category.id)
 
         if not category:
             return None
 
-        for key, value in data.items():
-            setattr(category, key, value)
+        if name:
+            setattr(category, name, name)
+
+        if name:
+            setattr(category, image_url, image_url)
+
+        # for key, value in data.items():
+        #     setattr(category, key, value)
 
         await self.session.flush()
         return category

@@ -1,6 +1,7 @@
 from io import BytesIO
 from fastapi import UploadFile, HTTPException, Depends
 from PIL import Image, ImageOps, UnidentifiedImageError
+from botocore.exceptions import ClientError
 
 from .base import create_s3_client
 from app.dependencies import get_s3_client
@@ -25,7 +26,7 @@ class InvalidImageError(ImageError):
 class CorruptedImageError(ImageError):
     pass
 
-class ImageService:
+class ImageProcessor:
 
     ALLOWED_FORMATS = {"JPEG", "WEBP", "PNG"}
 
@@ -85,10 +86,12 @@ class ImageService:
                 image.load()
 
         except UnidentifiedImageError:
-            raise HTTPException(status_code=400, detail="Invalid image file")
+            # raise HTTPException(status_code=400, detail="Invalid image file")
+            raise InvalidImageError("Invalid image file")
 
         except OSError:
-            raise HTTPException(status_code=400, detail="Corrupted image file")
+            # raise HTTPException(status_code=400, detail="Corrupted image file")
+            raise CorruptedImageError("Corrupted image file")
 
         # except DecompressionBombError:
         #     raise HTTPException(status_code=400, detail="Image file is a decompression bomb")
@@ -99,30 +102,8 @@ class ImageService:
             # Reset because verify() consumes the image stream.
             stream.seek(0)
 
-"""
-validate_image()
-    └── Is this a valid/allowed image?
 
-create_thumbnail()
-    ├── normalize orientation
-    ├── handle transparency
-    ├── crop/resize
-    └── encode WebP
-
-storage.upload()
-    └── put bytes in R2
-
-storage.delete()
-    └── remove object from R2
-
-And I'd make one naming change based on the exact behavior:
-
-thumbnail() / create_thumbnail() → exactly 1920×1080, cropped
-resize_image() / create_webp() → maximum 1920×1080, aspect ratio preserved
-"""
-
-
-    def convert_to_webp(self, img_file: UploadFile) -> BytesIO:
+    def create_webp(self, img_file: UploadFile) -> BytesIO:
         # upload_file.file is already a binary file-like object.
         # Pillow can read directly from it without first converting it to bytes
         # or wrapping it in a BytesIO.
@@ -201,24 +182,32 @@ resize_image() / create_webp() → maximum 1920×1080, aspect ratio preserved
 
 
 class ImageStorage:
-    def __init__(self, client = Depends(get_s3_client)):
+    # dependency injection is providing the s3 client where this class is used
+    def __init__(self, client):
         self.client = client
 
     def upload(self, key: str, bucket: str, img_buffer: BytesIO) -> str:
         img_buffer.seek(0)
 
-        self.client.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=img_buffer,
-            ContentType="image/webp",
-        )
-        return key
+        try:
+            self.client.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=img_buffer,
+                ContentType="image/webp",
+            )
+            return key
+        except ClientError:
+            # logger.exception("Failed to upload image")
+            raise HTTPException(503, "Image upload failed")
     
 
     def delete(self, key: str, bucket: str) -> None:
-        self.client.delete_object(
-            Bucket=bucket,
-            Key=key,
-        )
-    
+        try:
+            self.client.delete_object(
+                Bucket=bucket,
+                Key=key,
+            )
+        except ClientError:
+            # logger.exception("Failed to delete orphaned category image from R2: %s", image_key)
+            raise # raise what?

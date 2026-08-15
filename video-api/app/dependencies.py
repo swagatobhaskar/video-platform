@@ -12,8 +12,9 @@ from app.core.database import AsyncSession
 from app.models import User
 
 from app.services.storage.base import create_s3_client
-from app.services.storage.image_service import ImageStorage
+from app.services.storage.image_service import ImageProcessor, ImageStorage
 from app.services.upload_service import UploadService
+from app.services.category_service import CategoryService
 from app.repositories.upload_repository import UploadRepository
 from app.repositories.video_repository import VideoRepository
 from app.repositories.transcode_repository import TranscodeRepository
@@ -95,6 +96,24 @@ def get_transcode_repository(session: AsyncSession = Depends(get_db)) -> Transco
 def get_category_repository(session: AsyncSession = Depends(get_db)) -> CategoryRepository:
     return CategoryRepository(session)
 
+def get_image_storage():
+    return ImageStorage(client=get_s3_client())
+
+def get_image_processor():
+    return ImageProcessor(storage=get_image_storage())
+
+def get_category_service(
+    session: AsyncSession = Depends(get_db),
+    category_repo: CategoryRepository = Depends(get_category_repository),
+    image_service: ImageStorage = Depends(get_image_storage),
+    image_storage: ImageStorage = Depends(get_image_storage)
+) -> CategoryService:
+    return CategoryService(
+        session=session,
+        category_repo=category_repo,
+        image_service=image_service,
+        image_storage=image_storage,
+    )
 
 @lru_cache
 def get_s3_client():

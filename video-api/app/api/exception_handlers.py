@@ -1,9 +1,10 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from app.exceptions.video import VideoNotFound, VideoPublishError
 from app.exceptions.upload import UploadNotFound, UploadAlreadyCompleted, NewUploadCreationFailed
 from app.exceptions.storage import StorageProviderError
-
+from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
 
 async def upload_not_found_handler(request: Request, exc: UploadNotFound):
     return JSONResponse(
@@ -49,4 +50,52 @@ async def storage_provider_error_handler(
         content={
             "detail": str(exc),
         },
+    )
+
+
+# @app.exception_handler(CategoryAlreadyExists)
+async def category_exists_handler(
+    request: Request,
+    exc: CategoryAlreadyExists,
+):
+    return JSONResponse(
+        status_code=409,
+        content={"detail": "Category already exists"},
+    )
+
+async def category_not_found_handler(
+    request: Request,
+    exc: CategoryNotFound,
+):
+    return JSONResponse(
+        status_code=404,
+        content={"detail": "Category not found"},
+    )
+
+async def video_not_found_handler(
+    request: Request,
+    exc: VideoNotFound,
+):
+    return JSONResponse(
+        status_code=404,
+        content={"detail": "Video not found"},
+    )
+
+async def video_publish_error_handler(
+    request: Request,
+    exc: VideoPublishError,
+):
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Failed to publish video"},
+    )
+
+
+async def video_already_linked_to_category_handler(
+    request: Request,
+    exc: VideoAlreadyLinked,
+):
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Video already linked to the category"},
     )
