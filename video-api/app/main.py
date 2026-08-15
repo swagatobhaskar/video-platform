@@ -26,10 +26,15 @@ from app.api.exception_handlers import (
     video_not_found_handler,
     video_publish_error_handler,
     video_already_linked_to_category_handler,
+    video_already_in_series_handler,
+    series_already_exists_handler,
+    series_not_found_handler,
+    storage_provider_error_handler,
 )
 
 from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
 from app.exceptions.video import VideoPublishError, VideoNotFound
+from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
 from app.exceptions.upload import (
     UploadNotFound,
     UploadAlreadyCompleted,
@@ -99,6 +104,21 @@ app.add_exception_handler(
 app.add_exception_handler(
     VideoAlreadyLinked,
     video_already_linked_to_category_handler,
+)
+
+app.add_exception_handler(
+    VideoAlreadyInTheSeries,
+    video_already_in_series_handler,
+)
+
+app.add_exception_handler(
+    SeriesNotFound,
+    series_not_found_handler,
+)
+
+app.add_exception_handler(
+    SeriesAlreadyExists,
+    series_already_exists_handler,
 )
 
 app.include_router(UserRouter)

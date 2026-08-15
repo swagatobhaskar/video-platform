@@ -5,6 +5,7 @@ from app.exceptions.video import VideoNotFound, VideoPublishError
 from app.exceptions.upload import UploadNotFound, UploadAlreadyCompleted, NewUploadCreationFailed
 from app.exceptions.storage import StorageProviderError
 from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
+from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
 
 async def upload_not_found_handler(request: Request, exc: UploadNotFound):
     return JSONResponse(
@@ -98,4 +99,31 @@ async def video_already_linked_to_category_handler(
     return JSONResponse(
         status_code=400,
         content={"detail": "Video already linked to the category"},
+    )
+
+async def video_already_in_series_handler(
+    request: Request,
+    exc: VideoAlreadyInTheSeries,
+):
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Video is already in the Series"},
+    )
+
+async def series_not_found_handler(
+    request: Request,
+    exc: SeriesNotFound,
+):
+    return JSONResponse(
+        status_code=404,
+        content={"detail": "Series not found"},
+    )
+
+async def series_already_exists_handler(
+    request: Request,
+    exc: SeriesAlreadyExists,
+):
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Series already exists"},
     )

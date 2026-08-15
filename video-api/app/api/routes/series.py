@@ -1,18 +1,18 @@
 import uuid
 from fastapi.routing import APIRouter
 from fastapi import HTTPException, status, Depends
-from sqlalchemy import select, delete
-from sqlalchemy.orm import selectinload
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+# from sqlalchemy import select, delete
+# from sqlalchemy.orm import selectinload
+# from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 import logging
 
 from app.schemas import series_schema
-from app.database.session import AsyncSession
-from app.utils.dependencies import get_current_user, get_db
+# from app.core.database import AsyncSession
+from app.dependencies import get_current_user, get_db
 from app.utils import security
-from app.database.models import Video, Series
-from app.config import get_settings
-settings = get_settings()
+# from app.models import Video, Series
+# from app.core.config import get_settings
+# settings = get_settings()
 
 router = APIRouter(prefix="/api/series", tags=["series"])
 
