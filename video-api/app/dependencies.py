@@ -15,10 +15,13 @@ from app.services.storage.base import create_s3_client
 from app.services.storage.image_service import ImageProcessor, ImageStorage
 from app.services.upload_service import UploadService
 from app.services.category_service import CategoryService
+from app.services.series_service import SeriesService
+
 from app.repositories.upload_repository import UploadRepository
 from app.repositories.video_repository import VideoRepository
 from app.repositories.transcode_repository import TranscodeRepository
 from app.repositories.category_repository import CategoryRepository
+from app.repositories.series_repository import SeriesRepository
 
 settings = get_settings()
 
@@ -114,6 +117,20 @@ def get_category_service(
         image_service=image_service,
         image_storage=image_storage,
     )
+
+
+def get_series_repository(
+    video_repo: VideoRepository,
+    session: AsyncSession = Depends(get_db),
+) -> SeriesRepository:
+    return SeriesRepository(session=session, video_repo=video_repo)
+
+def get_series_service(
+    session: AsyncSession = Depends(get_db),
+    series_repo: SeriesRepository = Depends(get_series_repository),
+) -> SeriesService:
+    return SeriesService(session=session, series_repo=series_repo)
+
 
 @lru_cache
 def get_s3_client():

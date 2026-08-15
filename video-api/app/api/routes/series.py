@@ -1,6 +1,6 @@
 import uuid
 from fastapi.routing import APIRouter
-from fastapi import HTTPException, status, Depends
+from fastapi import status, Depends
 # from sqlalchemy import select, delete
 # from sqlalchemy.orm import selectinload
 # from sqlalchemy.exc import SQLAlchemyError, IntegrityError
@@ -8,7 +8,8 @@ import logging
 
 from app.schemas import series_schema
 # from app.core.database import AsyncSession
-from app.dependencies import get_current_user, get_db
+from app.services.series_service import SeriesService
+from app.dependencies import get_current_user, get_series_service
 from app.utils import security
 # from app.models import Video, Series
 # from app.core.config import get_settings
@@ -21,16 +22,18 @@ logger = logging.getLogger(__name__)
 
 # Series list
 @router.get("/", response_model=list[series_schema.SeriesOut])
-async def get_series_list(session: AsyncSession = Depends(get_db)):
-    result = await session.execute(select(Series))
-    all_series = result.scalars().all()
-    return all_series
+async def get_series_list(series_service: SeriesService = Depends(get_series_service)):
+    return await series_service.list()
+    # result = await session.execute(select(Series))
+    # all_series = result.scalars().all()
+    # return all_series
 
 
 # Series detail
 @router.get("/{series_id}", response_model=series_schema.SeriesDetailOutWithVideo)
-async def get_series_detail(series_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
-
+async def get_series_detail(series_id: uuid.UUID, series_service: SeriesService = Depends(get_series_service)):
+    return await series_service.get_series_detail(series_id)
+    """
     result = await session.execute(
         select(Series)
         .options(selectinload(Series.videos).load_only(Video.id, Video.title))
@@ -42,11 +45,13 @@ async def get_series_detail(series_id: uuid.UUID, session: AsyncSession = Depend
         raise HTTPException(status_code=404, detail=f"Series {series_id} not found!")
 
     return series
-
+    """
 
 # Series create
 @router.post("/", response_model=series_schema.SeriesDetailOut, status_code=201)
-async def create_new_series(req: series_schema.SeriesCreate, session: AsyncSession = Depends(get_db)):
+async def create_new_series(req: series_schema.SeriesCreate, series_service: SeriesService = Depends(get_series_service)):
+    return await series_service.create(name=req.name)
+    """
     try:
         new_series = Series(name=req.name)
         session.add(new_series)
@@ -62,7 +67,7 @@ async def create_new_series(req: series_schema.SeriesCreate, session: AsyncSessi
         raise HTTPException(status_code=500, detail="Database error.")
 
     return new_series
-
+    """
 
 # Series delete
 # Keep the videos, just remove their series.
@@ -71,8 +76,10 @@ async def create_new_series(req: series_schema.SeriesCreate, session: AsyncSessi
 async def delete_series(
     series_id: uuid.UUID,
     delete_videos: bool = False,
-    session: AsyncSession = Depends(get_db)
-):    
+    series_service: SeriesService = Depends(get_series_service)
+):
+    return await series_service.delete(id=series_id, delete_videos=delete_videos)
+    """
     series = await session.get(Series, series_id)
 
     if series is None:
@@ -90,15 +97,17 @@ async def delete_series(
     except SQLAlchemyError as e:
         await session.rollback()
         raise HTTPException(status_code=500, detail="Database error")
-
+    """
 
 # Series patch
 @router.patch("/{series_id}", response_model=series_schema.SeriesDetailOut)
 async def update_series(
     series_id: uuid.UUID,
     req: series_schema.SeriesUpdate,
-    session: AsyncSession = Depends(get_db),
+    series_service: SeriesService = Depends(get_series_service),
 ):
+    return await series_service.update(series_id, req.name)
+    """
     series = await session.get(Series, series_id)
 
     if series is None:
@@ -120,6 +129,7 @@ async def update_series(
         raise HTTPException(500, "Database error")
 
     return series
+    """
 
 
 # Add video to series
@@ -128,8 +138,10 @@ async def add_video_to_series(
     series_id: uuid.UUID,
     video_id: uuid.UUID,
     episode_number: int | None = None,
-    session: AsyncSession = Depends(get_db),
+    series_service: SeriesService = Depends(get_series_service),
 ):
+    return await series_service.add_video_to_series(series_id, video_id, episode_number)
+    """
     series = await session.get(Series, series_id)
     if series is None:
         raise HTTPException(404, "Series not found")
@@ -169,15 +181,17 @@ async def add_video_to_series(
     )
 
     return result.scalar_one()
-
+    """
 
 # Remove video from a series
 @router.delete("/{series_id}/video/{video_id}", response_model=series_schema.SeriesDetailOutWithVideo)
 async def remove_video_from_series(
     series_id: uuid.UUID,
     video_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db),
+    series_service: SeriesService = Depends(get_series_service),
 ):
+    return await series_service.remove_video_from_series(series_id, video_id)
+    """
     series = await session.get(Series, series_id)
 
     if series is None:
@@ -215,3 +229,4 @@ async def remove_video_from_series(
     )
 
     return result.scalar_one()
+    """

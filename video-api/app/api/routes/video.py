@@ -10,14 +10,14 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 from app.services.video_service import VideoPublishError, VideoService
 from app.schemas import video_schema
-from app.database.session import AsyncSession
-from app.utils.dependencies import get_current_user, get_db
+from app.core.database import AsyncSession
+from app.dependencies import get_current_user, get_db
 from app.utils import security
-from app.database.models import (
+from app.models import (
     Video, VideoPublicationStatusEnum, UploadSession,
     UploadSessionStatusEnum, VideoProcessingStatusEnum
 )
-from app.config import get_settings
+from app.core.config import get_settings
 
 router = APIRouter(prefix="/api/video", tags=["video"])
 
