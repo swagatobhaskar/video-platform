@@ -25,6 +25,7 @@ from app.api.exception_handlers import (
     category_not_found_handler,
     video_not_found_handler,
     video_publish_error_handler,
+    video_archive_error_handler,
     video_already_linked_to_category_handler,
     video_already_in_series_handler,
     series_already_exists_handler,
@@ -33,7 +34,7 @@ from app.api.exception_handlers import (
 )
 
 from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
-from app.exceptions.video import VideoPublishError, VideoNotFound
+from app.exceptions.video import VideoPublishError, VideoNotFound, VideoArchiveFailed
 from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
 from app.exceptions.upload import (
     UploadNotFound,
@@ -89,6 +90,11 @@ app.add_exception_handler(
 app.add_exception_handler(
     VideoPublishError,
     video_publish_error_handler,
+)
+
+app.add_exception_handler(
+    VideoArchiveFailed,
+    video_archive_error_handler,
 )
 
 app.add_exception_handler(

@@ -1,8 +1,8 @@
 from pydantic import BaseModel, computed_field, ConfigDict, Field
 from datetime import datetime
 import uuid
-from app.config import get_settings
-from app.database.models import (
+from app.core.config import get_settings
+from app.models import (
     VideoPublicationStatusEnum, LanguageEnum, UploadSessionStatusEnum,
     VideoProcessingStatusEnum
 )

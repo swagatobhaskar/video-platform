@@ -5,16 +5,15 @@ from .base import create_s3_client
 from app.core.config import get_settings
 settings = get_settings()
 
-BUCKET = settings.raw_videos_bucket
-
 class R2MultipartService:
+    BUCKET = settings.raw_videos_bucket
     def __init__(self, client=None): # client=s3
         self.client = client or create_s3_client
 
     def create_multipart_upload(self, object_key: str, content_type: str):
         try:
             return self.client.create_multipart_upload(
-                Bucket=BUCKET,
+                Bucket=self.BUCKET,
                 Key=object_key,
                 ContentType=content_type,
             )
@@ -33,7 +32,7 @@ class R2MultipartService:
             return self.client.generate_presigned_url(
                 ClientMethod="upload_part",
                 Params={
-                    "Bucket": BUCKET,
+                    "Bucket": self.BUCKET,
                     "Key": object_key,
                     "UploadId": upload_id,
                     "PartNumber": part_number,
@@ -47,7 +46,7 @@ class R2MultipartService:
 
     def get_uploaded_parts(self, key: str, uploadId: str):
         response = self.client.list_parts(
-            Bucket=BUCKET,
+            Bucket=self.BUCKET,
             Key=key,
             UploadId=uploadId
         )
@@ -57,7 +56,7 @@ class R2MultipartService:
 
     def complete_upload(self, key: str, uploadId: str, parts: dict[str, int]):
         self.client.complete_multipart_upload(
-            Bucket=BUCKET,
+            Bucket=self.BUCKET,
             Key=key,
             UploadId=uploadId,
             MultipartUpload={
@@ -74,7 +73,31 @@ class R2MultipartService:
 
     def abort_multipart_upload(self, object_key: str, upload_id: str):
         self.client.abort_multipart_upload(
-            Bucket=BUCKET,
+            Bucket=self.BUCKET,
             Key=object_key,
             UploadId=upload_id
         )
+
+    def delete_video_segments(self, object_key: str) -> int:
+        prefix = object_key.rsplit(".", 1)[0]  # Remove file extension
+
+        response = self.client.list_objects_v2(
+            Bucket=self.BUCKET,
+            Prefix=prefix
+        )
+
+        deleted_count = 0
+
+        for obj in response.get("Contents", []):
+            self.client.delete_object(
+                Bucket=self.BUCKET,
+                Key=obj["Key"]
+            )
+
+            deleted_count += 1
+
+            if response.get("Errors"):
+                raise RuntimeError(f"Failed to delete some objects: {response['Errors']}")
+        
+        return deleted_count
+    

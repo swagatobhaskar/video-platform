@@ -16,6 +16,7 @@ from app.services.storage.image_service import ImageProcessor, ImageStorage
 from app.services.upload_service import UploadService
 from app.services.category_service import CategoryService
 from app.services.series_service import SeriesService
+from app.services.video_service import VideoService
 
 from app.repositories.upload_repository import UploadRepository
 from app.repositories.video_repository import VideoRepository
@@ -92,6 +93,12 @@ def get_upload_service(
 
 def get_video_repository(session: AsyncSession = Depends(get_db)) -> VideoRepository:
     return VideoRepository(session)
+
+def get_video_service(
+    session: AsyncSession = Depends(get_db),
+    video_repo: VideoRepository = Depends(get_video_repository),
+) -> VideoService:
+    return VideoService(session=session, video_repository=video_repo)
 
 def get_transcode_repository(session: AsyncSession = Depends(get_db)) -> TranscodeRepository:
     return TranscodeRepository(session)

@@ -1,11 +1,12 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.exceptions.video import VideoNotFound, VideoPublishError
+from app.exceptions.video import VideoNotFound, VideoPublishError, VideoArchiveFailed
+from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
 from app.exceptions.upload import UploadNotFound, UploadAlreadyCompleted, NewUploadCreationFailed
 from app.exceptions.storage import StorageProviderError
 from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
-from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
+
 
 async def upload_not_found_handler(request: Request, exc: UploadNotFound):
     return JSONResponse(
@@ -89,6 +90,15 @@ async def video_publish_error_handler(
     return JSONResponse(
         status_code=400,
         content={"detail": "Failed to publish video"},
+    )
+
+async def video_archive_error_handler(
+    request: Request,
+    exc: VideoArchiveFailed,
+):
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Failed to archive video"},
     )
 
 

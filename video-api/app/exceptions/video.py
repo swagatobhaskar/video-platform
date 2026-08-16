@@ -4,3 +4,6 @@ class VideoPublishError(Exception):
 class VideoNotFound(Exception):
     pass
 
+class VideoArchiveFailed(Exception):
+    pass
+

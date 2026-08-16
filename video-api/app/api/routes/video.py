@@ -8,10 +8,10 @@ from sqlalchemy import select, exists, and_, not_, update
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
-from app.services.video_service import VideoPublishError, VideoService
+from app.services.video_service import VideoService
 from app.schemas import video_schema
 from app.core.database import AsyncSession
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, get_video_service
 from app.utils import security
 from app.models import (
     Video, VideoPublicationStatusEnum, UploadSession,
@@ -29,8 +29,10 @@ logger = logging.getLogger(__name__)
 @router.get("/admin-view", response_model=list[video_schema.VideoAdminRead])
 async def get_video_admin_view(
     status: VideoPublicationStatusEnum | None = None,
-    session: AsyncSession = Depends(get_db),
+    video_service: VideoService = Depends(get_video_service),
 ):
+    return await video_service.get_admin_view(status)
+    """
     stmt = (
         select(Video)
         .options(
@@ -48,13 +50,15 @@ async def get_video_admin_view(
     result = await session.execute(stmt)
 
     return result.scalars().all()
-
+    """
 
 @router.patch("/{video_id}/publish", response_model=video_schema.VideoRead)
 async def publish_video(
     video_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db),
+    video_service: VideoService = Depends(get_video_service),
 ):
+    return await video_service.publish(video_id)
+    """
     stmt = await session.execute(
         select(Video)
         .options(
@@ -95,13 +99,16 @@ async def publish_video(
     #     "status": video.publication_status.value,
     #     "published_at": video.published_at,
     # }
+    """
 
 
 @router.patch("/{video_id}/archive")
 async def archive_video(
     video_id: uuid.UUID,
-    session: AsyncSession = Depends(get_db),
+    video_service: VideoService = Depends(get_video_service),
 ):
+    return await video_service.archive(video_id)
+    """
     try:
         result = await session.execute(
             update(Video)
@@ -126,10 +133,12 @@ async def archive_video(
         await session.rollback()
         logger.exception("Database error. Failed to archive video %s", video_id)
         raise HTTPException(status_code=500, detail="Failed to archive video.")
-
+    """
 
 @router.get("/require-user-action", response_model=list[video_schema.VideoActionRequiredResponse])
-async def get_videos_requiring_user_action(session: AsyncSession = Depends(get_db)):
+async def get_videos_requiring_user_action(video_service: VideoService = Depends(get_video_service)):
+    return await video_service.get_videos_requiring_user_action()
+    """
     stmt = await session.execute(
         select(Video)
         .options(
@@ -161,11 +170,12 @@ async def get_videos_requiring_user_action(session: AsyncSession = Depends(get_d
         )
 
     return response
-
-
+    """
 
 @router.get("/upload-history", response_model=list[video_schema.VideoUploadHistoryRead])
-async def get_upload_history(session: AsyncSession = Depends(get_db)):
+async def get_upload_history(video_service: VideoService = Depends(get_video_service)):
+    return await video_service.get_upload_history()
+    """
     result = await session.execute(
         select(Video)
         .options(
@@ -189,14 +199,17 @@ async def get_upload_history(session: AsyncSession = Depends(get_db)):
         )
         
     return response
+    """
     
 
 # Add query parameter for Draft/Published/Archived videos
 @router.get("/", response_model=list[video_schema.VideoRead])
 async def get_video_list(
     status: VideoPublicationStatusEnum | None = None,
-    session: AsyncSession = Depends(get_db)
+    video_service: VideoService = Depends(get_video_service)
 ):
+    return await video_service.list(status)
+    """
     # Get all video_ids
     query = select(Video).options(
         selectinload(Video.category),
@@ -211,10 +224,12 @@ async def get_video_list(
 
     result = await session.execute(query)
     return result.scalars().all()
+    """
 
-
-@router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_video(video_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
+@router.delete("/{video_id}")
+async def delete_video(video_id: uuid.UUID, video_service: VideoService = Depends(get_video_service)):
+    return await video_service.delete(video_id)
+    """
     stmt = await session.execute(
         select(Video)
         .options(
@@ -243,12 +258,13 @@ async def delete_video(video_id: uuid.UUID, session: AsyncSession = Depends(get_
         "message": "Video deleted successfully.",
         "video_id": str(video_id),
     }
-
+    """
 
 # Add query parameter for Draft/Published/Archived videos
 @router.get("/{video_id}", response_model=video_schema.VideoRead)
-async def get_video_detail(video_id: uuid.UUID, session: AsyncSession = Depends(get_db)):
-
+async def get_video_detail(video_id: uuid.UUID, video_service: VideoService = Depends(get_video_service)):
+    return await video_service.get_detail(video_id)
+    """
     result = await session.execute(
         select(Video).where(Video.id == video_id)
         .options(
@@ -265,7 +281,7 @@ async def get_video_detail(video_id: uuid.UUID, session: AsyncSession = Depends(
         raise HTTPException(status_code=404, detail=f"Video {video_id} not found!")
 
     return video
-
+    """
 
 @router.patch("/{video_id}/metadata", response_model=video_schema.VideoMetadataRead)
 async def update_video_metadata(
@@ -328,8 +344,6 @@ async def update_video_seo_data(
 
     if not video:
         raise HTTPException(status_code=404, detail=f"Video {video_id} not found.")
-
-    video_service = VideoService(video, session)
 
     # Without exclude_unset=True, PATCH requests may overwrite
     # existing fields with NULL.
