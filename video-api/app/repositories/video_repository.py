@@ -144,8 +144,14 @@ class VideoRepository:
         )
         return result.scalars().all()
 
-    async def get_with_events(self, video_id: UUID):
-        pass
+    async def get_with_transcripts(self, video_id: UUID):
+        result = await self.session.execute(
+            select(Video)
+            .options(selectinload(Video.video_transcripts))
+            .where(Video.id == video_id)
+        )
+    
+        return result.scalar_one_or_none()
 
     async def get_for_player(self, video_id: UUID):
         pass
@@ -312,3 +318,27 @@ class VideoRepository:
 
         # Return the updated video.
         return self.video
+
+
+    async def get_for_metadata(self, id:UUID):
+        result = await self.session.execute(
+            select(Video)
+            .options(
+                selectinload(Video.category),
+                selectinload(Video.series),
+                selectinload(Video.video_transcripts),
+            )
+            .where(Video.id == id)
+        )
+
+        return result.scalar_one_or_none()
+
+    async def get_for_seo(self, id: UUID):
+        result = await self.session.execute(
+            select(Video)
+            .options(selectinload(Video.video_transcripts))
+            .where(Video.id == id)
+        )
+
+        return result.scalar_one_or_none()
+    

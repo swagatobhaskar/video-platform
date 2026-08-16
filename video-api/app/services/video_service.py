@@ -1,26 +1,32 @@
 from uuid import UUID
 from datetime import datetime, UTC
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 from app.domain.video_manager import VideoManager
 from app.repositories.video_repository import VideoRepository
 from app.models import Video, VideoPublicationStatusEnum
-from app.exceptions.video import VideoPublishError, VideoNotFound, VideoArchiveFailed
+from app.exceptions.video import VideoPublishError, VideoNotFound, VideoArchiveFailed, DuplicateEntryError
 from app.core.database import AsyncSession
-from app.services.storage.r2_multipart_service import delete_video_segments
-from app.schemas.video_schema import VideoUploadHistoryRead
+from app.services.storage.r2_video_storage import R2VideoStorage
+from app.services.storage.image_service import ImageStorage
+from app.schemas.video_schema import VideoUploadHistoryRead, VideoMetadataUpdate, VideoSEOUpdate
+
+from app.core.config import get_settings
+settings = get_settings()
 
 class VideoService:
     def __init__(
         self,
         session: AsyncSession,
         video_repository: VideoRepository,
+        storage: R2VideoStorage,
         # manager: VideoManager should probably not be injected because the VideoManager is created for a particular Video
         # So you don't have a reusable manager instance to inject.
         # manager: VideoManager
     ):
         self.session = session
         self.video_repository = video_repository
+        self.storage = storage
         # self.manager = manager
 
 
@@ -107,10 +113,12 @@ class VideoService:
             raise
 
         # Delete storage objects only after DB deletion succeeds.
-        # await self.storage.delete_video_segments(
-        #     object_key,
-        #     thumbnail_key,
-        # )
+        if object_key:
+            self.storage.delete_video(object_key)
+
+        if thumbnail_key:
+            image_storage = ImageStorage()
+            image_storage.delete(thumbnail_key, settings.thumbnails_bucket)
         """
         Eventually, this is a good candidate for an asynchronous cleanup job:
 
@@ -192,3 +200,53 @@ class VideoService:
 
     async def get_admin_view(self, status: VideoPublicationStatusEnum | None = None):
         return await self.video_repository.get_for_admin(status)
+
+
+    async def update_transcript(self, id:UUID):
+        video = await self.video_repository.get_with_transcripts(id)
+
+        if not video:
+            raise VideoNotFound()
+
+
+    async def update_metadata(self, id:UUID, req:VideoMetadataUpdate):
+        video = await self.video_repository.get_for_metadata(id)
+
+        if not video:
+            raise VideoNotFound()
+
+        # Without exclude_unset=True, you would accidentally overwrite existing values with NULL.
+        update_data = req.model_dump(exclude_unset=True)
+        
+        try:
+            await self.video_repository.update_data(update_data)
+            return video
+    
+        except IntegrityError:
+            await self.session.rollback()
+            # raise HTTPException(status_code=400, detail="Invalid data. Update violates database constraints.")
+            raise DuplicateEntryError()
+    
+        except SQLAlchemyError:
+            await self.session.rollback()
+            # logger.exception("Database error while updating video %s", video_id)
+            raise
+
+    async def update_seo(self, id:UUID, req:VideoSEOUpdate):
+            video = await self.video_repository.get_for_seo(id)
+    
+            if not video:
+                raise VideoNotFound()
+    
+            # Without exclude_unset=True, you would accidentally overwrite existing values with NULL.
+            seo_data = req.model_dump(exclude_unset=True)
+            
+            try:
+                await self.video_repository.update_data(seo_data)
+                return video
+        
+            except SQLAlchemyError:
+                await self.session.rollback()
+                # logger.exception("Database error while updating video %s", video_id)
+                raise
+            

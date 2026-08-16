@@ -7,3 +7,5 @@ class VideoNotFound(Exception):
 class VideoArchiveFailed(Exception):
     pass
 
+class DuplicateEntryError(Exception):
+    pass

@@ -8,7 +8,7 @@ settings = get_settings()
 class R2MultipartService:
     BUCKET = settings.raw_videos_bucket
     def __init__(self, client=None): # client=s3
-        self.client = client or create_s3_client
+        self.client = client or create_s3_client()
 
     def create_multipart_upload(self, object_key: str, content_type: str):
         try:
@@ -77,27 +77,3 @@ class R2MultipartService:
             Key=object_key,
             UploadId=upload_id
         )
-
-    def delete_video_segments(self, object_key: str) -> int:
-        prefix = object_key.rsplit(".", 1)[0]  # Remove file extension
-
-        response = self.client.list_objects_v2(
-            Bucket=self.BUCKET,
-            Prefix=prefix
-        )
-
-        deleted_count = 0
-
-        for obj in response.get("Contents", []):
-            self.client.delete_object(
-                Bucket=self.BUCKET,
-                Key=obj["Key"]
-            )
-
-            deleted_count += 1
-
-            if response.get("Errors"):
-                raise RuntimeError(f"Failed to delete some objects: {response['Errors']}")
-        
-        return deleted_count
-    

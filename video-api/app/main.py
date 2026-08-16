@@ -31,10 +31,11 @@ from app.api.exception_handlers import (
     series_already_exists_handler,
     series_not_found_handler,
     storage_provider_error_handler,
+    video_metadata_duplicate_entry_handler,
 )
 
 from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
-from app.exceptions.video import VideoPublishError, VideoNotFound, VideoArchiveFailed
+from app.exceptions.video import VideoPublishError, VideoNotFound, VideoArchiveFailed, DuplicateEntryError
 from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
 from app.exceptions.upload import (
     UploadNotFound,
@@ -80,6 +81,11 @@ app.add_exception_handler(
 app.add_exception_handler(
     NewUploadCreationFailed,
     new_upload_creation_failed_handler,
+)
+
+app.add_exception_handler(
+    DuplicateEntryError,
+    video_metadata_duplicate_entry_handler,
 )
 
 app.add_exception_handler(

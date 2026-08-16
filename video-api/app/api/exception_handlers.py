@@ -1,7 +1,7 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from app.exceptions.video import VideoNotFound, VideoPublishError, VideoArchiveFailed
+from app.exceptions.video import VideoNotFound, VideoPublishError, VideoArchiveFailed, DuplicateEntryError
 from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
 from app.exceptions.upload import UploadNotFound, UploadAlreadyCompleted, NewUploadCreationFailed
 from app.exceptions.storage import StorageProviderError
@@ -101,6 +101,14 @@ async def video_archive_error_handler(
         content={"detail": "Failed to archive video"},
     )
 
+async def video_metadata_duplicate_entry_handler(
+    request: Request,
+    exc: DuplicateEntryError,
+):
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Duplicate entry."},
+    )
 
 async def video_already_linked_to_category_handler(
     request: Request,
