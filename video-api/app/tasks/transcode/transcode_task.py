@@ -16,7 +16,12 @@ from sqlalchemy import select
 
 from .utils import probe_video, generate_renditions, create_output_directories, build_ffmpeg_command
 from app.workers.celery_worker import celery
-from app.services.storage.base import s3
+from app.storage.base import s3
+from app.services.image_service import ImageProcessor
+from app.storage.image_storage import ImageStorage
+
+from app.services.video_service import VideoService
+from app.repositories.video_event_repository import VideoEventRepository
 
 from app.models import (
     Video, VideoEvent, VideoProcessingStatusEnum, TranscodeTask

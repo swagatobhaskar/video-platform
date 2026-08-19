@@ -7,8 +7,9 @@ from app.repositories.video_repository import VideoRepository
 from app.models import Video, VideoPublicationStatusEnum
 from app.exceptions.video import VideoPublishError, VideoNotFound, VideoArchiveFailed, DuplicateEntryError
 from app.core.database import AsyncSession
-from app.services.storage.r2_video_storage import R2VideoStorage
-from app.services.storage.image_service import ImageStorage
+from app.storage.r2_video_storage import R2VideoStorage
+from app.services.image_service import ImageProcessor
+from app.storage.image_storage import ImageStorage
 from app.schemas.video_schema import VideoUploadHistoryRead, VideoMetadataUpdate, VideoSEOUpdate
 
 from app.core.config import get_settings
@@ -75,15 +76,6 @@ class VideoService:
         #     await self.session.rollback()
         #     raise exc
         # but bare raise is preferable because it preserves the original traceback more cleanly.
-
-    async def update_transcript(self):
-        pass
-
-    async def update_seo(self):
-        pass
-
-    async def update_metadata(self):
-        pass
 
     async def get_detail(self, id: UUID):
         video = await self.video_repository.get_video_detail(id)
@@ -217,7 +209,9 @@ class VideoService:
 
         # Without exclude_unset=True, you would accidentally overwrite existing values with NULL.
         update_data = req.model_dump(exclude_unset=True)
-        
+
+        return await self.update_video_fields(id, update_data)
+        """
         try:
             await self.video_repository.update_data(update_data)
             return video
@@ -231,22 +225,99 @@ class VideoService:
             await self.session.rollback()
             # logger.exception("Database error while updating video %s", video_id)
             raise
+        """
 
     async def update_seo(self, id:UUID, req:VideoSEOUpdate):
-            video = await self.video_repository.get_for_seo(id)
+        video = await self.video_repository.get_for_seo(id)
+
+        if not video:
+            raise VideoNotFound()
+
+        # Without exclude_unset=True, you would accidentally overwrite existing values with NULL.
+        seo_data = req.model_dump(exclude_unset=True)
+
+        return await self.update_video_fields(id, seo_data)
+        """
+        try:
+            await self.video_repository.update_data(seo_data)
+            return video
     
-            if not video:
-                raise VideoNotFound()
+        except SQLAlchemyError:
+            await self.session.rollback()
+            # logger.exception("Database error while updating video %s", video_id)
+            raise
+        """
+
+    # Used for metadata and SEO update
+    async def update_video_fields(self, video_id: UUID, data: dict):
+        video = await self.video_repository.get(video_id)
+
+        if video is None:
+            raise VideoNotFound()
+
+        # If the client included a slug in the PATCH request,
+        # normalize and validate it.
+        if "slug" in data:
+            # Convert None to an empty string and remove leading/trailing whitespace.
+            slug = (data["slug"] or "").strip()
+
+            # If the slug is empty, regenerate it from the current title.
+            if not slug:
+                # Slug generation requires a title.
+                # This should rarely happen, but guard against it anyway.
+                if not video.title:
+                    raise ValueError("Cannot generate slug because the video has no title.")
+
+                # Generate a unique slug using the title already stored in the database.
+                data["slug"] = await self.video_repository.generate_unique_slug(video.title, exclude_video_id=video_id)
+            else:
+                # Store the cleaned-up slug back into the update payload.
+                data["slug"] = slug
+
+        # If the client changed the title but didn't explicitly provide a slug,
+        # automatically regenerate the slug from the new title.
+        elif "title" in data:
+            data["slug"] = await self.video_repository.generate_unique_slug(data["title"], exclude_video_id=video_id)
+
+        # If we're about to save a slug (either user-provided or auto-generated),
+        # ensure no other video already uses it.
+        if "slug" in data:
+            if await self.video_repository.slug_exists(
+                data["slug"],
+                exclude_video_id=self.video.id,
+            ):
+                raise ValueError("Slug already exists.")
+
+        VIDEO_UPDATEABLE_FIELDS = {
+            "title",
+            "description",
+            "slug",
+            "language",
+            "episode_number",
+            "meta_title",
+            "meta_description",
+            "meta_keywords",
+        }
+
+        # Apply every updated field to the SQLAlchemy model.
+        for field, value in data.items():
+            if field not in VIDEO_UPDATEABLE_FIELDS:
+                raise ValueError(f"Field '{field}' cannot be updated.")
+
+            setattr(self.video, field, value)
+
+        try:
+            video = await self.video_repository.update(video_id, **data)
+            await self.session.commit()
+
+
+        except IntegrityError:
+            await self.session.rollback()
+            raise DuplicateEntryError()
+
+        except SQLAlchemyError:
+            await self.session.rollback()
+            raise
+
+        return video
     
-            # Without exclude_unset=True, you would accidentally overwrite existing values with NULL.
-            seo_data = req.model_dump(exclude_unset=True)
-            
-            try:
-                await self.video_repository.update_data(seo_data)
-                return video
-        
-            except SQLAlchemyError:
-                await self.session.rollback()
-                # logger.exception("Database error while updating video %s", video_id)
-                raise
-            

@@ -1,10 +1,18 @@
 from io import BytesIO
-from fastapi import UploadFile, HTTPException, Depends
+from fastapi import UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
-from botocore.exceptions import ClientError
 
 # from .base import create_s3_client
 # from app.dependencies import get_s3_client
+
+"""
+⭐️ YouTube video thumbnails should be uploaded at a size of 3840 x 2160 pixels so that they are optimized for TV viewers on YouTube.
+This is heavily increased from the previous 1280 x 720 limit.
+YouTube thumbnails are a aspect ratio of 16:9 (same as widescreen video).
+The minimum width of YouTube thumbnails is 640 pixels.
+YouTube thumbnail files should be under 50MB.
+Supported image formats for thumbnails are JPG, GIF, or PNG.
+"""
 
 
 class ImageError(Exception):
@@ -179,35 +187,3 @@ class ImageProcessor:
         # These bytes can be passed directly to S3/R2 as the Body parameter.
         #return buffer.getvalue()  # returns bytes
         return buffer   # returns BytesIO, boto3.put_object() accepts file-like objects
-
-
-class ImageStorage:
-    # dependency injection is providing the s3 client where this class is used
-    def __init__(self, client=None):
-        self.client = client #or get_s3_client()
-
-    def upload(self, key: str, bucket: str, img_buffer: BytesIO) -> str:
-        img_buffer.seek(0)
-
-        try:
-            self.client.put_object(
-                Bucket=bucket,
-                Key=key,
-                Body=img_buffer,
-                ContentType="image/webp",
-            )
-            return key
-        except ClientError:
-            # logger.exception("Failed to upload image")
-            raise HTTPException(503, "Image upload failed")
-    
-
-    def delete(self, key: str, bucket: str) -> None:
-        try:
-            self.client.delete_object(
-                Bucket=bucket,
-                Key=key,
-            )
-        except ClientError:
-            # logger.exception("Failed to delete orphaned category image from R2: %s", image_key)
-            raise # raise what?

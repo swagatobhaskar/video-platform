@@ -268,58 +268,6 @@ class VideoRepository:
         # Return the first available unique slug.
         return slug
 
-    # Used for metadata and SEO update
-    async def update_data(self, data: dict):
-        # If the client included a slug in the PATCH request,
-        # normalize and validate it.
-        if "slug" in data:
-            # Convert None to an empty string and remove leading/trailing whitespace.
-            slug = (data["slug"] or "").strip()
-
-            # If the slug is empty, regenerate it from the current title.
-            if not slug:
-                # Slug generation requires a title.
-                # This should rarely happen, but guard against it anyway.
-                if not self.video.title:
-                    raise ValueError(
-                        "Cannot generate slug because the video has no title."
-                    )
-
-                # Generate a unique slug using the title already stored in the database.
-                data["slug"] = await self.generate_unique_slug(self.video.title)
-            else:
-                # Store the cleaned-up slug back into the update payload.
-                data["slug"] = slug
-
-        # If the client changed the title but didn't explicitly provide a slug,
-        # automatically regenerate the slug from the new title.
-        elif "title" in data:
-            data["slug"] = await self.generate_unique_slug(data["title"])
-
-        # If we're about to save a slug (either user-provided or auto-generated),
-        # ensure no other video already uses it.
-        if "slug" in data:
-            if await self.slug_exists(
-                data["slug"],
-                exclude_video_id=self.video.id,
-            ):
-                raise ValueError("Slug already exists.")
-
-        # Apply every updated field to the SQLAlchemy model.
-        for field, value in data.items():
-            setattr(self.video, field, value)
-
-        # Persist the changes to the database.
-        await self.session.commit()
-
-        # Reload the object so database-generated values (timestamps, etc.)
-        # are reflected on the model instance.
-        await self.session.refresh(self.video)
-
-        # Return the updated video.
-        return self.video
-
-
     async def get_for_metadata(self, id:UUID):
         result = await self.session.execute(
             select(Video)

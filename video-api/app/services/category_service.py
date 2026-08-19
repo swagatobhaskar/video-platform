@@ -7,7 +7,8 @@ from app.core.database import AsyncSession
 
 from app.repositories.category_repository import CategoryRepository
 from app.repositories.video_repository import VideoRepository
-from app.services.storage.image_service import ImageProcessor, ImageStorage
+from app.services.image_service import ImageProcessor
+from app.storage.image_storage import ImageStorage
 from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
 from app.exceptions.video import VideoNotFound
 
