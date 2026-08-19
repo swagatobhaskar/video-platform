@@ -69,6 +69,13 @@ services:
       - ./api/.env
     restart: unless-stopped
 
+  outbox-worker:
+    build: ./api
+    command: python -m api.app.workers.outbox_worker
+    depends_on:
+      - postgres
+      - redis
+
   redis:
     image: redis:8-alpine
     container_name: redis
