@@ -3,8 +3,8 @@ from fastapi import UploadFile, HTTPException, Depends
 from PIL import Image, ImageOps, UnidentifiedImageError
 from botocore.exceptions import ClientError
 
-from .base import create_s3_client
-from app.dependencies import get_s3_client
+# from .base import create_s3_client
+# from app.dependencies import get_s3_client
 
 
 class ImageError(Exception):
@@ -184,7 +184,7 @@ class ImageProcessor:
 class ImageStorage:
     # dependency injection is providing the s3 client where this class is used
     def __init__(self, client=None):
-        self.client = client or get_s3_client()
+        self.client = client #or get_s3_client()
 
     def upload(self, key: str, bucket: str, img_buffer: BytesIO) -> str:
         img_buffer.seek(0)

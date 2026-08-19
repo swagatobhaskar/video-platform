@@ -6,10 +6,10 @@ from sqlalchemy.exc import IntegrityError
 from typing import cast
 
 from app.schemas import user_schema
-from app.database.session import AsyncSession
-from app.utils.dependencies import get_current_user, get_db
+from app.core.database import AsyncSession
+from app.dependencies import get_current_user, get_db
 from app.utils import security
-from app.database.models import User
+from app.models import User
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 

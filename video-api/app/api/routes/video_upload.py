@@ -19,7 +19,8 @@ from app.workers.celery_worker import celery
 # from app.models import Video, TranscodeTask
 from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
 # from app.core.database import AsyncSession
-
+from app.exceptions.video import VideoNotFound
+from app.exceptions.transcodetask import TranscodeTaskMismatch, TranscodeTaskNotFound
 from app.repositories.video_repository import VideoRepository
 from app.repositories.transcode_repository import TranscodeRepository
 from app.services.upload_service import UploadService

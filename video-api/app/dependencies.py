@@ -11,12 +11,14 @@ from app.core.database import AsyncSessionLocal
 from app.core.database import AsyncSession
 from app.models import User
 
-from app.services.storage.base import create_s3_client
+# from app.services.storage.base import create_s3_client
 from app.services.storage.image_service import ImageProcessor, ImageStorage
 from app.services.upload_service import UploadService
 from app.services.category_service import CategoryService
 from app.services.series_service import SeriesService
 from app.services.video_service import VideoService
+from app.services.storage.client import get_s3_client
+from app.services.storage.r2_multipart_service import R2MultipartService
 
 from app.repositories.upload_repository import UploadRepository
 from app.repositories.video_repository import VideoRepository
@@ -106,6 +108,23 @@ def get_transcode_repository(session: AsyncSession = Depends(get_db)) -> Transco
 def get_category_repository(session: AsyncSession = Depends(get_db)) -> CategoryRepository:
     return CategoryRepository(session)
 
+
+def get_series_repository(
+    video_repo: VideoRepository,
+    session: AsyncSession = Depends(get_db),
+) -> SeriesRepository:
+    return SeriesRepository(session=session, video_repo=video_repo)
+
+def get_series_service(
+    session: AsyncSession = Depends(get_db),
+    series_repo: SeriesRepository = Depends(get_series_repository),
+) -> SeriesService:
+    return SeriesService(session=session, series_repo=series_repo)
+
+
+def get_image_storage():
+    return ImageStorage(client=get_s3_client())
+
 def get_image_storage():
     return ImageStorage(client=get_s3_client())
 
@@ -125,25 +144,7 @@ def get_category_service(
         image_storage=image_storage,
     )
 
-
-def get_series_repository(
-    video_repo: VideoRepository,
-    session: AsyncSession = Depends(get_db),
-) -> SeriesRepository:
-    return SeriesRepository(session=session, video_repo=video_repo)
-
-def get_series_service(
-    session: AsyncSession = Depends(get_db),
-    series_repo: SeriesRepository = Depends(get_series_repository),
-) -> SeriesService:
-    return SeriesService(session=session, series_repo=series_repo)
-
-
-@lru_cache
-def get_s3_client():
-    return create_s3_client()
-
-
-def get_image_storage():
-    return ImageStorage(client=get_s3_client())
-
+def get_r2_multipart_service(
+    client = Depends(get_s3_client),
+):
+    return R2MultipartService(client)

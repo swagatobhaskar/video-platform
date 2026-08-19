@@ -1,14 +1,14 @@
 from botocore.exceptions import ClientError
 
 from app.exceptions.storage import StorageProviderError
-from .base import create_s3_client
+# from .base import create_s3_client
 from app.core.config import get_settings
 settings = get_settings()
 
 class R2MultipartService:
     BUCKET = settings.raw_videos_bucket
     def __init__(self, client=None): # client=s3
-        self.client = client or create_s3_client()
+        self.client = client #or create_s3_client()
 
     def create_multipart_upload(self, object_key: str, content_type: str):
         try:

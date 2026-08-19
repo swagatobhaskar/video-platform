@@ -8,12 +8,12 @@ from jose.exceptions import JWTError
 from sqlalchemy.exc import SQLAlchemyError
 import secrets
 
-from app.utils.dependencies import get_db
-from app.database.models import User
-from app.database.session import AsyncSession
+from app.dependencies import get_db
+from app.models import User
+from app.core.database import AsyncSession
 from app.schemas import user_schema, auth_schema
 from app.utils import security, jwt_config
-from app.config import get_settings
+from app.core.config import get_settings
 
 settings = get_settings()
 

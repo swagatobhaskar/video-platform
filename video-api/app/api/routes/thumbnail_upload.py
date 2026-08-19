@@ -8,11 +8,11 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from botocore.exceptions import ClientError
 
 from app.utils.image_helper import convert_to_webp, upload_image_to_r2, validate_image, delete_image_from_r2
-from app.utils.dependencies import get_db
-from app.database.models import Video, VideoEvent
-from app.database.session import AsyncSession
+from app.dependencies import get_db
+from app.models import Video, VideoEvent
+from app.core.database import AsyncSession
 
-from app.config import get_settings
+from app.core.config import get_settings
 settings = get_settings()
 
 router = APIRouter(prefix="/api/thumbnail", tags=["thumbnail",])

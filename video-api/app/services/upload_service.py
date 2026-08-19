@@ -14,7 +14,7 @@ from app.repositories.outbox_repository import OutboxMessageRepository
 
 from app.schemas.r2_upload_schema import Part
 
-from app.services.storage.r2_storage_service import R2StorageService
+from app.services.storage.r2_multipart_service import R2MultipartService
 
 from app.exceptions.upload import NewUploadCreationFailed, UploadServiceError, UploadSessionNotFound
 from app.exceptions.storage import StorageProviderError
@@ -30,7 +30,7 @@ class UploadService:
         video_event_repository: VideoEventRepository,
         transcode_repository: TranscodeRepository,
         outbox_repository: OutboxMessageRepository,
-        storage_service: R2StorageService,
+        storage_service: R2MultipartService,
         session: AsyncSession,
     ):
         self.upload_repository = upload_repository
