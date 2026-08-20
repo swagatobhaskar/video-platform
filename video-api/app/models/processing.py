@@ -14,7 +14,6 @@ from .base import Base
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .video import Video
-    from .upload import UploadSession
 
 class VideoProcessingStatusEnum(enum.Enum):
     PENDING = "pending"
@@ -195,7 +194,6 @@ class OutboxMessage(Base):
             "available_at",
         ),
     )
-
 
     def __repr__(self) -> str:
             return f"<OutboxMessage(id={self.id}, event_type={self.event_type}, \

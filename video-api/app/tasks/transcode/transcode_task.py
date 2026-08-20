@@ -199,385 +199,319 @@ async def update_task(db, task, status, progress):
 #     await db.flush()  # Flush changes to the database without committing
 
 
-@celery.task(
-    bind=True,
-    # for long tasks
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    max_retries=3,
-    task_ignore_result=True,
-)
-def process_video_worker_operations(self, object_key: str, video_id: str, upload_session_id: str, upload_id: str, transcode_task_id: str):
-    asyncio.run(_process_video_worker_operations(self, object_key, video_id, upload_session_id, upload_id, transcode_task_id))
+# @celery.task(
+#     bind=True,
+#     # for long tasks
+#     autoretry_for=(Exception,),
+#     retry_backoff=True,
+#     max_retries=3,
+#     task_ignore_result=True,
+# )
+# def process_video_worker_operations(self, object_key: str, video_id: str, upload_session_id: str, upload_id: str, transcode_task_id: str):
+#     asyncio.run(_process_video_worker_operations(self, object_key, video_id, upload_session_id, upload_id, transcode_task_id))
 
-async def _process_video_worker_operations(
-    self,
-    object_key: str,
-    video_id: str,
-    upload_session_id: str,
-    upload_id: str,
-    transcode_task_id: str
-    # can't use Depends(get_db) here because Celery tasks are not FastAPI endpoints,
-    # they are normal Python functions. So, we need to manage the session manually.
-):
-    # ** file_name is object_key
+# async def _process_video_worker_operations(
+#     self,
+#     object_key: str,
+#     video_id: str,
+#     upload_session_id: str,
+#     upload_id: str,
+#     transcode_task_id: str
+#     # can't use Depends(get_db) here because Celery tasks are not FastAPI endpoints,
+#     # they are normal Python functions. So, we need to manage the session manually.
+# ):
+#     # ** file_name is object_key
 
-    # Load TranscodeTask
+#     # Load TranscodeTask
 
-    # If already completed:
-    #     return
+#     # If already completed:
+#     #     return
 
-    # If another worker is already processing it:
-    #     return / handle appropriately
+#     # If another worker is already processing it:
+#     #     return / handle appropriately
 
-    # Otherwise claim it and start processing
+#     # Otherwise claim it and start processing
     
-    with TemporaryDirectory(prefix="transcode_") as temp_dir:
+#     with TemporaryDirectory(prefix="transcode_") as temp_dir:
         
-        async with AsyncSessionLocal() as db:
-            # Find the transcode task from /complete-upload
-            result = await db.execute(select(TranscodeTask).where(TranscodeTask.id == transcode_task_id))
-            transcode_task = result.scalar_one_or_none()
+#         async with AsyncSessionLocal() as db:
+#             # Find the transcode task from /complete-upload
+#             result = await db.execute(select(TranscodeTask).where(TranscodeTask.id == transcode_task_id))
+#             transcode_task = result.scalar_one_or_none()
 
-            if not transcode_task:
-                raise ValueError(f"TranscodeTask {transcode_task_id} not found")
+#             if not transcode_task:
+#                 raise ValueError(f"TranscodeTask {transcode_task_id} not found")
             
-            try:
-                # Update the record of the task to the DB
-                transcode_task.task_id=self.request.id
-                transcode_task.worker_id=self.request.hostname # AKA hostname; the worker currently executing the task
-                transcode_task.progress_percent=10
-                transcode_task.started_at = datetime.now(UTC)
-                # db.add(transcode_task)  # Not needed, transcode_tsk instance is already attached to the session
-                await db.commit()
-                # await db.refresh(transcode_task)
-            except SQLAlchemyError:
-                logger.exception("Failed to update TranscodeTask record in the database.")
-                transcode_task.status = VideoProcessingStatusEnum.FAILED
-                transcode_task.error_message = "Database update failed"
-                transcode_task.finished_at = datetime.now(UTC)
-                await db.rollback()
-                raise ValueError("Failed to update TranscodeTask record in the database.")
+#             try:
+#                 # Update the record of the task to the DB
+#                 transcode_task.task_id=self.request.id
+#                 transcode_task.worker_id=self.request.hostname # AKA hostname; the worker currently executing the task
+#                 transcode_task.progress_percent=10
+#                 transcode_task.started_at = datetime.now(UTC)
+#                 # db.add(transcode_task)  # Not needed, transcode_tsk instance is already attached to the session
+#                 await db.commit()
+#                 # await db.refresh(transcode_task)
+#             except SQLAlchemyError:
+#                 logger.exception("Failed to update TranscodeTask record in the database.")
+#                 transcode_task.status = VideoProcessingStatusEnum.FAILED
+#                 transcode_task.error_message = "Database update failed"
+#                 transcode_task.finished_at = datetime.now(UTC)
+#                 await db.rollback()
+#                 raise ValueError("Failed to update TranscodeTask record in the database.")
 
-            temp_dir = Path(temp_dir)
-            # temporary video file path
-            video_path = temp_dir / Path(object_key).name
+#             temp_dir = Path(temp_dir)
+#             # temporary video file path
+#             video_path = temp_dir / Path(object_key).name
 
-            # Celery task state
-            self.update_state(
-                state="DOWNLOADING",
-                meta={"step": "downloading", "progress": 10}
-            )
+#             # Celery task state
+#             self.update_state(
+#                 state="DOWNLOADING",
+#                 meta={"step": "downloading", "progress": 10}
+#             )
 
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.DOWNLOADING_VIDEO, 10)
+#             await update_task(db, transcode_task, VideoProcessingStatusEnum.DOWNLOADING_VIDEO, 10)
 
-            # Add a VideoEvent record
-            await update_video_event_record(
-                db,
-                video_id=video_id,
-                event_type="SOURCE_VIDEO_DOWNLOAD_STARTED",
-                transcode_task_id=transcode_task.id,
-                payload={
-                    "upload_id": upload_id,
-                    "upload_session_id": upload_session_id,
-                    "object_key": object_key,
-                    "temp_dir": str(temp_dir),
-                    "worker_id": self.request.hostname,
-                    "task_id": self.request.id,
-                }    
-            )
+#             # Add a VideoEvent record
+#             await update_video_event_record(
+#                 db,
+#                 video_id=video_id,
+#                 event_type="SOURCE_VIDEO_DOWNLOAD_STARTED",
+#                 transcode_task_id=transcode_task.id,
+#                 payload={
+#                     "upload_id": upload_id,
+#                     "upload_session_id": upload_session_id,
+#                     "object_key": object_key,
+#                     "temp_dir": str(temp_dir),
+#                     "worker_id": self.request.hostname,
+#                     "task_id": self.request.id,
+#                 }    
+#             )
 
-            # download_from_r2(object_key, str(video))
-            await asyncio.to_thread(download_from_r2, object_key, str(video_path))
+#             # download_from_r2(object_key, str(video))
+#             await asyncio.to_thread(download_from_r2, object_key, str(video_path))
 
-            output_dir = temp_dir / "processed" / video_path.stem
-            output_dir.mkdir(parents=True, exist_ok=True)
+#             output_dir = temp_dir / "processed" / video_path.stem
+#             output_dir.mkdir(parents=True, exist_ok=True)
             
-            dash_dir = output_dir / "dash"
-            dash_dir.mkdir(parents=True, exist_ok=True)
+#             dash_dir = output_dir / "dash"
+#             dash_dir.mkdir(parents=True, exist_ok=True)
             
-            self.update_state(
-                state="PROBING",
-                meta={"step": "ffprobe", "progress": 30}
-            )
+#             self.update_state(
+#                 state="PROBING",
+#                 meta={"step": "ffprobe", "progress": 30}
+#             )
 
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.PROBING, 30)
+#             await update_task(db, transcode_task, VideoProcessingStatusEnum.PROBING, 30)
 
-            # ffprobe
-            # probe_result = probe_video(str(video))
-            probe_result = await asyncio.to_thread(probe_video, str(video_path))
+#             # ffprobe
+#             # probe_result = probe_video(str(video))
+#             probe_result = await asyncio.to_thread(probe_video, str(video_path))
             
-            # Update Video table with FFprobe result
-            result = await db.execute(select(Video).where(Video.id == video_id))
-            video_record = result.scalar_one_or_none()
+#             # Update Video table with FFprobe result
+#             result = await db.execute(select(Video).where(Video.id == video_id))
+#             video_record = result.scalar_one_or_none()
             
-            if video_record is None:
-                raise RuntimeError(f"Video with ID {video_id} not found in the database.")
+#             if video_record is None:
+#                 raise RuntimeError(f"Video with ID {video_id} not found in the database.")
             
-            video_record.fps = probe_result['fps'] # probe_result['width'] / probe_result['height']
-            video_record.width = probe_result['width']
-            video_record.height = probe_result['height']
-            video_record.codec = probe_result['codec']
-            video_record.bitrate = probe_result['bitrate']
-            video_record.duration_seconds = probe_result['duration']
-            # await db.commit()
+#             video_record.fps = probe_result['fps'] # probe_result['width'] / probe_result['height']
+#             video_record.width = probe_result['width']
+#             video_record.height = probe_result['height']
+#             video_record.codec = probe_result['codec']
+#             video_record.bitrate = probe_result['bitrate']
+#             video_record.duration_seconds = probe_result['duration']
+#             # await db.commit()
 
-          # Add a VideoEvent record
-            await update_video_event_record(
-                db,
-                video_id=video_id,
-                event_type="FFPROBE_COMPLETED",
-                transcode_task_id=transcode_task.id,
-                payload={
-                    "upload_id": upload_id,
-                    "upload_session_id": upload_session_id,
-                    "object_key": object_key,
-                    "temp_dir": str(temp_dir),
-                    "worker_id": self.request.hostname,
-                    "task_id": self.request.id,
-                    "probe_result": probe_result,
-                }    
-            )
+#           # Add a VideoEvent record
+#             await update_video_event_record(
+#                 db,
+#                 video_id=video_id,
+#                 event_type="FFPROBE_COMPLETED",
+#                 transcode_task_id=transcode_task.id,
+#                 payload={
+#                     "upload_id": upload_id,
+#                     "upload_session_id": upload_session_id,
+#                     "object_key": object_key,
+#                     "temp_dir": str(temp_dir),
+#                     "worker_id": self.request.hostname,
+#                     "task_id": self.request.id,
+#                     "probe_result": probe_result,
+#                 }    
+#             )
 
-            self.update_state(
-                state="TRANSCODING",
-                meta={"step": "ffmpeg", "progress": 50}
-            )
+#             self.update_state(
+#                 state="TRANSCODING",
+#                 meta={"step": "ffmpeg", "progress": 50}
+#             )
 
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.TRANSCODING, 50)
+#             await update_task(db, transcode_task, VideoProcessingStatusEnum.TRANSCODING, 50)
             
-            # transcode_video(video, probe_result, output_dir, dash_dir)
-            # await asyncio.to_thread(transcode_video, video, probe_result, output_dir, dash_dir)
+#             # transcode_video(video, probe_result, output_dir, dash_dir)
+#             # await asyncio.to_thread(transcode_video, video, probe_result, output_dir, dash_dir)
 
-            try:
-                transcode_result = await asyncio.to_thread(transcode_video, video_path, probe_result, output_dir, dash_dir)
-            except Exception as e:
-                transcode_task.status = VideoProcessingStatusEnum.FAILED
-                transcode_task.error_message = str(e)
-                transcode_task.finished_at = datetime.now(UTC)
-                await db.commit()
-                raise
+#             try:
+#                 transcode_result = await asyncio.to_thread(transcode_video, video_path, probe_result, output_dir, dash_dir)
+#             except Exception as e:
+#                 transcode_task.status = VideoProcessingStatusEnum.FAILED
+#                 transcode_task.error_message = str(e)
+#                 transcode_task.finished_at = datetime.now(UTC)
+#                 await db.commit()
+#                 raise
 
-            # Add a VideoEvent record
-            await update_video_event_record(
-                db,
-                video_id=video_id,
-                event_type="FFMPEG_TRANSCODE_COMPLETED",
-                transcode_task_id=transcode_task.id,
-                payload={
-                    "upload_id": upload_id,
-                    "upload_session_id": upload_session_id,
-                    "object_key": object_key,
-                    "temp_dir": str(temp_dir),
-                    "worker_id": self.request.hostname,
-                    "task_id": self.request.id,
-                    "transcode_result": transcode_result,
-                }    
-            )
+#             # Add a VideoEvent record
+#             await update_video_event_record(
+#                 db,
+#                 video_id=video_id,
+#                 event_type="FFMPEG_TRANSCODE_COMPLETED",
+#                 transcode_task_id=transcode_task.id,
+#                 payload={
+#                     "upload_id": upload_id,
+#                     "upload_session_id": upload_session_id,
+#                     "object_key": object_key,
+#                     "temp_dir": str(temp_dir),
+#                     "worker_id": self.request.hostname,
+#                     "task_id": self.request.id,
+#                     "transcode_result": transcode_result,
+#                 }    
+#             )
 
-            # Celery task state: Upload processed files
-            self.update_state(
-                state="UPLOADING",
-                meta={"step": "uploading", "progress": 70}
-            )
+#             # Celery task state: Upload processed files
+#             self.update_state(
+#                 state="UPLOADING",
+#                 meta={"step": "uploading", "progress": 70}
+#             )
 
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.UPLOADING, 70)
+#             await update_task(db, transcode_task, VideoProcessingStatusEnum.UPLOADING, 70)
 
-            # upload_errors = upload_output_directory_to_r2_bucket(
-            #     local_dir=output_dir,
-            #     video_object_key=video.stem,
-            # )
+#             # upload_errors = upload_output_directory_to_r2_bucket(
+#             #     local_dir=output_dir,
+#             #     video_object_key=video.stem,
+#             # )
 
-            # Use functools.partial with asyncio.to_thread if the function has multiple keyword arguments.
-            upload_errors = await asyncio.to_thread(
-                partial(upload_output_directory_to_r2_bucket, local_dir=output_dir, video_object_key=video_path.stem)
-            )
+#             # Use functools.partial with asyncio.to_thread if the function has multiple keyword arguments.
+#             upload_errors = await asyncio.to_thread(
+#                 partial(upload_output_directory_to_r2_bucket, local_dir=output_dir, video_object_key=video_path.stem)
+#             )
 
-            if upload_errors:
-                logger.error("Errors occurred during upload: %s", upload_errors)
-                raise RuntimeError(
-                    f"{len(upload_errors)} files failed to upload"
-                )
+#             if upload_errors:
+#                 logger.error("Errors occurred during upload: %s", upload_errors)
+#                 raise RuntimeError(
+#                     f"{len(upload_errors)} files failed to upload"
+#                 )
             
-            # Add a VideoEvent record
-            await update_video_event_record(
-                db,
-                video_id=video_id,
-                event_type="OUTPUT_SEGMENTS_UPLOADED",
-                transcode_task_id=transcode_task.id,
-                payload={
-                    "upload_id": upload_id,
-                    "upload_session_id": upload_session_id,
-                    "object_key": object_key,
-                    "worker_id": self.request.hostname,
-                    "task_id": self.request.id,
-                    "transcode_result": transcode_result,
-                }    
-            )
+#             # Add a VideoEvent record
+#             await update_video_event_record(
+#                 db,
+#                 video_id=video_id,
+#                 event_type="OUTPUT_SEGMENTS_UPLOADED",
+#                 transcode_task_id=transcode_task.id,
+#                 payload={
+#                     "upload_id": upload_id,
+#                     "upload_session_id": upload_session_id,
+#                     "object_key": object_key,
+#                     "worker_id": self.request.hostname,
+#                     "task_id": self.request.id,
+#                     "transcode_result": transcode_result,
+#                 }    
+#             )
 
-            # Add the object key to Video table
-            video_record.object_key = object_key
+#             # Add the object key to Video table
+#             video_record.object_key = object_key
 
-            # Important: Add a VideoEvent record after assigning the object_key
-            await update_video_event_record(
-                db,
-                video_id=video_id,
-                event_type="OBJECT_KEY ASSIGNED TO VIDEO",
-                transcode_task_id=transcode_task.id,
-                payload={
-                    "upload_id": upload_id,
-                    "object_key": object_key,
-                    "uploaded_file_name": object_key,
-                    "upload_session_id": upload_session_id,
-                    "worker_id": self.request.hostname,
-                    "task_id": self.request.id,
-                    "transcode_result": transcode_result,
-                }    
-            )
+#             # Important: Add a VideoEvent record after assigning the object_key
+#             await update_video_event_record(
+#                 db,
+#                 video_id=video_id,
+#                 event_type="OBJECT_KEY ASSIGNED TO VIDEO",
+#                 transcode_task_id=transcode_task.id,
+#                 payload={
+#                     "upload_id": upload_id,
+#                     "object_key": object_key,
+#                     "uploaded_file_name": object_key,
+#                     "upload_session_id": upload_session_id,
+#                     "worker_id": self.request.hostname,
+#                     "task_id": self.request.id,
+#                     "transcode_result": transcode_result,
+#                 }    
+#             )
             
-            self.update_state(
-                state="SOURCE_CLEANUP",
-                meta={"step": "source_cleanup", "progress": 90}
-            )
+#             self.update_state(
+#                 state="SOURCE_CLEANUP",
+#                 meta={"step": "source_cleanup", "progress": 90}
+#             )
 
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.CLEANUP, 90)
+#             await update_task(db, transcode_task, VideoProcessingStatusEnum.CLEANUP, 90)
 
-            # Delete from RAW bucket after successful processing and upload
+#             # Delete from RAW bucket after successful processing and upload
             
-            try:
-                # delete_original_video_from_bucket(object_key)
-                await asyncio.to_thread(delete_original_video_from_bucket, object_key)
+#             try:
+#                 # delete_original_video_from_bucket(object_key)
+#                 await asyncio.to_thread(delete_original_video_from_bucket, object_key)
                 
-                # Add a VideoEvent record
-                await update_video_event_record(
-                    db,
-                    video_id=video_id,
-                    event_type="ORIGINAL_VIDEO_DELETED",
-                    transcode_task_id=transcode_task.id,
-                    payload={
-                        "upload_id": upload_id,
-                        "upload_session_id": upload_session_id,
-                        "object_key": object_key,
-                        "worker_id": self.request.hostname,
-                        "task_id": self.request.id,
-                    }    
-                )
-            except Exception as e:
-                # transcode_task.status = VideoProcessingStatusEnum.FAILED
-                # await db.commit()
-                logger.exception("Failed deleting source file '%s' from RAW bucket", object_key)
-                # Not raising any exception because:
-                # Celery should not re-transcode if source file deletion fails
-                # Storage management will be handled later
+#                 # Add a VideoEvent record
+#                 await update_video_event_record(
+#                     db,
+#                     video_id=video_id,
+#                     event_type="ORIGINAL_VIDEO_DELETED",
+#                     transcode_task_id=transcode_task.id,
+#                     payload={
+#                         "upload_id": upload_id,
+#                         "upload_session_id": upload_session_id,
+#                         "object_key": object_key,
+#                         "worker_id": self.request.hostname,
+#                         "task_id": self.request.id,
+#                     }    
+#                 )
+#             except Exception as e:
+#                 # transcode_task.status = VideoProcessingStatusEnum.FAILED
+#                 # await db.commit()
+#                 logger.exception("Failed deleting source file '%s' from RAW bucket", object_key)
+#                 # Not raising any exception because:
+#                 # Celery should not re-transcode if source file deletion fails
+#                 # Storage management will be handled later
                 
-                # Add a VideoEvent record
-                await update_video_event_record(
-                    db,
-                    video_id=video_id,
-                    event_type="ORIGINAL_VIDEO_DELETE_FAILED",
-                    transcode_task_id=transcode_task.id,
-                    payload={
-                        "upload_id": upload_id,
-                        "upload_session_id": upload_session_id,
-                        "object_key": object_key,
-                        "worker_id": self.request.hostname,
-                        "task_id": self.request.id,
-                    }    
-                )
+#                 # Add a VideoEvent record
+#                 await update_video_event_record(
+#                     db,
+#                     video_id=video_id,
+#                     event_type="ORIGINAL_VIDEO_DELETE_FAILED",
+#                     transcode_task_id=transcode_task.id,
+#                     payload={
+#                         "upload_id": upload_id,
+#                         "upload_session_id": upload_session_id,
+#                         "object_key": object_key,
+#                         "worker_id": self.request.hostname,
+#                         "task_id": self.request.id,
+#                     }    
+#                 )
             
-            # Cleanup of tmp files not required
+#             # Cleanup of tmp files not required
 
-            self.update_state(
-                state="SUCCESS",
-                meta={"step": "completed", "progress": 100}
-            )
+#             self.update_state(
+#                 state="SUCCESS",
+#                 meta={"step": "completed", "progress": 100}
+#             )
 
-            await update_task(db, transcode_task, VideoProcessingStatusEnum.COMPLETED, 100)
+#             await update_task(db, transcode_task, VideoProcessingStatusEnum.COMPLETED, 100)
 
-            # Add a VideoEvent record
-            await update_video_event_record(
-                db,
-                video_id=video_id,
-                event_type="PROCESSING_COMPLETED",
-                transcode_task_id=transcode_task.id,
-                payload={
-                    "upload_id": upload_id,
-                    "upload_session_id": upload_session_id,
-                    "object_key": object_key,
-                    "worker_id": self.request.hostname,
-                    "task_id": self.request.id,
-                }    
-            )
+#             # Add a VideoEvent record
+#             await update_video_event_record(
+#                 db,
+#                 video_id=video_id,
+#                 event_type="PROCESSING_COMPLETED",
+#                 transcode_task_id=transcode_task.id,
+#                 payload={
+#                     "upload_id": upload_id,
+#                     "upload_session_id": upload_session_id,
+#                     "object_key": object_key,
+#                     "worker_id": self.request.hostname,
+#                     "task_id": self.request.id,
+#                 }    
+#             )
 
-            transcode_task.finished_at = datetime.now(UTC)
-            await db.commit()
+#             transcode_task.finished_at = datetime.now(UTC)
+#             await db.commit()
 
-    
-"""
-@celery.task(
-    bind=True,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    max_retries=3,
-    )
-def process_video_worker_operations(self, object_key: str):
-    
-    # Download the file from R2 to local storage.
-    local_download_path = f"/tmp/{Path(object_key)}" # f"/tmp/{Path(file_path).name}"
-    download_from_r2(object_key, local_download_path)
-
-    video = Path(local_download_path)
-
-    # Use the stem (filename without extension) as the folder name
-    output_dir = video.parent / "processed" / video.stem
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Now you can use output_dir to store DASH/HLS segments
-    # Example:
-    dash_dir = output_dir / "dash"
-    dash_dir.mkdir(parents=True, exist_ok=True)
-    
-    video = Path(local_download_path)
-    
-    # ffprobe
-    probe_result = probe_video(str(video))
-    
-    transcode_video(video, probe_result, output_dir, dash_dir)
-
-    upload_errors = upload_output_directory_to_r2_bucket(
-        local_dir=output_dir,
-        video_object_key=video.stem,
-    )
-    
-    if upload_errors:
-        logger.error("Errors occurred during upload: %s", upload_errors)
-        raise RuntimeError(
-            f"{len(upload_errors)} files failed to upload"
-        )
-    
-    # 1. Delete local tmp files: downloaded video as well as processed video segments and manifests
-    # 2. Remove the actual video from R2 bucket (optional, depending on your retention needs)
-    try:
-        # Delete local output directory (processed segments and manifests)
-        if output_dir.exists():
-            for item in output_dir.rglob("*"):
-                if item.is_file():
-                    item.unlink()
-            output_dir.rmdir()
-            logger.info("Deleted local output directory: %s", output_dir)
-
-        # Delete the downloaded source video
-        if video.exists():
-            video.unlink()
-            logger.info("Deleted local source video: %s", video)
-
-        # Optionally, delete the original uploaded file from R2
-        # s3.delete_object(Bucket=RAW_VIDEO_BUCKET, Key=object_key)
-        # logger.info("Deleted source file from R2: %s", object_key)
-
-    except Exception as e:
-        logger.warning("Cleanup failed: %s", e)
-"""
 
 @celery.task(
     bind=True,

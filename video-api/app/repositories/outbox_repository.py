@@ -1,7 +1,6 @@
 from uuid import UUID
-from sqlalchemy import select, update, func
-from sqlalchemy.orm import selectinload, joinedload
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy import select, func
+from sqlalchemy.exc import SQLAlchemyError
 import redis
 import kombu
 from datetime import datetime, timezone, timedelta

@@ -1,7 +1,7 @@
 from slugify import slugify
 from uuid import UUID
 from sqlalchemy import select, update
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload
 
 from app.core.database import AsyncSession
 from app.models import Video, VideoPublicationStatusEnum, UploadSession, TranscodeTask

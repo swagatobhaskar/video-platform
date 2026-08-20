@@ -1,7 +1,6 @@
 from uuid import UUID
-from sqlalchemy import select, update
-from sqlalchemy.orm import selectinload, joinedload
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.database import AsyncSession
 from app.models import Video, VideoEvent

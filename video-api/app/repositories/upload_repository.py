@@ -18,16 +18,8 @@ class UploadRepository:
 
     async def create(self, **data) -> UploadSession:
         upload_session = UploadSession(**data)
-
-        # try:
         self.session.add(upload_session)
         await self.session.flush()
-
-        # except SQLAlchemyError:
-            # log
-            # await self.session.rollback()  # Do not rollback inside the repository.
-            # raise NewUploadCreationFailed()
-
         return upload_session
 
     async def get_by_id(self, upload_session_id: UUID) -> UploadSession | None:
@@ -99,18 +91,11 @@ class UploadRepository:
             return None
 
         for key, value in data.items():
-
             # if key == upload_session.uploaded_parts_count:
-            #     setattr(upload_session, key, upload_session.uploaded_parts_count += 1)
-                
+            #     setattr(upload_session, key, upload_session.uploaded_parts_count += 1)    
             setattr(upload_session, key, value)
 
-        # try:
         await self.session.flush()
-        # except SQLAlchemyError:
-        #     await self.session.rollback()
-        #     raise 
-
         return upload_session
 
 
@@ -120,27 +105,15 @@ class UploadRepository:
         if upload_session is None:
             return False
 
-        # try:
         await self.session.delete(upload_session)
         await self.session.flush()
-        # except SQLAlchemyError:
-        #     await self.session.rollback()
-        #     raise
-
         return True
 
 
     async def create_part(self, **data) -> UploadPart:
         part = UploadPart(**data)
-
-        # try:
         self.session.add(part)
         await self.session.flush()
-        # except SQLAlchemyError:
-        #     # log
-        #     await self.session.rollback()
-        #     raise 
-
         return part
 
 
@@ -160,12 +133,7 @@ class UploadRepository:
         for key, value in data.items():
             setattr(part, key, value)
 
-        # try:
         await self.session.flush()
-        # except SQLAlchemyError:
-        #     await self.session.rollback()
-        #     raise
-
         return part
 
 

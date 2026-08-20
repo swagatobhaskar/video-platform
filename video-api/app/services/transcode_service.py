@@ -83,6 +83,15 @@ class TranscodeService:
     ):
         task = await self.transcode_repository.get(task_id)
 
+        claimed = await self.transcode_repository.claim(
+            task_id=task_id,
+            celery_task_id=celery_task_id,
+            worker_id=worker_id,
+        )
+
+        if not claimed:
+            return
+
         if not task:
             raise TranscodeTaskNotFound()
 
@@ -103,3 +112,4 @@ class TranscodeService:
             await self._cleanup_source(...)
 
             await self._complete(...)
+            
