@@ -67,41 +67,41 @@ def download_from_r2(object_key: str, local_download_path: str):
 
 
 # Helper function to upload .mpd, .m3u8, and .m4s chunks to Cloudflare R2 bucket
-def upload_output_directory_to_r2_bucket(
-    local_dir: str | Path,
-    video_object_key: str,
-):
+# def upload_output_directory_to_r2_bucket(
+#     local_dir: str | Path,
+#     video_object_key: str,
+# ):
     
-    PROCESSED_VIDEOS_BUCKET = settings.processed_videos_bucket
+#     PROCESSED_VIDEOS_BUCKET = settings.processed_videos_bucket
         
-    local_dir = Path(local_dir)
-    remote_prefix = Path(video_object_key).stem
+#     local_dir = Path(local_dir)
+#     remote_prefix = Path(video_object_key).stem
     
-    failed = []
+#     failed = []
     
-    for file_path in local_dir.rglob("*"):
-        if not file_path.is_file():
-            continue
+#     for file_path in local_dir.rglob("*"):
+#         if not file_path.is_file():
+#             continue
     
-        key = f"{remote_prefix}/{file_path.relative_to(local_dir)}".replace("\\", "/")
+#         key = f"{remote_prefix}/{file_path.relative_to(local_dir)}".replace("\\", "/")
     
-        try:
-            s3.upload_file(
-                str(file_path),
-                PROCESSED_VIDEOS_BUCKET,
-                key,
-            )
+#         try:
+#             s3.upload_file(
+#                 str(file_path),
+#                 PROCESSED_VIDEOS_BUCKET,
+#                 key,
+#             )
     
-        except Exception as e:
-            failed.append(
-                {
-                    "file": str(file_path),
-                    "key": key,
-                    "error": str(e),
-                }
-            )
+#         except Exception as e:
+#             failed.append(
+#                 {
+#                     "file": str(file_path),
+#                     "key": key,
+#                     "error": str(e),
+#                 }
+#             )
     
-    return failed
+#     return failed
 
 
 # Delete from R2 bucket after successful processing and upload 
@@ -182,21 +182,21 @@ async def update_task(db, task, status, progress):
     await db.flush()  # Flush changes to the database without committing
 
 
-async def update_video_event_record(db, video_id: str, event_type: str, payload: dict, transcode_task_id: str | None = None):
-    # if transcode_task_id:
-    #     transcode_task_id = transcode_task_id
+# async def update_video_event_record(db, video_id: str, event_type: str, payload: dict, transcode_task_id: str | None = None):
+#     # if transcode_task_id:
+#     #     transcode_task_id = transcode_task_id
 
-    video_event = VideoEvent(
-        event_type = event_type,
-        payload = payload,
-        video_id=video_id,
-        transcode_task_id = transcode_task_id if transcode_task_id else None
-    )
+#     video_event = VideoEvent(
+#         event_type = event_type,
+#         payload = payload,
+#         video_id=video_id,
+#         transcode_task_id = transcode_task_id if transcode_task_id else None
+#     )
 
-    db.add(video_event)
-    # No commit here. Commit will be done in the main task function after all operations are completed.
-    # await db.commit()
-    await db.flush()  # Flush changes to the database without committing
+#     db.add(video_event)
+#     # No commit here. Commit will be done in the main task function after all operations are completed.
+#     # await db.commit()
+#     await db.flush()  # Flush changes to the database without committing
 
 
 @celery.task(
@@ -578,3 +578,59 @@ def process_video_worker_operations(self, object_key: str):
     except Exception as e:
         logger.warning("Cleanup failed: %s", e)
 """
+
+@celery.task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
+    task_ignore_result=True,
+)
+def process_video_worker_operations(
+    self,
+    *,
+    object_key: str,
+    video_id: str,
+    upload_session_id: str,
+    upload_id: str,
+    transcode_task_id: str,
+):
+    asyncio.run(
+        _run_transcode(
+            self,
+            object_key=object_key,
+            video_id=video_id,
+            upload_session_id=upload_session_id,
+            upload_id=upload_id,
+            transcode_task_id=transcode_task_id,
+        )
+    )
+
+
+async def _run_transcode(self, **kwargs):
+
+    async with AsyncSessionLocal() as session:
+
+        transcode_repository = TranscodeRepository(session)
+        video_repository = VideoRepository(session)
+        event_repository = VideoEventRepository(session)
+
+        storage = R2VideoStorage(
+            client=get_s3_client()
+        )
+
+        transcoder = FFmpegVideoTranscoder()
+
+        service = TranscodeService(
+            transcode_repository=transcode_repository,
+            video_repository=video_repository,
+            video_event_repository=event_repository,
+            storage=storage,
+            transcoder=transcoder,
+        )
+
+        await service.process(
+            **kwargs,
+            celery_task_id=self.request.id,
+            worker_id=self.request.hostname,
+        )

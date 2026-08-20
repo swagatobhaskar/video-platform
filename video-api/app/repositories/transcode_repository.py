@@ -42,3 +42,40 @@ class TranscodeRepository:
         await self.session.flush()
         # the repository doesn't need to know about the rollback. The transaction handles it.
         return transcode_task
+    """
+    await transcode_repository.mark_started(
+        task_id,
+        celery_task_id=...,
+        worker_id=...,
+    )
+
+    await transcode_repository.mark_downloading(
+        task_id,
+        progress=10,
+    )
+
+    await transcode_repository.mark_probing(
+        task_id,
+        progress=30,
+    )
+
+    await transcode_repository.mark_transcoding(
+        task_id,
+        progress=50,
+    )
+
+    await transcode_repository.mark_uploading(
+        task_id,
+        progress=70,
+    )
+
+    await transcode_repository.mark_completed(
+        task_id,
+    )
+
+    await transcode_repository.mark_failed(
+        task_id,
+        error=str(exc),
+    )
+    """
+    

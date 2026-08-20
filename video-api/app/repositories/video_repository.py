@@ -289,4 +289,8 @@ class VideoRepository:
         )
 
         return result.scalar_one_or_none()
-    
+
+    async def update_technical_metadata(self, video_id: UUID, *, fps: float, width: int,
+        height: int, codec: str, bitrate: int, duration_seconds: float
+    ) -> Video | None:
+        pass

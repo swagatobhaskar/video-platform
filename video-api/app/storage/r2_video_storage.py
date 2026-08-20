@@ -1,4 +1,5 @@
 from botocore.exceptions import ClientError
+from pathlib import Path
 
 from app.exceptions.storage import StorageProviderError
 from .base import create_s3_client
@@ -11,6 +12,47 @@ class R2VideoStorage:
 
     def __init__(self, client=None):
         self.client = client or create_s3_client()
+
+    def download_source(self, object_key: str, destination: str) -> None:
+        return self.client.download_file(
+            settings.raw_videos_bucket,
+            object_key,
+            destination
+        )
+
+    def upload_processed(self, local_dir: Path, object_key: str) -> None:
+        BUCKET = settings.processed_videos_bucket
+                
+        local_dir = Path(local_dir)
+        remote_prefix = Path(object_key).stem
+        
+        failed = []
+        
+        for file_path in local_dir.rglob("*"):
+            if not file_path.is_file():
+                continue
+        
+            key = f"{remote_prefix}/{file_path.relative_to(local_dir)}".replace("\\", "/")
+        
+            try:
+                self.client.upload_file(str(file_path), BUCKET, key)
+        
+            except Exception as e:
+                failed.append(
+                    {
+                        "file": str(file_path),
+                        "key": key,
+                        "error": str(e),
+                    }
+                )
+        
+        return failed
+
+    def delete_source(self, object_key: str) -> None:
+        self.client.delete_object(
+            Bucket=settings.raw_videos_bucket,
+            Key=object_key,
+        )
 
     def delete_video(self, object_key: str) -> int:
         prefix = f"{object_key}/dash/"
