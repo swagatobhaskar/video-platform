@@ -1,6 +1,6 @@
 from uuid import UUID
 from sqlalchemy import select, update
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from datetime import datetime, UTC
 
 from app.core.database import AsyncSession
 from app.models import TranscodeTask, VideoProcessingStatusEnum
@@ -21,61 +21,139 @@ class TranscodeRepository:
         return result.scalar_one_or_none()
 
 
-    async def create(self, **data):
-        transcode_task = TranscodeTask(**data)
-
-        self.session.add(transcode_task)
+    async def create(self, **data) -> TranscodeTask:
+        task = TranscodeTask(**data)
+        self.session.add(task)
         await self.session.flush()
-
-        return transcode_task
+        return task
     
 
     async def update(self, transcode_task_id: UUID, **data) -> TranscodeTask | None:
-        transcode_task = await self.get(transcode_task_id)
+        task = await self.get(transcode_task_id)
         
-        if transcode_task_id is None:
+        if task is None:
             return None
 
         for key, value in data.items():
-            setattr(transcode_task, key, value)
+            setattr(task, key, value)
 
         await self.session.flush()
-        # the repository doesn't need to know about the rollback. The transaction handles it.
-        return transcode_task
-    """
-    await transcode_repository.mark_started(
-        task_id,
-        celery_task_id=...,
-        worker_id=...,
-    )
+        return task
 
-    await transcode_repository.mark_downloading(
-        task_id,
-        progress=10,
-    )
 
-    await transcode_repository.mark_probing(
-        task_id,
-        progress=30,
-    )
+    async def claim(self, *, task_id: UUID, celery_task_id: str, worker_id: str) -> bool:
+        """
+        Atomically claim the transcode task.
 
-    await transcode_repository.mark_transcoding(
-        task_id,
-        progress=50,
-    )
+        Returns:
+            True  -> this worker successfully claimed it
+            False -> another worker already claimed/completed it
+        """
+        now = datetime.now()
 
-    await transcode_repository.mark_uploading(
-        task_id,
-        progress=70,
-    )
+        stmt = (
+            update(TranscodeTask)
+            .where(
+                TranscodeTask.id == task_id,
+                TranscodeTask.status.in_(
+                    [
+                        VideoProcessingStatusEnum.PENDING,
+                        VideoProcessingStatusEnum.QUEUED,
+                    ]
+                ),
+            )
+            .values(
+                status=VideoProcessingStatusEnum.DOWNLOADING_VIDEO,
+                task_id=celery_task_id,
+                worker_id=worker_id,
+                started_at=now,
+                heartbeat_at=now,
+                progress_percent=10,
+                error_message=None,
+            )
+        )
 
-    await transcode_repository.mark_completed(
-        task_id,
-    )
+        result = await self.session.execute(stmt)
+        await self.session.commit()
+        return result.rowcount == 1
 
-    await transcode_repository.mark_failed(
-        task_id,
-        error=str(exc),
-    )
-    """
-    
+
+    async def _update_progress(self, task_id: UUID, status: VideoProcessingStatusEnum, progress: int):
+        await self.update(
+            task_id,
+            status=status,
+            progress_percent=progress,
+            heartbeat_at=datetime.now(UTC),
+        )
+
+        await self.session.commit()
+
+
+    async def mark_downloading(self, task_id: UUID, progress: int =10) -> None:
+        await self._update_progress(
+            task_id,
+            VideoProcessingStatusEnum.DOWNLOADING_VIDEO,
+            progress,
+        )
+
+
+    async def mark_probing(self, task_id: UUID, progress: int = 30) -> None:
+        await self._update_progress(
+            task_id,
+            VideoProcessingStatusEnum.PROBING,
+            progress,
+        )
+
+
+    async def mark_transcoding(self, task_id: UUID, progress: int = 50) -> None:
+        await self._update_progress(
+            task_id,
+            VideoProcessingStatusEnum.TRANSCODING,
+            progress,
+        )
+
+
+    async def mark_uploading(self, task_id: UUID, progress: int = 70) -> None:
+        await self._update_progress(
+            task_id,
+            VideoProcessingStatusEnum.UPLOADING,
+            progress,
+        )
+
+
+    async def mark_cleanup(self, task_id: UUID, progress: int = 90) -> None:
+        await self._update_progress(
+            task_id,
+            VideoProcessingStatusEnum.CLEANUP,
+            progress,
+        )
+
+
+    async def mark_completed(self, task_id: UUID) -> None:
+        now = datetime.now(UTC)
+
+        await self.update(
+            task_id,
+            status=VideoProcessingStatusEnum.COMPLETED,
+            progress_percent=100,
+            finished_at=now,
+            heartbeat_at=now,
+            error_message=None,
+        )
+
+        await self.session.commit()
+
+
+    async def mark_failed(self, task_id: UUID, error: str) -> None:
+        now = datetime.now(UTC)
+
+        await self.update(
+            task_id,
+            status=VideoProcessingStatusEnum.FAILED,
+            error_message=error,
+            finished_at=now,
+            heartbeat_at=now,
+        )
+
+        await self.session.commit()
+

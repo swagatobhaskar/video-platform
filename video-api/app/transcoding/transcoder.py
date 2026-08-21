@@ -1,12 +1,14 @@
+from abc import ABC, abstractmethod
 from pathlib import Path
 
-class VideoTranscoder:
+# make the base class an interface/abstract class.
+class VideoTranscoder(ABC):
 
-    def __init__(self):
+    @abstractmethod
+    def probe(self, video_path: Path) -> dict:
         pass
 
-    def probe(self, video_path: Path) -> dict:
-        return probe_video(str(video_path))
-
+    @abstractmethod
     def transcode(self, video_path: Path, probe_result: dict, output_dir: Path) -> dict:
         pass
+    

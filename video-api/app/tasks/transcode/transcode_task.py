@@ -1,31 +1,24 @@
-from fastapi import HTTPException
-from pathlib import Path
-from botocore.exceptions import (
-    ClientError, BotoCoreError, EndpointConnectionError, NoCredentialsError
-)
-from app.core.database import engine, AsyncSessionLocal
-from sqlalchemy.exc import SQLAlchemyError
-import os
-from tempfile import TemporaryDirectory
 import logging
 import asyncio
-from datetime import datetime, UTC
-from functools import partial
+from uuid import UUID
 
-from sqlalchemy import select
-
-from .utils import probe_video, generate_renditions, create_output_directories, build_ffmpeg_command
-from app.workers.celery_worker import celery
-from app.storage.base import s3
-from app.services.image_service import ImageProcessor
-from app.storage.image_storage import ImageStorage
-
-from app.services.video_service import VideoService
+from app.core.database import AsyncSessionLocal
+from app.repositories.transcode_repository import TranscodeRepository
+from app.repositories.video_repository import VideoRepository
 from app.repositories.video_event_repository import VideoEventRepository
+from app.services.transcode_service import TranscodeService
+from app.storage.client import get_s3_client
+from app.storage.r2_video_storage import R2VideoStorage
+from app.transcoding.ffmpeg_transcoder import FFmpegVideoTranscoder
+from app.workers.celery_worker import celery
 
-from app.models import (
-    Video, VideoEvent, VideoProcessingStatusEnum, TranscodeTask
-)
+# from fastapi import HTTPException
+# from pathlib import Path
+# import os
+# from functools import partial
+
+logger = logging.getLogger(__name__)
+
 
 from app.core.config import get_settings
 settings = get_settings()
@@ -33,38 +26,73 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
-# Helper function to download mp4 files from Cloudflare R2 bucket
-def download_from_r2(object_key: str, local_download_path: str):
-    
-    RAW_VIDEO_BUCKET = settings.raw_videos_bucket
-    
-    try:
-        s3.download_file(
-            RAW_VIDEO_BUCKET,
-            object_key,
-            local_download_path
+@celery.task(
+    bind=True,
+    # For now, remove Celery's automatic retry and let the Outbox/retry architecture evolve separately.
+    # Once the basic system is working, we can implement proper retry semantics.
+    # I wouldn't add three different retry mechanisms simultaneously.
+    # autoretry_for=(Exception,),
+    # retry_backoff=True,
+    # max_retries=3,
+    task_ignore_result=True,
+)
+def process_video_worker_operations(
+    self, *, 
+    object_key: str, video_id: str, upload_id: str,
+    upload_session_id: str, transcode_task_id: str,
+):
+    asyncio.run(
+        _run_transcode(
+            self,
+            object_key=object_key,
+            video_id=video_id,
+            upload_session_id=upload_session_id,
+            upload_id=upload_id,
+            transcode_task_id=transcode_task_id,
         )
-    
-    except ClientError as e:
-        code = e.response["Error"]["Code"]
+    )
 
-        if code == "NoSuchKey":
-            raise HTTPException(
-                status_code=404,
-                detail="Video not found"
+
+async def _run_transcode(
+    celery_task, *, object_key: str, video_id: str,
+    upload_session_id: str, upload_id: str, transcode_task_id: str
+):
+    async with AsyncSessionLocal() as session:
+
+        transcode_repository = TranscodeRepository(session)
+        video_repository = VideoRepository(session)
+        event_repository = VideoEventRepository(session)
+        storage = R2VideoStorage(client=get_s3_client())
+        transcoder = FFmpegVideoTranscoder()
+
+        service = TranscodeService(
+            transcode_repository=transcode_repository,
+            video_repository=video_repository,
+            video_event_repository=event_repository,
+            storage=storage,
+            transcoder=transcoder,
+        )
+
+        def update_celery_state(state: str, progress: int):
+            celery_task.update_state(
+                state=state,
+                meta={
+                    "step": state.lower(),
+                    "progress": progress,
+                },
             )
 
-        raise HTTPException(
-            status_code=500,
-            detail=f"R2 download failed: {code}"
+        await service.process(
+            task_id=UUID(transcode_task_id),
+            video_id=UUID(video_id),
+            object_key=object_key,
+            upload_id=upload_id,
+            upload_session_id=upload_session_id,
+            celery_task_id=celery_task.request.id,
+            worker_id=celery_task.request.hostname,
+            progress_callback=update_celery_state,
         )
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error: {str(e)}"
-        )
-
+        
 
 # Helper function to upload .mpd, .m3u8, and .m4s chunks to Cloudflare R2 bucket
 # def upload_output_directory_to_r2_bucket(
@@ -103,83 +131,6 @@ def download_from_r2(object_key: str, local_download_path: str):
     
 #     return failed
 
-
-# Delete from R2 bucket after successful processing and upload 
-def delete_original_video_from_bucket(object_key: str) -> None:
-    RAW_VIDEO_BUCKET: str = 'raw-video-upload-bucket'
-    
-    s3.delete_object(
-        Bucket=RAW_VIDEO_BUCKET,
-        Key=object_key
-    )
-    
-    logger.info("Deleted source file '%s' from RAW bucket.", object_key)
-
-
-#
-# Transcode helper function.
-# 
-def transcode_video(video: Path, probe_result: dict, output_dir: Path, dash_dir: Path):
-    
-    import subprocess
-        
-    # generate renditions
-    renditions = generate_renditions(
-        probe_result["height"]
-    )
-    
-    # Create directories
-    create_output_directories(
-        OUTPUT_ROOT=output_dir
-    )
-
-    cmd = build_ffmpeg_command(
-        input_file=str(video),
-        output_dir=dash_dir,
-        renditions=renditions,
-        fps=probe_result["fps"]
-    )
-    
-    # Execute FFmpeg
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True
-    )
-    
-    # Log FFmpeg stdout and stderr
-    if result.stdout:
-        logger.info("FFmpeg stdout:\n%s", result.stdout)
-    if result.stderr:
-        logger.info("FFmpeg stderr:\n%s", result.stderr)
-        
-    # Raise if FFmpeg failed
-    result.check_returncode()
-     
-    # NOT REQUIRD HERE
-    # # Delete original uploaded file. After result.check_returncode()
-    # try:
-    #     os.remove(local_download_path)
-    #     logger.info("Deleted source file: %s", local_download_path)
-    # except Exception as e:
-    #     logger.warning("Failed to delete source file: %s", e)
-    
-    return {
-        "status": "completed",
-        # "input": str(video),
-        # "output": str(manifest_path),
-        "manifest": str(dash_dir / "manifest.mpd"),
-        "hls_master": str(dash_dir / "master.m3u8"),
-        "metadata": probe_result,
-    }
-
-
-async def update_task(db, task, status, progress):
-    task.status = status
-    task.progress_percent = progress
-    task.heartbeat_at = datetime.now(UTC)
-    # await db.commit()
-    await db.flush()  # Flush changes to the database without committing
 
 
 # async def update_video_event_record(db, video_id: str, event_type: str, payload: dict, transcode_task_id: str | None = None):
@@ -512,59 +463,3 @@ async def update_task(db, task, status, progress):
 #             transcode_task.finished_at = datetime.now(UTC)
 #             await db.commit()
 
-
-@celery.task(
-    bind=True,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    max_retries=3,
-    task_ignore_result=True,
-)
-def process_video_worker_operations(
-    self,
-    *,
-    object_key: str,
-    video_id: str,
-    upload_session_id: str,
-    upload_id: str,
-    transcode_task_id: str,
-):
-    asyncio.run(
-        _run_transcode(
-            self,
-            object_key=object_key,
-            video_id=video_id,
-            upload_session_id=upload_session_id,
-            upload_id=upload_id,
-            transcode_task_id=transcode_task_id,
-        )
-    )
-
-
-async def _run_transcode(self, **kwargs):
-
-    async with AsyncSessionLocal() as session:
-
-        transcode_repository = TranscodeRepository(session)
-        video_repository = VideoRepository(session)
-        event_repository = VideoEventRepository(session)
-
-        storage = R2VideoStorage(
-            client=get_s3_client()
-        )
-
-        transcoder = FFmpegVideoTranscoder()
-
-        service = TranscodeService(
-            transcode_repository=transcode_repository,
-            video_repository=video_repository,
-            video_event_repository=event_repository,
-            storage=storage,
-            transcoder=transcoder,
-        )
-
-        await service.process(
-            **kwargs,
-            celery_task_id=self.request.id,
-            worker_id=self.request.hostname,
-        )

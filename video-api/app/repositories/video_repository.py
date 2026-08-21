@@ -290,7 +290,25 @@ class VideoRepository:
 
         return result.scalar_one_or_none()
 
-    async def update_technical_metadata(self, video_id: UUID, *, fps: float, width: int,
+    async def update_technical_metadata(
+        self, video_id: UUID, *, fps: float, width: int,
         height: int, codec: str, bitrate: int, duration_seconds: float
     ) -> Video | None:
-        pass
+        result = await self.session.execute(
+            select(Video).where(Video.id == video_id)
+        )
+
+        video = result.scalar_one_or_none()
+
+        if video is None:
+            return None
+
+        video.fps = fps
+        video.width = width
+        video.height = height
+        video.codec = codec
+        video.bitrate = bitrate
+        video.duration_seconds = duration_seconds
+
+        await self.session.flush()
+        return video
