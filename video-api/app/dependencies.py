@@ -22,6 +22,7 @@ from app.services.video_service import VideoService
 from app.storage.image_storage import ImageStorage
 from app.storage.client import get_s3_client
 from app.storage.r2_multipart_service import R2MultipartService
+from app.storage.r2_video_storage import R2VideoStorage
 
 from app.repositories.video_event_repository import VideoEventRepository
 from app.repositories.upload_repository import UploadRepository
@@ -97,14 +98,18 @@ def get_upload_service(
 ) -> UploadService:
     return UploadService(repo, session)
 
+def get_video_storage() -> R2VideoStorage:
+    return R2VideoStorage()
+
 def get_video_repository(session: AsyncSession = Depends(get_db)) -> VideoRepository:
     return VideoRepository(session)
 
 def get_video_service(
     session: AsyncSession = Depends(get_db),
     video_repo: VideoRepository = Depends(get_video_repository),
+    storage: R2VideoStorage = Depends(get_video_storage),
 ) -> VideoService:
-    return VideoService(session=session, video_repository=video_repo)
+    return VideoService(session=session, video_repository=video_repo, storage=storage)
 
 def get_transcode_repository(session: AsyncSession = Depends(get_db)) -> TranscodeRepository:
     return TranscodeRepository(session)

@@ -8,7 +8,6 @@ from app.models import Video, VideoPublicationStatusEnum
 from app.exceptions.video import VideoPublishError, VideoNotFound, VideoArchiveFailed, DuplicateEntryError
 from app.core.database import AsyncSession
 from app.storage.r2_video_storage import R2VideoStorage
-from app.services.image_service import ImageProcessor
 from app.storage.image_storage import ImageStorage
 from app.schemas.video_schema import VideoUploadHistoryRead, VideoMetadataUpdate, VideoSEOUpdate
 

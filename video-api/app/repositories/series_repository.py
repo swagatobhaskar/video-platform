@@ -12,7 +12,7 @@ class SeriesRepository:
 
     async def list(self) -> list[Series]:
         result = await self.session.execute(select(Series))
-        return result.scalara().all()
+        return result.scalars().all()
 
     async def get(self, id: uuid.UUID):
         result = await self.session.execute(
