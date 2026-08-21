@@ -1,16 +1,10 @@
 import logging
 import uuid
-from fastapi import APIRouter, HTTPException, Depends, File, UploadFile
-from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import select
-# from sqlalchemy.orm import selectinload, joinedload
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from botocore.exceptions import ClientError
+from fastapi import APIRouter, Depends, File, UploadFile
 
-from app.utils.image_helper import convert_to_webp, upload_image_to_r2, validate_image, delete_image_from_r2
-from app.dependencies import get_db
-from app.models import Video, VideoEvent
-from app.core.database import AsyncSession
+from app.services.thumbnail_upload_service import ThumbnailUploadService
+from app.dependencies import get_thumbnail_upload_service
+
 
 from app.core.config import get_settings
 settings = get_settings()
@@ -25,8 +19,11 @@ THUMBNAIL_BUCKET = settings.thumbnails_bucket
 async def upload_video_thumbnail(
     video_id: uuid.UUID,
     thumbnail_image: UploadFile = File(),
-    session: AsyncSession = Depends(get_db),
+    thumbnail_upload_service: ThumbnailUploadService = Depends(get_thumbnail_upload_service)
 ):
+    return await thumbnail_upload_service.upload(video_id, thumbnail_image)
+
+    """
     if not thumbnail_image:
         raise HTTPException(400, "Thumbnail image not found in request.")
     
@@ -96,14 +93,16 @@ async def upload_video_thumbnail(
                 logger.exception("Failed to delete orphaned thumbnail from R2: %s", thumbnail_key)
 
         raise HTTPException(status_code=500, detail="Could not save thumbnail upload.")
-
+    """
 
 @router.patch("/video/{video_id}/upload")
 async def change_video_thumbnail(
     video_id: uuid.UUID,
     thumbnail_image: UploadFile = File(),
-    session: AsyncSession = Depends(get_db),
+    thumbnail_upload_service: ThumbnailUploadService = Depends(get_thumbnail_upload_service),
 ):
+    return await thumbnail_upload_service.update(video_id, thumbnail_image)
+    """
     new_thumbnail_image = thumbnail_image
     
     if not new_thumbnail_image:
@@ -185,3 +184,4 @@ async def change_video_thumbnail(
                 logger.exception("Failed to delete orphaned new thumbnail from R2: %s", new_thumbnail_key)
 
         raise HTTPException(status_code=500, detail="Could not save thumbnail upload.")
+    """

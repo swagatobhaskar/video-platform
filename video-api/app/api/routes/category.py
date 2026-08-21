@@ -15,7 +15,6 @@ from app.schemas import category_schema
 # from app.database.session import AsyncSession
 from app.dependencies import get_current_user, get_category_repository, get_category_service
 from app.services.category_service import CategoryService
-from app.utils import security
 # from app.models import Video, Category
 from app.core.config import get_settings
 

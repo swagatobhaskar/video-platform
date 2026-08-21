@@ -7,7 +7,6 @@ from fastapi import Depends
 from app.services.video_service import VideoService
 from app.schemas import video_schema
 from app.dependencies import get_current_user, get_db, get_video_service
-from app.utils import security
 from app.models import VideoPublicationStatusEnum
 
 from app.core.config import get_settings

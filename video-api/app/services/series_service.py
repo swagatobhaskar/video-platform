@@ -123,3 +123,4 @@ class SeriesService:
             raise
 
         return await self.series_repo.get_with_videos(series_id)
+    

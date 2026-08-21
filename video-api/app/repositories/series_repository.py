@@ -4,12 +4,11 @@ from sqlalchemy.orm import selectinload
 
 from app.models import Series, Video
 from app.core.database import AsyncSession
-from app.repositories.video_repository import VideoRepository
+
 
 class SeriesRepository:
-    def __init__(self, session: AsyncSession, video_repo:VideoRepository):
+    def __init__(self, session: AsyncSession):
         self.session = session
-        self.video_repo = video_repo
 
     async def list(self) -> list[Series]:
         result = await self.session.execute(select(Series))
@@ -54,32 +53,3 @@ class SeriesRepository:
 
         await self.session.flush()
 
-    async def add_video(self, series_id: uuid.UUID, video_id: uuid.UUID) -> Series:
-        series = await self.get(series_id)
-
-        if not series:
-            return None
-
-        video = await self.video_repo.get(video_id)
-
-        if not video:
-            return None
-
-        video.series = series
-
-        await self.session.flush()
-
-    async def remove_video(self, series_id: uuid.UUID, video_id: uuid.UUID) -> Series:
-        series = await self.get(series_id)
-        
-        if not series:
-            return None
-
-        video = await self.video_repo.get(video_id)
-
-        if not video:
-            return None
-
-        video.series != series
-
-        await self.session.flush()

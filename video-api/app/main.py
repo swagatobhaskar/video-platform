@@ -32,13 +32,22 @@ from app.api.exception_handlers import (
     series_not_found_handler,
     storage_provider_error_handler,
     video_metadata_duplicate_entry_handler,
+    no_image_in_request_handler,
+    thumbnail_already_exists_handler,
 )
 
 from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
-from app.exceptions.video import VideoPublishError, VideoNotFound, VideoArchiveFailed, DuplicateEntryError
+from app.exceptions.video import (
+    VideoPublishError,
+    VideoNotFound,
+    VideoArchiveFailed,
+    DuplicateEntryError,
+    NoImageInRequest,
+    ThumbnailAlreadyExists
+)
 from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
 from app.exceptions.upload import (
-    UploadNotFound,
+    UploadSessionNotFound,
     UploadAlreadyCompleted,
     NewUploadCreationFailed,
 )
@@ -69,7 +78,7 @@ app.add_middleware(
 )
 
 app.add_exception_handler(
-    UploadNotFound,
+    UploadSessionNotFound,
     upload_not_found_handler,
 )
 
@@ -131,6 +140,16 @@ app.add_exception_handler(
 app.add_exception_handler(
     SeriesAlreadyExists,
     series_already_exists_handler,
+)
+
+app.add_exception_handler(
+    NoImageInRequest,
+    no_image_in_request_handler,
+)
+
+app.add_exception_handler(
+    ThumbnailAlreadyExists,
+    thumbnail_already_exists_handler,
 )
 
 app.include_router(UserRouter)

@@ -9,3 +9,12 @@ class VideoArchiveFailed(Exception):
 
 class DuplicateEntryError(Exception):
     pass
+
+
+# Thumbnail upload
+class NoImageInRequest(Exception):
+    pass
+
+class ThumbnailAlreadyExists(Exception):
+    pass
+

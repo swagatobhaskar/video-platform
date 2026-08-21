@@ -4,21 +4,10 @@ import logging
 from fastapi import APIRouter, HTTPException, Depends # , File, UploadFile, Form
 from celery.result import AsyncResult
 from sqlalchemy import select
-# from sqlalchemy.orm import selectinload, joinedload
-# from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-# from fastapi.responses import JSONResponse
-# from botocore.exceptions import ClientError
-# import kombu
-# import redis
-# from datetime import datetime, timezone
 
-# from app.utils.r2_helper import s3
 from app.dependencies import get_upload_service, get_video_repository, get_transcode_repository
-# from app.tasks.transcode.transcode_task import process_video_worker_operations
 from app.workers.celery_worker import celery
-# from app.models import Video, TranscodeTask
 from app.schemas.r2_upload_schema import CompleteRequest, Part, PartRequest, InitiateUploadRequest, AbortRequest
-# from app.core.database import AsyncSession
 from app.exceptions.video import VideoNotFound
 from app.exceptions.transcodetask import TranscodeTaskMismatch, TranscodeTaskNotFound
 from app.repositories.video_repository import VideoRepository

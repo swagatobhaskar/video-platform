@@ -7,11 +7,9 @@ from fastapi import status, Depends
 import logging
 
 from app.schemas import series_schema
-# from app.core.database import AsyncSession
 from app.services.series_service import SeriesService
 from app.dependencies import get_current_user, get_series_service
-from app.utils import security
-# from app.models import Video, Series
+
 # from app.core.config import get_settings
 # settings = get_settings()
 

@@ -8,7 +8,7 @@ from typing import cast
 from app.schemas import user_schema
 from app.core.database import AsyncSession
 from app.dependencies import get_current_user, get_db
-from app.utils import security
+from app.core.security import hash_password, verify_password
 from app.models import User
 
 router = APIRouter(prefix="/api/user", tags=["user"])
@@ -85,14 +85,14 @@ async def update_profile(
         # Update password if old_password is provided
         if updated_user_data.old_password:
             # Verify old password
-            if not security.verify_password(updated_user_data.old_password, fetched_user.hashed_password):
+            if not verify_password(updated_user_data.old_password, fetched_user.hashed_password):
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect old password!")
 
             # Hash the new password before saving it
             # Use cast(str, ...) to tell the type checker "this is now a string."
             # And, not None, as is in the schema- Optional[str].
             # Since, hash_password() doesn't accept None.
-            fetched_user.hashed_password = security.hash_password(cast(str, updated_user_data.new_password))
+            fetched_user.hashed_password = hash_password(cast(str, updated_user_data.new_password))
 
         await session.commit()
         await session.refresh(fetched_user)

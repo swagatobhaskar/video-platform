@@ -1,6 +1,4 @@
 from fastapi import HTTPException, Request, Response, Depends, APIRouter, Query, status, Cookie
-# from fastapi.security import OAuth2PasswordRequestForm
-# from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from datetime import timedelta
 from jose import jwt
@@ -12,7 +10,8 @@ from app.dependencies import get_db
 from app.models import User
 from app.core.database import AsyncSession
 from app.schemas import user_schema, auth_schema
-from app.utils import security, jwt_config
+from app.core.security import hash_password, verify_password
+from app.core.jwt_config import create_access_token, create_refresh_token
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -34,18 +33,18 @@ async def register(
     try:
         new_user = User(
             email = new_user_data.email,
-            hashed_password = security.hash_password(new_user_data.password)
+            hashed_password = hash_password(new_user_data.password)
         )
         session.add(new_user)
         await session.commit()
         await session.refresh(new_user)
         # Create JWT
-        access_token = jwt_config.create_access_token(
+        access_token = create_access_token(
             data = {"sub": str(new_user.id)},
             expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
         )
         
-        refresh_token = jwt_config.create_refresh_token(
+        refresh_token = create_refresh_token(
             data = {"sub": str(new_user.id)},
             expires_delta = timedelta(days=settings.refresh_token_expire_days)
         )
@@ -118,15 +117,15 @@ async def login(
     result = await session.execute(select(User).where(User.email == login_data.email))
     user = result.scalar_one_or_none()
     
-    if not user or not security.verify_password(login_data.password, user.hashed_password):
+    if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid Credentials!")
     
     try:
-        access_token = jwt_config.create_access_token(
+        access_token = create_access_token(
             data = {"sub": str(user.id)},
             expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
         )
-        refresh_token = jwt_config.create_refresh_token(
+        refresh_token = create_refresh_token(
             data = {"sub": str(user.id)},
             expires_delta = timedelta(days=settings.refresh_token_expire_days)
         )
@@ -199,7 +198,7 @@ async def refresh_token(response: Response, request: Request, session: AsyncSess
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found!")
         
-        access_token = jwt_config.create_access_token(data={"sub": str(user.id)})
+        access_token = create_access_token(data={"sub": str(user.id)})
         
         # Send a new access token as cookie
         response.set_cookie(

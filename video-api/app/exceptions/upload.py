@@ -6,7 +6,7 @@ class NewUploadCreationFailed(UploadServiceError):
     """Failed to create a new upload record."""
 
 
-class UploadNotFound(UploadServiceError):
+class UploadSessionNotFound(UploadServiceError):
     """Upload session does not exist."""
 
 

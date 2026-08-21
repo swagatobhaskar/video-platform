@@ -13,14 +13,17 @@ from app.models import User
 
 # from app.services.storage.base import create_s3_client
 from app.services.image_service import ImageProcessor
-from app.storage.image_storage import ImageStorage
+from app.services.thumbnail_upload_service import ThumbnailUploadService
 from app.services.upload_service import UploadService
 from app.services.category_service import CategoryService
 from app.services.series_service import SeriesService
 from app.services.video_service import VideoService
+
+from app.storage.image_storage import ImageStorage
 from app.storage.client import get_s3_client
 from app.storage.r2_multipart_service import R2MultipartService
 
+from app.repositories.video_event_repository import VideoEventRepository
 from app.repositories.upload_repository import UploadRepository
 from app.repositories.video_repository import VideoRepository
 from app.repositories.transcode_repository import TranscodeRepository
@@ -111,17 +114,25 @@ def get_category_repository(session: AsyncSession = Depends(get_db)) -> Category
 
 
 def get_series_repository(
-    video_repo: VideoRepository,
     session: AsyncSession = Depends(get_db),
 ) -> SeriesRepository:
-    return SeriesRepository(session=session, video_repo=video_repo)
+    return SeriesRepository(session=session)
 
 def get_series_service(
     session: AsyncSession = Depends(get_db),
     series_repo: SeriesRepository = Depends(get_series_repository),
+    video_repo: VideoRepository = Depends(get_video_repository),
 ) -> SeriesService:
-    return SeriesService(session=session, series_repo=series_repo)
+    return SeriesService(
+        session=session,
+        series_repo=series_repo,
+        video_repo=video_repo
+    )
 
+def get_video_event_repository(
+    session: AsyncSession = Depends(get_db),
+) -> VideoEventRepository:
+    return VideoEventRepository(session=session)
 
 def get_image_storage():
     return ImageStorage(client=get_s3_client())
@@ -149,3 +160,19 @@ def get_r2_multipart_service(
     client = Depends(get_s3_client),
 ):
     return R2MultipartService(client)
+
+def get_thumbnail_upload_service(
+    session: AsyncSession = Depends(get_db),
+    video_repository: VideoRepository = Depends(get_video_repository),
+    image_processor: ImageProcessor = Depends(get_image_processor),
+    image_storage: ImageStorage = Depends(get_image_storage),
+    video_event_repository: VideoEventRepository = Depends(get_video_event_repository),
+) -> ThumbnailUploadService:
+    return ThumbnailUploadService(
+        session,
+        video_repository,
+        video_event_repository,
+        image_processor,
+        image_storage
+    )
+
