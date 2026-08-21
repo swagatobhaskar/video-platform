@@ -5,15 +5,10 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from app.services.thumbnail_upload_service import ThumbnailUploadService
 from app.dependencies import get_thumbnail_upload_service
 
-
-from app.core.config import get_settings
-settings = get_settings()
-
 router = APIRouter(prefix="/api/thumbnail", tags=["thumbnail",])
 
 logger = logging.getLogger(__name__)
 
-THUMBNAIL_BUCKET = settings.thumbnails_bucket
 
 @router.post("/video/{video_id}/upload", status_code=201)
 async def upload_video_thumbnail(
@@ -185,3 +180,4 @@ async def change_video_thumbnail(
 
         raise HTTPException(status_code=500, detail="Could not save thumbnail upload.")
     """
+    
