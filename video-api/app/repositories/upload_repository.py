@@ -8,8 +8,6 @@ class UploadRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    # NO BUSINESS LOGIC HERE. ONLY DB LEVEL NAMES AND OPERATIONS
-
     async def create(self, **data) -> UploadSession:
         upload_session = UploadSession(**data)
         self.session.add(upload_session)

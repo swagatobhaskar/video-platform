@@ -62,100 +62,102 @@ async def initiate_upload(
         fileSizeBytes=req.fileSizeBytes,
         totalParts=req.totalParts,
     )
-    # upload_id = None
-    # object_key = None
+    """
+    upload_id = None
+    object_key = None
 
-    # try:
+    try:
         # Use {UUID}-{filename} instead of just filename
-        # import uuid
-        # object_key = f"{uuid.uuid4()}" #-{req.fileName}"
+        import uuid
+        object_key = f"{uuid.uuid4()}" #-{req.fileName}"
        
-        # response = s3.create_multipart_upload(
-        #     Bucket=RAW_VIDEO_BUCKET,
-        #     Key=object_key,
-        #     ContentType=req.contentType
-        # )
-        # print("Initiate Upload Response: ", response)
-        # upload_id = response["UploadId"]
+        response = s3.create_multipart_upload(
+            Bucket=RAW_VIDEO_BUCKET,
+            Key=object_key,
+            ContentType=req.contentType
+        )
+        print("Initiate Upload Response: ", response)
+        upload_id = response["UploadId"]
 
         # Get the video
-        # result = await session.execute(
-        #     select(Video).where(Video.id == video_id)
-        # )
-        # video = result.scalar_one_or_none()
+        result = await session.execute(
+            select(Video).where(Video.id == video_id)
+        )
+        video = result.scalar_one_or_none()
 
-        # if not video:
-        #     raise HTTPException(
-        #         status_code=404,
-        #         detail="No video found with this id."
-        #     )
+        if not video:
+            raise HTTPException(
+                status_code=404,
+                detail="No video found with this id."
+            )
 
-        # video.title=req.fileName
+        video.title=req.fileName
 
-        # # session.add(video)
-        # await session.flush()
+        # session.add(video)
+        await session.flush()
 
         # get the upload_session that was created when selecting the file
-        # stmt = select(UploadSession).where(
-        #     UploadSession.id == req.uploadSessionId,
-        #     UploadSession.video_id == video_id
-        # )
+        stmt = select(UploadSession).where(
+            UploadSession.id == req.uploadSessionId,
+            UploadSession.video_id == video_id
+        )
 
-        # result = await session.execute(stmt)
-        # upload_session = result.scalar_one_or_none()
+        result = await session.execute(stmt)
+        upload_session = result.scalar_one_or_none()
 
-        # if not upload_session:
-        #     raise HTTPException(status_code=404, detail="Upload session not found for the given uploadSessionId and video id")
+        if not upload_session:
+            raise HTTPException(status_code=404, detail="Upload session not found for the given uploadSessionId and video id")
 
-        # upload_session.object_key=object_key
-        # upload_session.video_upload_id=upload_id
-        # upload_session.file_size_bytes=req.fileSizeBytes
-        # upload_session.mime_type=req.contentType
-        # upload_session.original_filename=req.fileName
-        # upload_session.total_parts=req.totalParts
-        # upload_session.status=UploadSessionStatusEnum.UPLOADING
+        upload_session.object_key=object_key
+        upload_session.video_upload_id=upload_id
+        upload_session.file_size_bytes=req.fileSizeBytes
+        upload_session.mime_type=req.contentType
+        upload_session.original_filename=req.fileName
+        upload_session.total_parts=req.totalParts
+        upload_session.status=UploadSessionStatusEnum.UPLOADING
 
-        # video_event = VideoEvent(
-        #     video_id=video_id,
-        #     event_type="UPLOAD_INITIATED",
-        #     payload = {
-        #         "upload_id": upload_id,
-        #         "object_key": object_key,
-        #         "file_name": req.fileName,
-        #         "file_size_bytes": req.fileSizeBytes,
-        #         "content_type": req.contentType,
-        #         "total_parts": req.totalParts,
-        #         "upload_session_id": str(req.uploadSessionId),
-        #     }
-        # )
+        video_event = VideoEvent(
+            video_id=video_id,
+            event_type="UPLOAD_INITIATED",
+            payload = {
+                "upload_id": upload_id,
+                "object_key": object_key,
+                "file_name": req.fileName,
+                "file_size_bytes": req.fileSizeBytes,
+                "content_type": req.contentType,
+                "total_parts": req.totalParts,
+                "upload_session_id": str(req.uploadSessionId),
+            }
+        )
 
-        # session.add(video_event)
-        # await session.commit()
-        # await session.refresh(upload_session)
+        session.add(video_event)
+        await session.commit()
+        await session.refresh(upload_session)
 
-        # return {
-        #     "uploadId": upload_id,
-        #     "key": object_key,
-        # }
+        return {
+            "uploadId": upload_id,
+            "key": object_key,
+        }
 
-    # except Exception as e:
-    #     await session.rollback()    
+    except Exception as e:
+        await session.rollback()    
     
-    #     # Clean up R2 multipart upload if it was created
-    #     if upload_id and object_key:
-    #         try:
-    #             s3.abort_multipart_upload(
-    #                 Bucket=RAW_VIDEO_BUCKET,
-    #                 Key=object_key,
-    #                 UploadId=upload_id
-    #             )
-    #         except Exception:
-    #             pass
+        # Clean up R2 multipart upload if it was created
+        if upload_id and object_key:
+            try:
+                s3.abort_multipart_upload(
+                    Bucket=RAW_VIDEO_BUCKET,
+                    Key=object_key,
+                    UploadId=upload_id
+                )
+            except Exception:
+                pass
         
-    #     raise HTTPException(
-    #         status_code=500,
-    #         detail=f"Failed to initiate upload: {str(e)}"
-    #     )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to initiate upload: {str(e)}"
+        )
+    """
 
 
 @router.post("/{video_id}/get-presigned-url")
@@ -171,37 +173,38 @@ async def get_presigned_url(
         object_key=req.key,
         part_number=req.partNumber
     )
-
-    # url = s3.generate_presigned_url(
-    #     ClientMethod="upload_part",
-    #     Params={
-    #         "Bucket": RAW_VIDEO_BUCKET,
-    #         "Key": req.key,
-    #         "UploadId": req.uploadId,
-    #         "PartNumber": req.partNumber,
-    #     },
-    #     ExpiresIn=3600,
-    # )
+    """
+    url = s3.generate_presigned_url(
+        ClientMethod="upload_part",
+        Params={
+            "Bucket": RAW_VIDEO_BUCKET,
+            "Key": req.key,
+            "UploadId": req.uploadId,
+            "PartNumber": req.partNumber,
+        },
+        ExpiresIn=3600,
+    )
     
-    # try:
-        # video_event = VideoEvent(
-        #     video_id = video_id,
-        #     event_type="GENERATED_PRESIGNED_URL",
-        #     payload={
-        #         "upload_id": req.uploadId,
-        #         "object_key": req.key,
-        #         "part_number": req.partNumber
-        #     }
-        # )
+    try:
+        video_event = VideoEvent(
+            video_id = video_id,
+            event_type="GENERATED_PRESIGNED_URL",
+            payload={
+                "upload_id": req.uploadId,
+                "object_key": req.key,
+                "part_number": req.partNumber
+            }
+        )
 
-    #     session.add(video_event)
-    #     await session.commit()
-    # except SQLAlchemyError as e:
-    #     await session.rollback()
-    #     logger.exception("VideoEvent creation failed at /get-presigned-url.")
+        session.add(video_event)
+        await session.commit()
+    except SQLAlchemyError as e:
+        await session.rollback()
+        logger.exception("VideoEvent creation failed at /get-presigned-url.")
     
-    # print("Generated presigned URL: ", url)
-    # return {"uploadUrl": url}
+    print("Generated presigned URL: ", url)
+    return {"uploadUrl": url}
+    """
 
 
 def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):

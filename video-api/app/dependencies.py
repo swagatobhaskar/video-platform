@@ -22,6 +22,7 @@ from app.storage.client import get_s3_client
 from app.storage.r2_multipart_service import R2MultipartService
 from app.storage.r2_video_storage import R2VideoStorage
 
+from app.repositories.outbox_repository import OutboxMessageRepository
 from app.repositories.video_event_repository import VideoEventRepository
 from app.repositories.upload_repository import UploadRepository
 from app.repositories.video_repository import VideoRepository
@@ -108,16 +109,10 @@ def get_image_processor():
     return ImageProcessor()
 
 # --------------------------------------------------------------
-# UploadSession
+# Outbox
 # --------------------------------------------------------------
-def get_upload_repository(session: AsyncSession = Depends(get_db)) -> UploadRepository:
-    return UploadRepository(session)
-
-def get_upload_service(
-    repo: UploadRepository = Depends(get_upload_repository),
-    session: AsyncSession = Depends(get_db)
-) -> UploadService:
-    return UploadService(repo, session)
+def get_outbox_repository(session: AsyncSession = Depends(get_db)) -> OutboxMessageRepository:
+    return OutboxMessageRepository(session)
 
 # --------------------------------------------------------------
 # Video
@@ -201,4 +196,31 @@ def get_thumbnail_upload_service(
         video_event_repository,
         image_processor,
         image_storage
+    )
+
+# --------------------------------------------------------------
+# UploadSession
+# --------------------------------------------------------------
+def get_upload_repository(session: AsyncSession = Depends(get_db)) -> UploadRepository:
+    return UploadRepository(session)
+
+def get_upload_service(
+    upload_repo: UploadRepository = Depends(get_upload_repository),
+    session: AsyncSession = Depends(get_db),
+    video_repo: VideoRepository = Depends(get_video_repository),
+    video_event_repository: VideoEventRepository = Depends(get_video_event_repository),
+    transcode_repository: TranscodeRepository = Depends(get_transcode_repository),
+    outbox_repository: OutboxMessageRepository = Depends(get_outbox_repository),
+    # video_service: VideoService = Depends(get_video_storage),
+    r2_multipart_service: R2MultipartService = Depends(get_r2_multipart_service),
+) -> UploadService:
+    return UploadService(
+        session,
+        upload_repo,
+        video_repo,
+        video_event_repository,
+        transcode_repository,
+        outbox_repository,
+        # video_service,
+        r2_multipart_service,
     )

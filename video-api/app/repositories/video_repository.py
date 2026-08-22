@@ -65,8 +65,6 @@ class VideoRepository:
             **extra
         )
         self.session.add(video)
-        # await self.session.commit()
-        # await self.session.refresh(video)
         await self.session.flush()
         return video
 

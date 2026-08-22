@@ -1,9 +1,7 @@
 import uuid
 from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from datetime import datetime, timezone, UTC
-import redis
-import kombu
+from datetime import datetime, timezone
 
 from app.core.database import AsyncSession
 from app.repositories.upload_repository import UploadRepository
@@ -25,21 +23,21 @@ from app.models import UploadSessionStatusEnum, VideoProcessingStatusEnum
 class UploadService:
     def __init__(
         self,
+        session: AsyncSession,
         upload_repository: UploadRepository,
         video_repository: VideoRepository,
         video_event_repository: VideoEventRepository,
         transcode_repository: TranscodeRepository,
         outbox_repository: OutboxMessageRepository,
         storage_service: R2MultipartService,
-        session: AsyncSession,
     ):
+        self.session = session
         self.upload_repository = upload_repository
         self.video_repository = video_repository
         self.video_event_repository = video_event_repository
         self.transcode_repository = transcode_repository
         self.outbox_repository = outbox_repository
         self.storage_service = storage_service
-        self.session = session
 
 
     async def new_upload_record(self):
@@ -52,6 +50,7 @@ class UploadService:
 
             # Commit both operations as one transaction
             await self.session.commit()
+            await self.session.refresh(video)
 
             return {
                 "success": True,

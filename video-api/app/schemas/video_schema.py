@@ -325,8 +325,8 @@ class VideoUploadHistoryRead(BaseModel):
 
 class VideoAdminRead(BaseModel):
     # these fields aren't in VideoRead
-    upload_session: UploadSessionRead = Field(default_factory=list)
-    transcode_task: TranscodeTaskRead = Field(default_factory=list)
+    upload_session: UploadSessionRead | None = None
+    transcode_task: TranscodeTaskRead | None = None
     video_events: list[VideoEventRead] = Field(default_factory=list)
 
 
