@@ -4,14 +4,12 @@ from typing import AsyncGenerator
 from fastapi import Request, HTTPException, status, Depends
 from jose import JWTError, jwt
 import uuid
-from functools import lru_cache
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.database import AsyncSession
 from app.models import User
 
-# from app.services.storage.base import create_s3_client
 from app.services.image_service import ImageProcessor
 from app.services.thumbnail_upload_service import ThumbnailUploadService
 from app.services.upload_service import UploadService
@@ -87,8 +85,31 @@ def verify_csrf(request: Request):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid CSRF token! Value does not match with X-CSRF-Header!"
         )
+# --------------------------------------------------------------
+# R2 Video Storage
+# --------------------------------------------------------------
+def get_video_storage() -> R2VideoStorage:
+    return R2VideoStorage()
 
+def get_r2_multipart_service(
+    client = Depends(get_s3_client),
+):
+    return R2MultipartService(client)
+# --------------------------------------------------------------
+# R2 Image Storage
+# --------------------------------------------------------------
+def get_image_storage():
+    return ImageStorage(client=get_s3_client())
 
+# --------------------------------------------------------------
+# Image Processor
+# --------------------------------------------------------------
+def get_image_processor():
+    return ImageProcessor()
+
+# --------------------------------------------------------------
+# UploadSession
+# --------------------------------------------------------------
 def get_upload_repository(session: AsyncSession = Depends(get_db)) -> UploadRepository:
     return UploadRepository(session)
 
@@ -98,9 +119,9 @@ def get_upload_service(
 ) -> UploadService:
     return UploadService(repo, session)
 
-def get_video_storage() -> R2VideoStorage:
-    return R2VideoStorage()
-
+# --------------------------------------------------------------
+# Video
+# --------------------------------------------------------------
 def get_video_repository(session: AsyncSession = Depends(get_db)) -> VideoRepository:
     return VideoRepository(session)
 
@@ -111,13 +132,35 @@ def get_video_service(
 ) -> VideoService:
     return VideoService(session=session, video_repository=video_repo, storage=storage)
 
+# --------------------------------------------------------------
+# Transcode
+# --------------------------------------------------------------
 def get_transcode_repository(session: AsyncSession = Depends(get_db)) -> TranscodeRepository:
     return TranscodeRepository(session)
 
+# --------------------------------------------------------------
+# Category
+# --------------------------------------------------------------
 def get_category_repository(session: AsyncSession = Depends(get_db)) -> CategoryRepository:
     return CategoryRepository(session)
 
-
+def get_category_service(
+    session: AsyncSession = Depends(get_db),
+    category_repo: CategoryRepository = Depends(get_category_repository),
+    video_repo: VideoRepository = Depends(get_video_repository),
+    image_processor: ImageProcessor = Depends(get_image_processor),
+    image_storage: ImageStorage = Depends(get_image_storage)
+) -> CategoryService:
+    return CategoryService(
+        session=session,
+        category_repo=category_repo,
+        video_repo=video_repo,
+        image_processor=image_processor,
+        image_storage=image_storage,
+    )
+# --------------------------------------------------------------
+# Series
+# --------------------------------------------------------------
 def get_series_repository(
     session: AsyncSession = Depends(get_db),
 ) -> SeriesRepository:
@@ -134,38 +177,17 @@ def get_series_service(
         video_repo=video_repo
     )
 
+# --------------------------------------------------------------
+# VideoEvent
+# --------------------------------------------------------------
 def get_video_event_repository(
     session: AsyncSession = Depends(get_db),
 ) -> VideoEventRepository:
     return VideoEventRepository(session=session)
 
-def get_image_storage():
-    return ImageStorage(client=get_s3_client())
-
-def get_image_storage():
-    return ImageStorage(client=get_s3_client())
-
-def get_image_processor():
-    return ImageProcessor(storage=get_image_storage())
-
-def get_category_service(
-    session: AsyncSession = Depends(get_db),
-    category_repo: CategoryRepository = Depends(get_category_repository),
-    image_service: ImageStorage = Depends(get_image_storage),
-    image_storage: ImageStorage = Depends(get_image_storage)
-) -> CategoryService:
-    return CategoryService(
-        session=session,
-        category_repo=category_repo,
-        image_service=image_service,
-        image_storage=image_storage,
-    )
-
-def get_r2_multipart_service(
-    client = Depends(get_s3_client),
-):
-    return R2MultipartService(client)
-
+# --------------------------------------------------------------
+# Thumbnail Upload Service
+# --------------------------------------------------------------
 def get_thumbnail_upload_service(
     session: AsyncSession = Depends(get_db),
     video_repository: VideoRepository = Depends(get_video_repository),
@@ -180,4 +202,3 @@ def get_thumbnail_upload_service(
         image_processor,
         image_storage
     )
-

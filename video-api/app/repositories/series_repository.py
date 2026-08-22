@@ -34,14 +34,10 @@ class SeriesRepository:
         series = Series(name=name)
         self.session.add(series)
         await self.session.flush()
+        return series
 
-    async def delete(self, id: uuid.UUID) -> None:
-        series = await self.get(id)
-
-        if not series:
-            return None
-
-        self.session.delete(series)
+    async def delete(self, series: Series) -> None:
+        await self.session.delete(series)
 
     async def update(self, id:uuid.UUID, name: str) -> Series:
         series = await self.get(id)

@@ -51,6 +51,7 @@ class SeriesService:
 
         try:
             await self.session.commit()
+            await self.session.refresh(series)  # added since returning updated_at requires a db refresh
         except IntegrityError:
             await self.session.rollback()
             raise SeriesAlreadyExists()
@@ -61,16 +62,27 @@ class SeriesService:
 
 
     async def delete(self, id: uuid.UUID, delete_videos: bool = False) -> None:
-        series = await self.series_repo.delete(id)
+        """
+        You need to decide what should happen:
+        > delete the videos automatically via SQLAlchemy/database cascade
+        > set series_id to NULL
+        > reject deletion if videos exist
+        > detach/move the videos somewhere else
+        """
+        if delete_videos:
+            series = await self.series_repo.get_with_videos(id)
+        else:
+            series = await self.series_repo.get(id)
 
         if not series:
             raise SeriesNotFound()
 
-        if delete_videos:
-            for video in series.videos:
-                await self.video_repo.delete(video)
-
         try:
+            if delete_videos:
+                for video in series.videos:
+                    await self.video_repo.delete(video)
+
+            await self.series_repo.delete(series)
             await self.session.commit()
         except SQLAlchemyError:
             await self.session.rollback()

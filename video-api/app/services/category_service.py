@@ -41,14 +41,14 @@ class CategoryService:
         if image:
             # Validate the image
             # await self.image_service.validate_image(image)
-            await run_in_threadpool(self.image_service.validate_image, image)
+            await run_in_threadpool(self.image_processor.validate_image, image)
             # Convert the image to webp format
             # webp_image = await self.image_service.create_webp(image)
-            webp_image = await run_in_threadpool(self.image_service.create_webp, image)
+            webp_buffer = await run_in_threadpool(self.image_processor.create_webp, image)
             # Upload the image to R2 and get the image key
             # image_key = await self.image_storage.upload(webp_image)
-            key = f"{uuid.UUID4()}.webp"
-            image_key = await run_in_threadpool(self.image_storage.upload, key, self.BUCKET, webp_image) # key, bucket, img_buffer
+            key = f"{uuid.uuid4()}.webp"
+            image_key = await run_in_threadpool(self.image_storage.upload, key, self.BUCKET, webp_buffer) # key, bucket, img_buffer
 
         try:
             # Create a new category in the database with the provided name and image key
@@ -107,8 +107,10 @@ class CategoryService:
         image_key = category.image_url
 
         try:
-            await self.category_repo.delete(id)
+            await self.category_repo.delete(category)
+            await self.session.commit()
         except SQLAlchemyError:
+            await self.session.rollback()
             # log
             raise
 
@@ -140,13 +142,15 @@ class CategoryService:
         
             # Convert to WebP
             webp_buffer = await run_in_threadpool(self.image_processor.create_webp, image)
-    
-            new_image_key = await run_in_threadpool(self.image_storage.upload, webp_buffer, self.BUCKET)
+
+            key = f"{uuid.uuid4()}.webp"
+            new_image_key = await run_in_threadpool(self.image_storage.upload, key, self.BUCKET, webp_buffer)
     
             category.image_url = new_image_key
 
         try:
             await self.session.commit()
+            await self.session.refresh(category)
         except IntegrityError:
             await self.session.rollback()
             # logger.exception("Failed to delete orphaned new category image from R2: %s", new_image_key)

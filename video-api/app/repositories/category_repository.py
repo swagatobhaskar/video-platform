@@ -71,6 +71,4 @@ class CategoryRepository:
 
 
     async def delete(self, category: Category) -> None:
-        self.session.delete(category)
-
-    
+        await self.session.delete(category)
