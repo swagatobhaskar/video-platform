@@ -90,7 +90,8 @@ async def video_publish_error_handler(
     return JSONResponse(
         status_code=400,
         content={
-            "detail": "Failed to publish video",
+            "detail": "Video cannot be published",
+            "errors": exc.errors,
         },
     )
 

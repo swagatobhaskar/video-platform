@@ -1,6 +1,6 @@
 import uuid
 from fastapi.routing import APIRouter
-from fastapi import status, Depends
+from fastapi import Depends
 import logging
 
 from app.schemas import series_schema
@@ -53,7 +53,8 @@ async def update_series(
 
 
 # Add video to series
-@router.post("/{series_id}/video/{video_id}/{episode_number}", response_model=series_schema.SeriesDetailOutWithVideo)
+# episode_number is optional
+@router.post("/{series_id}/video/{video_id}", response_model=series_schema.SeriesDetailOutWithVideo)
 async def add_video_to_series(
     series_id: uuid.UUID,
     video_id: uuid.UUID,
@@ -61,47 +62,7 @@ async def add_video_to_series(
     series_service: SeriesService = Depends(get_series_service),
 ):
     return await series_service.add_video_to_series(series_id, video_id, episode_number)
-    """
-    series = await session.get(Series, series_id)
-    if series is None:
-        raise HTTPException(404, "Series not found")
-
-    video = await session.get(Video, video_id)
-    if video is None:
-        raise HTTPException(404, f"Video not found")
-
-    if video.series_id is not None:
-        raise HTTPException(status_code=409, detail="Video already belongs to a series.")
-
-    video.series = series
-
-    # Need to check the logic
-    if episode_number:
-        video.episode_number = episode_number
-
-    # or:
-    # video.series_id = series.id
-    try:
-        await session.commit()
-    except IntegrityError:
-        await session.rollback()
-        raise HTTPException(409, "Integrity constraint violated")
-    except SQLAlchemyError:
-        await session.rollback()
-        raise HTTPException(500, "Database error")
-
-    # this doesn't match I think!
-    result = await session.execute(
-        select(Series)
-        .options(
-            selectinload(Series.videos)
-            .load_only(Video.id, Video.title, Video.episode_number)
-        )
-        .where(Series.id == series_id)
-    )
-
-    return result.scalar_one()
-    """
+  
 
 # Remove video from a series
 @router.delete("/{series_id}/video/{video_id}", response_model=series_schema.SeriesDetailOutWithVideo)
@@ -111,42 +72,4 @@ async def remove_video_from_series(
     series_service: SeriesService = Depends(get_series_service),
 ):
     return await series_service.remove_video_from_series(series_id, video_id)
-    """
-    series = await session.get(Series, series_id)
 
-    if series is None:
-        raise HTTPException(404, "Series not found")
-    
-    video = await session.get(Video, video_id)
-
-    if video is None:
-        raise HTTPException(404, "Video not found")
-
-    if video.series_id != series_id:
-        raise HTTPException(400, "Video is not in this series")
-
-    # Remove relationship
-    video.series = None
-    # or:
-    # video.series_id = None
-
-    try:
-        await session.commit()
-
-    except IntegrityError:
-        await session.rollback()
-        raise HTTPException(409, "Could not remove video from series")
-
-    except SQLAlchemyError:
-        await session.rollback()
-        raise HTTPException(500, "Database error")
-
-    # Reload series with videos relationship populated
-    result = await session.execute(
-        select(Series)
-        .options(selectinload(Series.videos).load_only(Video.id, Video.title))
-        .where(Series.id == series_id)
-    )
-
-    return result.scalar_one()
-    """

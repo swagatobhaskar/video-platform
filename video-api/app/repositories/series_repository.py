@@ -25,7 +25,7 @@ class SeriesRepository:
             select(Series)
             .where(Series.id == id)
             .options(
-                selectinload(Series.videos).load_only(Video.id, Video.title)
+                selectinload(Series.videos).load_only(Video.id, Video.title, Video.episode_number)
             )
         )
         return result.scalar_one_or_none()

@@ -134,8 +134,8 @@ class VideoRepository:
         result = await self.session.execute(
             select(Video)
             .options(
-                # selectinload(Video.category),
-                # selectinload(Video.series),
+                selectinload(Video.category),
+                selectinload(Video.series),
                 selectinload(Video.upload_session).load_only(UploadSession.status),
                 selectinload(Video.transcode_task).load_only(TranscodeTask.status, TranscodeTask.progress_percent),
             )

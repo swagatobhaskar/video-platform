@@ -18,7 +18,7 @@ class SeriesService:
         return await self.series_repo.list()
 
 
-    async def get_series_detail(self, id: uuid.UUID):
+    async def get_series_detail(self, id: uuid.UUID) -> Series:
         series = await self.series_repo.get_with_videos(id)
 
         if not series:
@@ -125,13 +125,12 @@ class SeriesService:
         if not video:
             raise VideoNotFound()
 
-        video.series != series
+        video.series = None
 
         try:
             await self.session.commit()
-        except IntegrityError:
-            raise VideoAlreadyInTheSeries
         except SQLAlchemyError:
+            await self.session.rollback()
             raise
 
         return await self.series_repo.get_with_videos(series_id)

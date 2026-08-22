@@ -1,5 +1,7 @@
 class VideoPublishError(Exception):
-    pass
+    def __init__(self, errors: dict[str, list[str]]):
+        self.errors = errors
+        super().__init__("Failed to publish video")
 
 class VideoNotFound(Exception):
     pass

@@ -17,16 +17,17 @@ class ThumbnailUploadService:
     def __init__(
         self,
         session: AsyncSession,
-        video_repo: VideoRepository,
+        video_repository: VideoRepository,
         image_processor: ImageProcessor,
         image_storage: ImageStorage,
-        video_event_repo: VideoEventRepository,
+        video_event_repository: VideoEventRepository,
     ):
         self.session = session
-        self.video_repository = video_repo
+        self.video_repository = video_repository
         self.image_processor = image_processor
         self.image_storage = image_storage
-        self.video_event_repo = video_event_repo
+        self.video_event_repository = video_event_repository
+
 
     async def upload(self, video_id: uuid.UUID, thumbnail_image: UploadFile):
         if not thumbnail_image:
@@ -56,7 +57,7 @@ class ThumbnailUploadService:
                 key=key,
             )
 
-            await self.video_event_repo.create_video_event(
+            await self.video_event_repository.create_video_event(
                 video_id=video_id,
                 event_type = "THUMBNAIL_UPLOADED_TO_R2",
                 payload = {
@@ -116,7 +117,7 @@ class ThumbnailUploadService:
             )
     
             # Save a new VIDEO_EVENT
-            await self.video_event_repo.create_video_event(
+            await self.video_event_repository.create_video_event(
                 video_id=video_id,
                 event_type = "THUMBNAIL_UPDATED",
                 payload = {

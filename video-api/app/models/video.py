@@ -198,7 +198,7 @@ class Video(Base):
             return None
 
     @property
-    def upload_status(self) -> str:
+    def processing_status(self) -> str:
         if self.transcode_task:
             return self.transcode_task.status.value
 
@@ -209,7 +209,7 @@ class Video(Base):
 
 
     @property
-    def task_progress_percent(self) -> int | None:
+    def progress_percent(self) -> int | None:
         if self.transcode_task:
             return self.transcode_task.progress_percent
         return None

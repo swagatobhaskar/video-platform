@@ -136,12 +136,28 @@ class VideoService:
     async def get_upload_history(self) -> list[VideoUploadHistoryRead]:
         videos = await self.video_repository.get_upload_history()
 
+        # return [
+        #     VideoUploadHistoryRead(
+        #         **VideoUploadHistoryRead.model_validate(video).model_dump(),
+        #         video_status=video.upload_status,
+        #         progress_percent=video.task_progress_percent
+        #     ) for video in videos
+        # ]
         return [
             VideoUploadHistoryRead(
-                **VideoUploadHistoryRead.model_validate(video).model_dump(),
-                video_status=video.upload_status,
-                progress_percent=video.task_progress_percent
-            ) for video in videos
+                id=video.id,
+                title=video.title,
+                slug=video.slug,
+                language=video.language,
+                episode_number=video.episode_number,
+                thumbnail_object_key=video.thumbnail_object_key,
+                created_at=video.created_at,
+                category=video.category,
+                series=video.series,
+                video_status=video.processing_status,
+                progress_percent=video.progress_percent,
+            )
+            for video in videos
         ]
 
     async def get_videos_requiring_user_action(self):
@@ -293,9 +309,15 @@ class VideoService:
             "slug",
             "language",
             "episode_number",
+            "seo_tags",
+            "keywords",
+            "secondary_keywords",
+            "focus_keyword",
+            "seo_summary_en",
             "meta_title",
             "meta_description",
-            "meta_keywords",
+            "thumbnail_alt_text",
+            "search_intent",
         }
 
         # Apply every updated field to the SQLAlchemy model.
@@ -303,12 +325,11 @@ class VideoService:
             if field not in VIDEO_UPDATEABLE_FIELDS:
                 raise ValueError(f"Field '{field}' cannot be updated.")
 
-            setattr(self.video, field, value)
+            setattr(video, field, value)
 
         try:
             video = await self.video_repository.update(video_id, **data)
             await self.session.commit()
-
 
         except IntegrityError:
             await self.session.rollback()

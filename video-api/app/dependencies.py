@@ -191,11 +191,11 @@ def get_thumbnail_upload_service(
     video_event_repository: VideoEventRepository = Depends(get_video_event_repository),
 ) -> ThumbnailUploadService:
     return ThumbnailUploadService(
-        session,
-        video_repository,
-        video_event_repository,
-        image_processor,
-        image_storage
+        session = session,
+        video_repository=video_repository,
+        video_event_repository = video_event_repository,
+        image_processor = image_processor,
+        image_storage = image_storage,
     )
 
 # --------------------------------------------------------------
