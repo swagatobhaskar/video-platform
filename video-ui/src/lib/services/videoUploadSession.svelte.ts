@@ -25,11 +25,13 @@ export function createVideoUploadSession() {
     let abortController: AbortController | null = null;
     let currentUploadId: string | null = null;
     let currentKey: string | null = null;
-
+    let currentVideoId: string | null = null;
+    // Actually make the upload session state belong to the uploader, not the URL
+    let currentUploadSessionId: string | null = null;
     let totalUploadedBytes = 0;
     let startTime = 0;
 
-    async function upload(file: File) {
+    async function upload(file: File, videoId: string, uploadSessionId: string) {
         state.file = file;
         state.uploading = true;
         state.error = null;
@@ -38,24 +40,16 @@ export function createVideoUploadSession() {
         state.eta = 0;
         state.complete = false;
 
+        currentVideoId = videoId;
+        currentUploadSessionId = uploadSessionId;
         totalUploadedBytes = 0;
         startTime = Date.now();
 
         abortController = new AbortController();
         const signal = abortController.signal;
 
-        // get videoId from cookies/localStorage
-        const videoCookie = await cookieStore.get("videoId");
-        const videoId = videoCookie?.value;
 
         if (!videoId) {
-            throw new Error("Missing videoId");
-        }
-
-        const uploadSessionCookie = await cookieStore.get("uploadSessionId");
-        const uploadSessionId = uploadSessionCookie?.value;
-
-        if (!uploadSessionId) {
             throw new Error("Missing videoId");
         }
 
@@ -66,11 +60,12 @@ export function createVideoUploadSession() {
                 file.type,
                 file.size,
                 videoId,
-                uploadSessionId,
+                currentUploadSessionId,
                 signal
             );
             
             currentUploadId = uploadId;
+
             currentKey = key;
 
             const chunks = splitFileIntoChunks(file);
@@ -144,25 +139,32 @@ export function createVideoUploadSession() {
             state.uploading = false;
             currentUploadId = null;
             currentKey = null;
-            state.complete = true;
+            // state.complete = true;
         }
     }
 
     async function cancel() {
+        // Capture everything BEFORE aborting the upload
+        const uploadId = currentUploadId;
+        const key = currentKey;
+        const videoId = currentVideoId;
+        
         // Cancel in-flight requests
         abortController?.abort();
 
         // get videoId from cookies/localStorage
-        const videoCookie = await cookieStore.get("videoId");
-        const videoId = videoCookie?.value;
+        // const videoCookie = await cookieStore.get("videoId");
+        // const videoId = videoCookie?.value;
 
-        if (!videoId) {
-            throw new Error("Missing videoId");
-        }
+        // if (!videoId) {
+        //     throw new Error("Missing videoId");
+        // }
 
         try {
-            if (currentUploadId && currentKey) {
-                await abortUpload(currentUploadId, currentKey, videoId);
+            console.log("Cancelling.. inside cancel()...")
+
+            if (uploadId && key && videoId) {
+                await abortUpload(uploadId, key, videoId);
             }
         } catch (err) {
             console.warn("Abort cleanup failed", err);
@@ -173,6 +175,7 @@ export function createVideoUploadSession() {
             abortController = null;
 
             // Reset upload session tracking
+            currentVideoId = null;
             currentUploadId = null;
             currentKey = null;
 

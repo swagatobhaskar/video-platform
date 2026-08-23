@@ -26,9 +26,10 @@
 
     async function handleUploadWithNewSession() {
         // Create new upload_session and fetch the id
+
         try {
             const response = await fetch(
-                'http://127.0.0.1:8000/api/video/uploads/new-upload-session',
+                'http://127.0.0.1:8000/api/video/upload/new-upload-record',
                 {
                     method: 'POST'
                 }
@@ -39,17 +40,6 @@
             }
 
             const data = await response.json();
-
-            // remove any existing uploadSessionId, videoId from cookies
-            cookieStore.delete("uploadSessionId");
-            cookieStore.delete("videoId");
-
-            // Set uploadSessionId, videoId in cookies
-            cookieStore.set("uploadSessionId", data.uploadSessionId);
-            cookieStore.set("videoId", data.videoId);
-
-            // Close the modal
-            // modalOpen = false;
 
             // Add the upload_session_id to the URL
             await goto(
@@ -63,7 +53,7 @@
             const file = videoInputController.state.selectedFile;
             
             if (file) {
-                await uploader.upload(file);
+                await uploader.upload(file, data.videoId, data.uploadSessionId);
             }
 
 
@@ -91,45 +81,45 @@
     let loading = $state(false);
 	let error = $state<string | null>(null);
     
-    $effect(() => {
-        if (!videoId) {
-            fetchedVideoData = null;
-            error = null;
-			loading = false;
-            return
-        }
+    // $effect(() => {
+    //     if (!videoId) {
+    //         fetchedVideoData = null;
+    //         error = null;
+	// 		loading = false;
+    //         return
+    //     }
 
-        const controller = new AbortController();
-        loading = true;
-		error = null;
+    //     const controller = new AbortController();
+    //     loading = true;
+	// 	error = null;
 
-        void (async () => {
-            try {
-                const response = await fetch(`http://127.0.0.1:8000/api/list/videos/${videoId}`);
-                if (!response.ok) {
-                    const errorData = await response.json();
-		            throw new Error(errorData.detail ?? "Failed to fetch video"); // Following FastAPI HTTPException(detail=)
-                }
-                fetchedVideoData = await response.json();
-            } catch (err) {
-				// Ignore aborted requests
-				if (err instanceof DOMException && err.name === 'AbortError') {
-					return;
-				}
+    //     void (async () => {
+    //         try {
+    //             const response = await fetch(`http://127.0.0.1:8000/api/list/videos/${videoId}`);
+    //             if (!response.ok) {
+    //                 const errorData = await response.json();
+	// 	            throw new Error(errorData.detail ?? "Failed to fetch video"); // Following FastAPI HTTPException(detail=)
+    //             }
+    //             fetchedVideoData = await response.json();
+    //         } catch (err) {
+	// 			// Ignore aborted requests
+	// 			if (err instanceof DOMException && err.name === 'AbortError') {
+	// 				return;
+	// 			}
 
-				fetchedVideoData = null;
-				error = err instanceof Error ? err.message : 'An unexpected error occurred';
-			} finally {
-				if (!controller.signal.aborted) {
-					loading = false;
-				}
-			}
-        })();
+	// 			fetchedVideoData = null;
+	// 			error = err instanceof Error ? err.message : 'An unexpected error occurred';
+	// 		} finally {
+	// 			if (!controller.signal.aborted) {
+	// 				loading = false;
+	// 			}
+	// 		}
+    //     })();
 
-        return () => {
-			controller.abort();
-		};
-    });
+    //     return () => {
+	// 		controller.abort();
+	// 	};
+    // });
 
 </script>
 

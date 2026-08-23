@@ -1,7 +1,7 @@
 // Only API Communication
 import { uploadChunkWithProgress } from "$lib/helpers/multipartUploadHelper";
 
-const API_BASE = "http://127.0.0.1:8000/api/video/uploads";
+const API_BASE = "http://127.0.0.1:8000/api/video/upload";
 
 export interface UploadedPart {
     ETag: string | null;
@@ -18,9 +18,6 @@ export async function initiateUpload(
     signal?: AbortSignal
 ): Promise<{ uploadId: string; key: string, uploadSessionId: string, videoId: string }> {
     
-    // Get the uploadSessionId from cookies
-    // const uploadSessionId = await cookieStore.get("uploadSessionId");
-
     const res = await fetch(`${API_BASE}/${videoId}/initiate-upload/`, {
         method: "POST",
         headers: {
