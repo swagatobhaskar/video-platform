@@ -90,7 +90,7 @@ class UploadService:
             )
 
             if upload_session is None:
-                raise UploadSessionNotFound(upload_session_id)
+                raise UploadSessionNotFound()
 
             # 3. Create multipart upload in R2
             response = self.storage_service.create_multipart_upload(
@@ -334,7 +334,7 @@ class UploadService:
         )
 
         # Get upload_session from video_id
-        upload_session = self.upload_repository.get(video_id=video_id)
+        upload_session = await self.upload_repository.get_by_video(video_id=video_id)
 
         # create a video event
         await self.video_event_repository.create_video_event(
