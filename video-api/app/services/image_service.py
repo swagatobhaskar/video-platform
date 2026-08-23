@@ -2,8 +2,7 @@ from io import BytesIO
 from fastapi import UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-# from .base import create_s3_client
-# from app.dependencies import get_s3_client
+from app.exceptions.image import CorruptedImageError, ImageTooLargeError, InvalidImageError, UnsupportedImageFormatError
 
 """
 ⭐️ YouTube video thumbnails should be uploaded at a size of 3840 x 2160 pixels so that they are optimized for TV viewers on YouTube.
@@ -13,26 +12,6 @@ The minimum width of YouTube thumbnails is 640 pixels.
 YouTube thumbnail files should be under 50MB.
 Supported image formats for thumbnails are JPG, GIF, or PNG.
 """
-
-
-class ImageError(Exception):
-    pass
-
-
-class ImageTooLargeError(ImageError):
-    pass
-
-
-class UnsupportedImageFormatError(ImageError):
-    pass
-
-
-class InvalidImageError(ImageError):
-    pass
-
-
-class CorruptedImageError(ImageError):
-    pass
 
 class ImageProcessor:
 

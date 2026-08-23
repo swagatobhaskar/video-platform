@@ -1,13 +1,27 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from app.exceptions.base import AppException
 
-from app.exceptions.video import VideoNotFound, VideoPublishError, VideoArchiveFailed, DuplicateEntryError, NoImageInRequest, ThumbnailAlreadyExists
-from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
-from app.exceptions.upload import UploadSessionNotFound, UploadAlreadyCompleted, NewUploadCreationFailed
-from app.exceptions.storage import StorageProviderError
-from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
+# from app.exceptions.video import VideoNotFound, VideoPublishError, VideoArchiveFailed, DuplicateEntryError, NoImageInRequest, ThumbnailAlreadyExists
+# from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
+# from app.exceptions.upload import UploadSessionNotFound, UploadAlreadyCompleted, NewUploadCreationFailed
+# from app.exceptions.storage import StorageProviderError
+# from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
 
 
+async def app_exception_handler(
+    request: Request,
+    exc: AppException,
+):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content = {
+            "success": False,
+            "error": exc.error_code,
+            "message": exc.message,
+        },
+    )
+"""
 async def upload_not_found_handler(request: Request, exc: UploadSessionNotFound):
     return JSONResponse(
         status_code=404,
@@ -167,3 +181,4 @@ async def thumbnail_already_exists_handler(
         status_code=409,
         content={"detail": "Video already has a thumbnail."}
     )
+"""

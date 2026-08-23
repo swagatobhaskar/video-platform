@@ -14,7 +14,7 @@ from app.schemas.r2_upload_schema import Part
 
 from app.storage.r2_multipart_service import R2MultipartService
 
-from app.exceptions.upload import NewUploadCreationFailed, UploadServiceError, UploadSessionNotFound
+from app.exceptions.upload import NewUploadCreationFailed, UploadSessionNotFound
 from app.exceptions.storage import StorageProviderError
 from app.exceptions.video import VideoNotFound
 
