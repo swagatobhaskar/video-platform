@@ -72,6 +72,7 @@ class R2MultipartService:
         )
 
     def abort_multipart_upload(self, object_key: str, upload_id: str):
+        print("Aborting upload..XXXX")
         self.client.abort_multipart_upload(
             Bucket=self.BUCKET,
             Key=object_key,

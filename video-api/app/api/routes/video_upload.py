@@ -51,160 +51,30 @@ async def create_new_upload_record(upload_service: UploadService = Depends(get_u
 async def initiate_upload(
     video_id: str,
     req: InitiateUploadRequest,
-    # session: AsyncSession = Depends(get_db),
     upload_service: UploadService = Depends(get_upload_service)
 ):
     return await upload_service.initiate(
-        contentType=req.contentType,
-        fileName=req.fileName,
+        content_type=req.contentType,
+        file_name=req.fileName,
         upload_session_id=req.uploadSessionId,
         video_id=video_id,
-        fileSizeBytes=req.fileSizeBytes,
-        totalParts=req.totalParts,
+        file_size_bytes=req.fileSizeBytes,
+        total_parts=req.totalParts,
     )
-    """
-    upload_id = None
-    object_key = None
-
-    try:
-        # Use {UUID}-{filename} instead of just filename
-        import uuid
-        object_key = f"{uuid.uuid4()}" #-{req.fileName}"
-       
-        response = s3.create_multipart_upload(
-            Bucket=RAW_VIDEO_BUCKET,
-            Key=object_key,
-            ContentType=req.contentType
-        )
-        print("Initiate Upload Response: ", response)
-        upload_id = response["UploadId"]
-
-        # Get the video
-        result = await session.execute(
-            select(Video).where(Video.id == video_id)
-        )
-        video = result.scalar_one_or_none()
-
-        if not video:
-            raise HTTPException(
-                status_code=404,
-                detail="No video found with this id."
-            )
-
-        video.title=req.fileName
-
-        # session.add(video)
-        await session.flush()
-
-        # get the upload_session that was created when selecting the file
-        stmt = select(UploadSession).where(
-            UploadSession.id == req.uploadSessionId,
-            UploadSession.video_id == video_id
-        )
-
-        result = await session.execute(stmt)
-        upload_session = result.scalar_one_or_none()
-
-        if not upload_session:
-            raise HTTPException(status_code=404, detail="Upload session not found for the given uploadSessionId and video id")
-
-        upload_session.object_key=object_key
-        upload_session.video_upload_id=upload_id
-        upload_session.file_size_bytes=req.fileSizeBytes
-        upload_session.mime_type=req.contentType
-        upload_session.original_filename=req.fileName
-        upload_session.total_parts=req.totalParts
-        upload_session.status=UploadSessionStatusEnum.UPLOADING
-
-        video_event = VideoEvent(
-            video_id=video_id,
-            event_type="UPLOAD_INITIATED",
-            payload = {
-                "upload_id": upload_id,
-                "object_key": object_key,
-                "file_name": req.fileName,
-                "file_size_bytes": req.fileSizeBytes,
-                "content_type": req.contentType,
-                "total_parts": req.totalParts,
-                "upload_session_id": str(req.uploadSessionId),
-            }
-        )
-
-        session.add(video_event)
-        await session.commit()
-        await session.refresh(upload_session)
-
-        return {
-            "uploadId": upload_id,
-            "key": object_key,
-        }
-
-    except Exception as e:
-        await session.rollback()    
-    
-        # Clean up R2 multipart upload if it was created
-        if upload_id and object_key:
-            try:
-                s3.abort_multipart_upload(
-                    Bucket=RAW_VIDEO_BUCKET,
-                    Key=object_key,
-                    UploadId=upload_id
-                )
-            except Exception:
-                pass
-        
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to initiate upload: {str(e)}"
-        )
-    """
-
+ 
 
 @router.post("/{video_id}/get-presigned-url")
 async def get_presigned_url(
     video_id: str,
     req: PartRequest,
-    # session: AsyncSession = Depends(get_db),
     upload_service: UploadService = Depends(get_upload_service)
 ):
     return await upload_service.get_presigned_url(
-        video_id=video_id,
+        # video_id=video_id,
         upload_id=req.uploadId,
         object_key=req.key,
         part_number=req.partNumber
     )
-    """
-    url = s3.generate_presigned_url(
-        ClientMethod="upload_part",
-        Params={
-            "Bucket": RAW_VIDEO_BUCKET,
-            "Key": req.key,
-            "UploadId": req.uploadId,
-            "PartNumber": req.partNumber,
-        },
-        ExpiresIn=3600,
-    )
-    
-    try:
-        video_event = VideoEvent(
-            video_id = video_id,
-            event_type="GENERATED_PRESIGNED_URL",
-            payload={
-                "upload_id": req.uploadId,
-                "object_key": req.key,
-                "part_number": req.partNumber
-            }
-        )
-
-        session.add(video_event)
-        await session.commit()
-    except SQLAlchemyError as e:
-        await session.rollback()
-        logger.exception("VideoEvent creation failed at /get-presigned-url.")
-    
-    print("Generated presigned URL: ", url)
-    return {"uploadUrl": url}
-    """
 
 
 def get_uploaded_parts(s3, bucket: str, key: str, uploadId: str):
@@ -227,112 +97,10 @@ async def complete_upload(
         video_id=video_id,
         upload_session_id=req.uploadSessionId,
         upload_id=req.uploadId,
-        object_key=req.key
+        object_key=req.key,
+        parts=req.parts,
     )
     """
-    # Later Additions:
-        # Ordering check
-        # ETag validation
-        # Storage verification
-    
-    # phase 1: complete upload
-    try:
-        # Verify actual uploaded parts with R2
-        uploaded_parts = get_uploaded_parts(
-            s3,
-            RAW_VIDEO_BUCKET,
-            req.key,
-            req.uploadId
-        )
-        
-        if len(uploaded_parts) != len(req.parts):
-            raise ValueError("Mismatch between uploaded parts and client parts")
-        
-        # Complete upload
-        s3.complete_multipart_upload(
-            Bucket=RAW_VIDEO_BUCKET,
-            Key=req.key,
-            UploadId=req.uploadId,
-            MultipartUpload={
-                # "Parts": req.parts,  # [{ETag, PartNumber}]
-                "Parts": [
-                    {
-                        "ETag": part.ETag,
-                        "PartNumber": part.PartNumber
-                    }
-                    for part in req.parts
-                ]
-            },
-        )
-
-        result = await session.execute(
-            select(UploadSession).where(
-                UploadSession.id == req.uploadSessionId,
-                UploadSession.video_id == video_id
-            )
-        )
-        upload_session = result.scalar_one_or_none()  # scalars().first()
-        
-        if not upload_session:
-            raise HTTPException(status_code=404, detail="Upload session not found for the given video ID")
-        
-        # Create a new VideoEvent instead of updating old events
-        video_event = VideoEvent(
-            video_id=video_id,
-            event_type="CHUNKS_UPLOAD_COMPLETED",
-            payload={
-                "upload_id": req.uploadId,
-                "object_key": req.key,
-                "file_name": upload_session.original_filename,
-            }
-        )
-
-        session.add(video_event)
-
-        upload_session.status = UploadSessionStatusEnum.COMPLETED
-        upload_session.completed_at = datetime.now(timezone.utc)
-        upload_session.uploaded_parts_count = len(uploaded_parts) # upload_session.total_parts
-
-        await session.commit()
-
-    except Exception as e:
-        await session.rollback()
-        logger.exception("Complete upload failed")
-        
-        result = await session.execute(
-            select(UploadSession).where(
-                UploadSession.id == req.uploadSessionId,
-                UploadSession.video_id == video_id    
-            )
-        )
-        upload_session = result.scalar_one_or_none()  # scalars().first()
-    
-        if upload_session:
-            upload_session.status = UploadSessionStatusEnum.FAILED
-            await session.commit()
-
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    # Phase 2: Create a TranscodeTask
-    try:        
-        logger.info("Adding transcode task for %s", req.key)
-
-        # Create A TranscodeTask entry
-        transcode_task = TranscodeTask(
-            video_id=video_id,
-            # upload_session_id=req.uploadSessionId,
-            status=VideoProcessingStatusEnum.PENDING,
-        )
-
-        session.add(transcode_task)
-        await session.flush()   # Get transcode_task_id # INSERT happens, UUID becomes available
-        await session.commit()
-
-    except SQLAlchemyError:
-        await session.rollback()
-        logger.exception("Failed creating TranscodeTask")
-        raise  # I think it should raise HTTPException saying something!
-
     # Phase 3: Send Task to Redis
     task_id: str | None = None
     try:
@@ -382,6 +150,7 @@ async def complete_upload(
     }
     """
 
+# cancel A.K.A abort
 @router.post("/{video_id}/abort-upload")
 async def abort_upload(
     video_id: str,
@@ -623,9 +392,6 @@ async def get_video_processing_status(
     if not video:
         raise VideoNotFound()
 
-    # if not video:
-    #     raise HTTPException(status_code=404, detail=f"Video with id {video_id} not found!")
-    
     if video.transcode_task_id != transcode_task_id:
         # raise HTTPException(status_code=503, detail="Task id doesn't belong to the video")
         raise TranscodeTaskMismatch()
@@ -635,10 +401,6 @@ async def get_video_processing_status(
 
     if not transcode_task:
         raise TranscodeTaskNotFound()
-
-    # If transcode_task_id is not present
-    # if not transcode_task:
-    #     raise HTTPException(status_code=400, detail=f"Transcode task {transcode_task_id} not found!")
 
     status = AsyncResult(transcode_task_id, app=celery)
 
@@ -654,7 +416,6 @@ async def get_video_processing_status(
 @router.post("/{video_id}/retry-upload")
 async def retry_failed_upload(
     video_id: str,
-    # session: AsyncSession = Depends(get_db),
     upload_service: UploadService = Depends(get_upload_service)
 ):
     return await upload_service.retry(video_id=video_id)

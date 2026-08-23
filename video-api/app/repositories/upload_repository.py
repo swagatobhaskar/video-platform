@@ -77,7 +77,7 @@ class UploadRepository:
 
 
     async def update(self, upload_session_id: UUID, **data) -> UploadSession | None:
-        upload_session = await self.get(upload_session_id) # session.get(upload_session_id) ?
+        upload_session = await self.get_by_id(upload_session_id) # session.get(upload_session_id) ?
 
         if upload_session is None:
             return None

@@ -153,7 +153,7 @@ class UploadService:
             raise
         
 
-    async def get_presigned_url(self, *, upload_id: str, object_key: str, part_number: int):
+    async def get_presigned_url(self, *, upload_id: str, object_key: str, part_number: int): #, video_id: uuid.UUID):
         url = self.storage_service.generate_presigned_url(
             object_key=object_key,
             upload_id=upload_id,
@@ -179,7 +179,7 @@ class UploadService:
 
 
     async def complete(self, video_id: uuid.UUID, upload_session_id: uuid.UUID, upload_id: str, object_key: str, parts: list[Part]):
-        uploaded_parts = await self.storage_service.get_uploaded_parts(
+        uploaded_parts = self.storage_service.get_uploaded_parts(
             uploadId=upload_id,
             key=object_key
         )
@@ -194,7 +194,7 @@ class UploadService:
             raise UploadSessionNotFound() 
 
         # R2 complete
-        await self.storage_service.complete_upload(key=object_key, uploadId=upload_id, parts=parts)
+        self.storage_service.complete_upload(key=object_key, uploadId=upload_id, parts=parts)
 
         try:
             # Update sesion -> COMPLETED
@@ -221,7 +221,6 @@ class UploadService:
                 video_id=video_id,
                 status=VideoProcessingStatusEnum.PENDING
             )
-
 
             # Create an OutboxMessage event
             await self.outbox_repository.create(
@@ -265,61 +264,6 @@ class UploadService:
             "status": "upload completed",
             "message": "Upload completed. Processing task will be queued.",
         }
-
-        # Phase 3: Send Task to Redis
-        """
-        task_id: str | None = None
-        try:
-            # start celery transcode task
-            task = process_video_worker_operations.delay( # type: ignore
-                object_key=object_key,
-                video_id=video_id,
-                upload_id=upload_id,
-                upload_session_id=upload_session_id,
-                transcode_task_id=str(transcode_task.id),
-            )
-
-            task_id = str(task.id)
-
-            # await self.transcode_repository.update(status = VideoProcessingStatusEnum.QUEUED)
-        except (
-                redis.exceptions.ConnectionError,
-                kombu.exceptions.OperationalError,
-                RuntimeError
-            ) as e:
-                # logger.exception("Failed to queue transcode task")
-                try:
-                    await self.transcode_repository.update(
-                        transcode_task.id,
-                        status=VideoProcessingStatusEnum.QUEUE_FAILED,
-                    )
-                    await self.session.commit()
-                except SQLAlchemyError:
-                    await self.session.rollback()
-                    # logger.exception("Failed to mark TranscodeTask as QUEUE_FAILED")
-
-        try:
-            await self.transcode_repository.update(
-                transcode_task.id,
-                status = VideoProcessingStatusEnum.QUEUED
-            )
-            await self.session.commit()
-        except SQLAlchemyError:
-            await self.session.rollback()
-            # logger.exception("Failed to update transcode task status")
-            raise
-
-        return {
-            "success": True,
-            "taskId": task_id if task_id else "Transcoding QUEUE_FAILED",
-            "status": "upload completed",
-            "message": (
-                "Upload completed and processing task queued." if task_id 
-                else "Upload completed. Processing is PENDING. \
-                    Task will be queued when the service is available."
-            ),
-        }
-        """
         
 
     async def pause(self, video_id: uuid.UUID, upload_id: str):
@@ -343,7 +287,6 @@ class UploadService:
         )
 
         await self.session.commit()
-        
         return { "success": True, "status": "paused"}
         
 
