@@ -299,7 +299,7 @@ class VideoService:
         if "slug" in data:
             if await self.video_repository.slug_exists(
                 data["slug"],
-                exclude_video_id=self.video.id,
+                exclude_video_id=video_id,
             ):
                 raise ValueError("Slug already exists.")
 

@@ -235,7 +235,7 @@ class VideoRepository:
         # Return True if any matching video exists.
         return result.scalar_one_or_none() is not None
 
-    async def generate_unique_slug(self, title: str) -> str:
+    async def generate_unique_slug(self, title: str, exclude_video_id: UUID | None = None) -> str:
         # Convert the title into a URL-friendly slug.
         # Example:
         #   "My First Video!" -> "my-first-video"
@@ -258,7 +258,7 @@ class VideoRepository:
         # Keep incrementing the suffix until an unused slug is found.
         while await self.slug_exists(
             slug,
-            exclude_video_id=self.video.id,
+            exclude_video_id=exclude_video_id
         ):
             slug = f"{base_slug}-{counter}"
             counter += 1
