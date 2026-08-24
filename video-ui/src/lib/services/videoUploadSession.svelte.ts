@@ -36,9 +36,6 @@ export function createVideoUploadSession() {
     // Internal upload state
     // -------------------------------------------
     
-    // Add a promise for the upload loop
-    let uploadPromise: Promise<void> | null = null;
-
     let abortController: AbortController | null = null;
     let currentUploadId: string | null = null;
     let currentKey: string | null = null;
@@ -185,11 +182,7 @@ export function createVideoUploadSession() {
                 console.log("Upload pause requested");
 
                 try {
-                    await pauseUpload(
-                        currentVideoId!,
-                        currentUploadId!
-                    );
-
+                    await pauseUpload(currentVideoId!, currentUploadId!);
                     state.uploading = false;
                     state.paused = true;
 
@@ -208,8 +201,8 @@ export function createVideoUploadSession() {
             }
 
             state.error = err instanceof Error ? err.message : "Unknown error occurred";
-
             state.uploading = false;
+        }
     }
 
     // --------------------------------------------------
