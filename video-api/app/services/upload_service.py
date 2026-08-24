@@ -336,24 +336,33 @@ class UploadService:
         # Get upload_session from video_id
         upload_session = await self.upload_repository.get_by_video(video_id=video_id)
 
-        # create a video event
-        await self.video_event_repository.create_video_event(
-            event_type = "CHUNKS_UPLOAD_ABORTED",
-            video_id=video_id,
-            payload = {
-                "upload_id": upload_id,
-                "object_key": object_key,
-                "file_name": upload_session.original_filename,
-            },
-        )
+        if upload_session is None:
+            raise UploadSessionNotFound()
 
-        # update upload session
-        self.upload_repository.update(
-            upload_session_id=upload_session.id,
-            status = UploadSessionStatusEnum.ABORTED,
-        )
+        try:
+            # create a video event
+            await self.video_event_repository.create_video_event(
+                event_type = "CHUNKS_UPLOAD_ABORTED",
+                video_id=video_id,
+                payload = {
+                    "upload_id": upload_id,
+                    "object_key": object_key,
+                    "file_name": upload_session.original_filename,
+                },
+            )
 
-        await self.session.commit()
+            # update upload session
+            await self.upload_repository.update(
+                upload_session_id=upload_session.id,
+                status = UploadSessionStatusEnum.ABORTED,
+            )
+
+            await self.session.commit()
+
+        except SQLAlchemyError:
+            await self.session.rollback()
+            # log
+            raise
 
         return {"success": True, "status": "aborted"}
 
@@ -379,7 +388,7 @@ class UploadService:
 
             # Add a VideoEvent
             await self.video_event_repository.create_video_event(
-                event_type = "CHUNK_UPLOADED",
+                event_type = f"CHUNK_{part.PartNumber}_UPLOADED",
                 video_id=video_id,
                 payload = {
                     "upload_session_id": str(upload_session.id),

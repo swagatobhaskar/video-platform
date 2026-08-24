@@ -5,7 +5,8 @@ import {
     uploadChunk,
     completeUpload,
     abortUpload,
-    type UploadedPart
+    type UploadedPart,
+    recordUploadedPart
 } from './multipartUploadService';
 
 import { splitFileIntoChunks } from '$lib/helpers/multipartUploadHelper';
@@ -73,6 +74,7 @@ export function createVideoUploadSession() {
 
             // STEP 2-3: Upload Parts
             for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
                 const partNumber = i + 1;
 
                 const uploadUrl = await getPresignedUrl(
@@ -108,9 +110,25 @@ export function createVideoUploadSession() {
                     signal
                 );
 
+                if (!etag) {
+                    throw new Error(`Missing ETag for part ${partNumber}`);
+                }
+
+                await recordUploadedPart(
+                    currentUploadId,
+                    currentVideoId,
+                    {
+                        ETag: etag,
+                        PartNumber: partNumber,
+                        SizeBytes: chunk.size,
+                    },
+                    signal
+                );
+
                 parts.push({
                     ETag: etag,
-                    PartNumber: partNumber
+                    PartNumber: partNumber,
+                    SizeBytes: chunk.size,
                 });
             }
 
@@ -121,6 +139,7 @@ export function createVideoUploadSession() {
                 currentUploadId!,
                 parts,
                 videoId,
+                currentUploadSessionId,
                 signal
             );
         } catch (err: unknown) {

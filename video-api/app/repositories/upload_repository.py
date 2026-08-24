@@ -31,7 +31,7 @@ class UploadRepository:
         return result.scalar_one_or_none()
 
 
-    async def get_by_video(self, upload_session_id: UUID, video_id: UUID | None = None) -> UploadSession | None:
+    async def get_by_video(self, video_id: UUID | None = None) -> UploadSession | None:
         result = await self.session.execute(
             select(UploadSession).where(
                 # UploadSession.id == upload_session_id,
