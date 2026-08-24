@@ -267,7 +267,7 @@ class UploadService:
         
 
     async def pause(self, video_id: uuid.UUID, upload_id: str):
-        upload_session = self.upload_repository.get(video_id=video_id)
+        upload_session = await self.upload_repository.get(video_id=video_id)
 
         if upload_session.status != UploadSessionStatusEnum.UPLOADING:
             # raise HTTPException(status=400, detail="Upload session is not in UPLOADING state")
