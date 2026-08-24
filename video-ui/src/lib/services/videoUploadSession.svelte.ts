@@ -15,13 +15,21 @@ export function createVideoUploadSession() {
     // Reactive state (runes)
     const state = $state({
         file: null as File | null,
+        
         uploading: false,
+        paused: false,
+        pausing: false,
+        resuming: false,
+        
         progress: 0,
         speed: 0,
         eta: 0,
+
         complete: false,
-        error: null as string | null
+        error: null as string | null,
     });
+
+    let pauseRequested = false;
 
     let abortController: AbortController | null = null;
     let currentUploadId: string | null = null;
@@ -35,23 +43,26 @@ export function createVideoUploadSession() {
     async function upload(file: File, videoId: string, uploadSessionId: string) {
         state.file = file;
         state.uploading = true;
+        state.paused = false;
         state.error = null;
         state.progress = 0;
         state.speed = 0;
         state.eta = 0;
         state.complete = false;
 
-        currentVideoId = videoId;
-        currentUploadSessionId = uploadSessionId;
         totalUploadedBytes = 0;
         startTime = Date.now();
 
+        currentVideoId = videoId;
+        currentUploadSessionId = uploadSessionId;
+
+        pauseRequested = false;
         abortController = new AbortController();
-        const signal = abortController.signal;
+        // const signal = abortController.signal;
 
 
-        if (!videoId) {
-            throw new Error("Missing videoId");
+        if (!videoId || !uploadSessionId) {
+            throw new Error("Missing videoId or uploadSessionId.");
         }
 
         try {
@@ -62,11 +73,10 @@ export function createVideoUploadSession() {
                 file.size,
                 videoId,
                 currentUploadSessionId,
-                signal
+                abortController.signal  // signal
             );
             
             currentUploadId = uploadId;
-
             currentKey = key;
 
             const chunks = splitFileIntoChunks(file);
@@ -82,7 +92,7 @@ export function createVideoUploadSession() {
                     key,
                     partNumber,
                     videoId,
-                    signal
+                    abortController.signal
                 );
 
                 let previousLoaded = 0;
@@ -107,7 +117,7 @@ export function createVideoUploadSession() {
                             (totalUploadedBytes / file.size) * 100
                         );
                     },
-                    signal
+                    abortController.signal
                 );
 
                 if (!etag) {
@@ -122,7 +132,7 @@ export function createVideoUploadSession() {
                         PartNumber: partNumber,
                         SizeBytes: chunk.size,
                     },
-                    signal
+                    abortController.signal
                 );
 
                 parts.push({
@@ -130,6 +140,10 @@ export function createVideoUploadSession() {
                     PartNumber: partNumber,
                     SizeBytes: chunk.size,
                 });
+            }
+
+            if (pauseRequested) {
+                return;
             }
 
             // Step 4: Complete Upload
@@ -140,26 +154,30 @@ export function createVideoUploadSession() {
                 parts,
                 videoId,
                 currentUploadSessionId,
-                signal
+                abortController.signal
             );
-        } catch (err: unknown) {
-            if (err instanceof Error) {
-                if (err.name === "AbortError") {
-                    console.log("Upload cancelled");
-                } else {
-                    console.error(err);
-                    state.error = err.message;
-                }
-            } else {
-                console.error(err);
-                state.error = 'Unknown error occurred';
-            }
-        } finally {
+
+            state.complete = true;
             state.uploading = false;
-            currentUploadId = null;
-            currentKey = null;
-            // state.complete = true;
-        }
+
+        } catch (err) {
+            if (err instanceof Error && err.name === "AbortError") {
+                if (pauseRequested) {
+                    // expected pause
+                    console.log("Upload pause");
+                    state.uploading = false;
+                    state.paused = true;
+                    return;
+                }
+
+                // Actual cancellation
+                return;
+            }
+
+            state.error = err instanceof Error ? err.message : "Unknown error occurred";
+
+            state.uploading = false;
+        }   
     }
 
     async function cancel() {

@@ -14,7 +14,7 @@ from app.schemas.r2_upload_schema import Part
 
 from app.storage.r2_multipart_service import R2MultipartService
 
-from app.exceptions.upload import NewUploadCreationFailed, UploadSessionNotFound
+from app.exceptions.upload import NewUploadCreationFailed, UploadSessionNotFound, InvalidUploadState
 from app.exceptions.storage import StorageProviderError
 from app.exceptions.video import VideoNotFound
 
@@ -270,54 +270,69 @@ class UploadService:
         upload_session = self.upload_repository.get(video_id=video_id)
 
         if upload_session.status != UploadSessionStatusEnum.UPLOADING:
-            raise HTTPException(status=400, detail="Upload session is not in UPLOADING state")
+            # raise HTTPException(status=400, detail="Upload session is not in UPLOADING state")
+            raise InvalidUploadState("Upload session is not in UPLOADING state")
+        
+        try:
+            # update upload_session
+            await self.upload_repository.update(upload_session.id, status = UploadSessionStatusEnum.PAUSED)
 
-        # update upload_session
-        self.upload_repository.update(upload_session.id, status = UploadSessionStatusEnum.PAUSED)
+            # create video event
+            await self.video_event_repository.create_video_event(
+                event_type = "CHUNKS_UPLOAD_PAUSED",
+                video_id=video_id,
+                payload = {
+                    "upload_id": upload_id,
+                    "object_key": upload_session.object_key,
+                    "file_name": upload_session.original_filename,
+                },
+            )
 
-        # create video event
-        self.video_event_repository.create_video_event(
-            event_type = "CHUNKS_UPLOAD_PAUSED",
-            video_id=video_id,
-            payload = {
-                "upload_id": upload_id,
-                "object_key": upload_session.object_key,
-                "file_name": upload_session.original_filename,
-            },
-        )
+            await self.session.commit()
+        except SQLAlchemyError:
+            await self.session.rollback()
+            # log
+            raise
 
-        await self.session.commit()
         return { "success": True, "status": "paused"}
         
 
     async def resume(self, video_id: uuid.UUID, upload_id: str):
         # select upload session
-        upload_session = self.upload_repository.get(video_id)
+        upload_session = await self.upload_repository.get_by_video(video_id)
+
+        if not upload_session:
+            raise UploadSessionNotFound()
 
         # update upload session
         if upload_session.status != UploadSessionStatusEnum.PAUSED:
-            raise HTTPException(status=400, detail="Upload session is not in PAUSED state")
-            
-        self.upload_repository.update(upload_session.id, status = UploadSessionStatusEnum.UPLOADING)
-        
+            # raise HTTPException(status=400, detail="Upload session is not in PAUSED state")
+            raise InvalidUploadState("Upload session is not in PAUSED state")
+                    
         # Ask R2 which parts actually exist
         uploaded_parts = self.storage_service.get_uploaded_parts(
             key=upload_session.object_key,
             uploadId=upload_id
         )
-    
-        # Add a VideoEvent to the session
-        self.video_event_repository.create_video_event(
-            event_type = "CHUNKS_UPLOAD_RESUMED",
-            video_id = video_id,
-            payload = {
-                "upload_id": upload_id,
-                "object_key": upload_session.object_key,
-                "file_name": upload_session.original_filename,
-            },
-        )
-    
-        await self.session.commit()
+
+        try:
+            await self.upload_repository.update(upload_session.id, status = UploadSessionStatusEnum.UPLOADING)
+
+            # Add a VideoEvent to the session
+            await self.video_event_repository.create_video_event(
+                event_type = "CHUNKS_UPLOAD_RESUMED",
+                video_id = video_id,
+                payload = {
+                    "upload_id": upload_id,
+                    "object_key": upload_session.object_key,
+                    "file_name": upload_session.original_filename,
+                },
+            )
+
+            await self.session.commit()
+        except SQLAlchemyError:
+            await self.session.rollback()
+            raise
 
         return {
             "success": True,

@@ -11,7 +11,13 @@
     import VideoProcessingProgress from './VideoProcessingProgress.svelte';
 	// import VideoPicker from './VideoPicker.svelte';
 
-    function handleUploadPlayPause() {}
+    function handlePauseUpload() {
+        uploader.pause();
+    }
+
+    function handleResumeUpload() {
+        uploader.resume();
+    }
 
     let uploadCancelled = $state<boolean>(false);
     
@@ -154,15 +160,28 @@
 
             <!-- Actions: Pause/Resume, Cancel -->
             <div class="flex items-center gap-3 pt-2">
-                <button
-                    class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm
-                        font-medium text-white transition hover:bg-black active:scale-[0.98]"
-                    onclick={() => {
-                        if (uploader.state.uploading) handleUploadPlayPause();
-                    }}
-                >
-                    Pause
-                </button>
+
+                {#if uploader.state.uploading && !uploader.state.paused}
+                    <button
+                        class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm
+                            font-medium text-white transition hover:bg-black active:scale-[0.98]"
+                        onclick={handlePauseUpload}
+                        disabled={uploader.state.pausing}
+                    >
+                        Pause
+                    </button>
+                {/if}
+
+                {#if uploader.state.paused}
+                    <button
+                        class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm
+                            font-medium text-white transition hover:bg-black active:scale-[0.98]"
+                        onclick={handleResumeUpload}
+                        disabled={uploader.state.resuming}
+                    >
+                        Resume
+                    </button>
+                {/if}
 
                 <button
                     class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm border-red-200

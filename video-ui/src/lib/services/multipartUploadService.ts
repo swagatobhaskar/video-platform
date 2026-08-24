@@ -163,3 +163,57 @@ export async function abortUpload(
         })
     });
 }
+
+export async function pauseUpload(
+    videoId: string,
+    uploadId: string,
+): Promise<{ success: string, status: string }> {
+    const res = await fetch(`${API_BASE}/${videoId}/abort-upload`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            videoId,
+            uploadId,
+        })
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to complete upload");
+    }
+
+    const { success, status } = await res.json();
+
+    return { success, status };
+}
+
+
+export async function resumeUpload(
+    videoId: string,
+    uploadId: string,
+): Promise<{ success: string, status: string, uploadedParts: UploadedPart }> {
+    const res = await fetch(`${API_BASE}/${videoId}/resume-upload`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            videoId,
+            uploadId,
+        })
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to complete upload");
+    }
+
+    const { success, status, uploadedParts } = await res.json();
+
+    return { success, status, uploadedParts };
+}
+
+
+export async function uploadParts(chunks: Blob[]) {
+    // upload missing parts
+}

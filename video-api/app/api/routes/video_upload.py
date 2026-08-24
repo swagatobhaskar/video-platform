@@ -163,143 +163,15 @@ async def abort_upload(
         object_key=req.key
     )
 
-    """
-    try:
-        s3.abort_multipart_upload(
-            Bucket=RAW_VIDEO_BUCKET,
-            Key=req.key,
-            UploadId=req.uploadId,
-        )
-
-        # get video_id from upload_id
-        result = await session.execute(
-            select(UploadSession).where(
-                UploadSession.video_upload_id == req.uploadId,
-                UploadSession.video_id == video_id    
-            )
-        )
-        upload_session = result.scalar_one_or_none()
-
-        if not upload_session:
-            raise ValueError("Upload session not found for the given upload ID")
-
-        # Add a VideoEvent to the session
-        video_event = VideoEvent(
-            event_type = "CHUNKS_UPLOAD_ABORTED",
-            video_id=video_id,
-            # video_id = req.videoId,
-            payload = {
-                "upload_id": req.uploadId,
-                "object_key": req.key,
-                "file_name": upload_session.original_filename,
-            },
-        )
-        session.add(video_event)
-
-        upload_session.status = UploadSessionStatusEnum.ABORTED
-
-        await session.commit()
-
-        return {"success": True, "status": "aborted"}
-    except Exception as e:
-        return {"error": str(e)}
-    """
 
 @router.post("/{upload_id}/video/{video_id}/pause-upload")
 async def pause_video_upload(video_id: str, upload_id: str, upload_service: UploadService = Depends(get_upload_service)):
     return await upload_service.pause(video_id=video_id, upload_id=upload_id)
-    """
-    result = await session.execute(
-        select(UploadSession).where(
-            UploadSession.upload_id == upload_id,
-            UploadSession.video_id == video_id
-        )
-    )
 
-    upload_session = result.scalar_one_or_none()
-
-    if not upload_session:
-        raise HTTPException(status=404, detail="Upload session not found")
-    
-    if upload_session.status != UploadSessionStatusEnum.UPLOADING:
-        raise HTTPException(status=400, detail="Upload session is not in UPLOADING state")
-    
-    upload_session.status = UploadSessionStatusEnum.PAUSED
-
-    # Add a VideoEvent to the session
-    video_event = VideoEvent(
-        event_type = "CHUNKS_UPLOAD_PAUSED",
-        video_id=video_id,
-        payload = {
-            "upload_id": upload_id,
-            "object_key": upload_session.object_key,
-            "file_name": upload_session.original_filename,  # Assuming the key is the filename
-        },
-    )
-    session.add(video_event)
-        
-    await session.commit()
-
-    return { "success": True, "status": "paused"}
-    """
 
 @router.post("/{upload_id}/video/{video_id}/resume-upload")
 async def resume_video_upload(video_id: str, upload_id: str, upload_service: UploadService = Depends(get_upload_service)):
     return await upload_service.resume(video_id=video_id, upload_id=upload_id)
-    """
-    result = await session.execute(
-        select(UploadSession).where(
-            UploadSession.upload_id == upload_id,
-            UploadSession.video_id == video_id
-        )
-    )
-
-    upload_session = result.scalar_one_or_none()
-
-    if not upload_session:
-        raise HTTPException(status=404, detail="Upload session not found")
-    
-    if upload_session.status != UploadSessionStatusEnum.PAUSED:
-        raise HTTPException(status=400, detail="Upload session is not in PAUSED state")
-    
-    upload_session.status = UploadSessionStatusEnum.UPLOADING
-
-    # Frontend asks which parts already exist.
-    # result = await session.execute(
-    #     select(UploadPart).where(UploadPart.upload_session_id == upload_session.id)
-    # )
-    # uploaded_parts = result.scalars().all()
-
-    # Ask R2 which parts actually exist
-    uploaded_parts = get_uploaded_parts(
-        s3=s3,
-        bucket=RAW_VIDEO_BUCKET,
-        key=upload_session.object_key,
-        uploadId=upload_session.video_upload_id,
-    )
-
-    # Add a VideoEvent to the session
-    video_event = VideoEvent(
-        event_type = "CHUNKS_UPLOAD_RESUMED",
-        video_id = video_id,
-        payload = {
-            "upload_id": upload_id,
-            "object_key": upload_session.object_key,
-            "file_name": upload_session.original_filename,  # Assuming the key is the filename
-        },
-    )
-    
-    session.add(video_event)
-
-    await session.commit()
-    # Might need to add rollback if error occurs
-    return {
-        "success": True,
-        "status": "resumed",
-        "uploadId": upload_id,
-        "uploaded_parts": uploaded_parts,
-    }
-    """
 
 
 # Record Uploaded Part
@@ -316,69 +188,6 @@ async def record_uploaded_part(
         upload_id=upload_id,
         part=part,
     )
-
-    """
-    result = await session.execute(
-        select(UploadSession).where(
-            UploadSession.video_upload_id == upload_id,
-            UploadSession.video_id == video_id
-        )
-    )
-
-    upload_session = result.scalar_one_or_none()
-
-    if not upload_session:
-        raise HTTPException(
-            status_code=404,
-            detail="Upload session not found."
-        )
-
-    try:
-        new_part = UploadPart(
-            upload_session_id=upload_session.id,
-            part_number=part.PartNumber,
-            etag=part.ETag,
-            size_bytes=part.SizeBytes,
-        )
-        session.add(new_part)
-        
-        # Increment uploaded parts count by 1
-        upload_session.uploaded_parts_count += 1
-
-        # Add a VideoEvent to the session
-        video_event = VideoEvent(
-            event_type = "CHUNK_UPLOADED",
-            video_id=video_id,
-            payload = {
-                "upload_session_id": str(upload_session.id),
-                "upload_id": upload_id,
-                "partNumber": part.PartNumber,
-                "ETag": part.ETag,
-                "size_bytes": part.SizeBytes,
-            }
-        )
-        session.add(video_event)
-
-        await session.commit()
-
-    except IntegrityError:
-        # catch it. Then simply return success. Duplicate chunk uploads are perfectly normal.
-        # raise HTTPException(status=400, detail="This part has already been recorded.")
-        await session.rollback() 
-        return {
-            "success": True,
-            "message": "uploaded part already recorded"
-        }
-
-    except Exception as e:
-        await session.rollback()
-        raise HTTPException(status=500, detail=str(e))
-
-    return {
-        "success": True,
-        "message": "uploaded part recorded successfully"
-    }
-    """
 
 
 @router.get("/{video_id}/processing-status/{transcode_task_id}")
