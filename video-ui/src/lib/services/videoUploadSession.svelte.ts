@@ -1,3 +1,4 @@
+import { SvelteSet } from 'svelte/reactivity';
 
 import {
     initiateUpload,
@@ -5,6 +6,8 @@ import {
     uploadChunk,
     completeUpload,
     abortUpload,
+    pauseUpload,
+    resumeUpload,
     type UploadedPart,
     recordUploadedPart
 } from './multipartUploadService';
@@ -29,18 +32,32 @@ export function createVideoUploadSession() {
         error: null as string | null,
     });
 
-    let pauseRequested = false;
+    // -------------------------------------------
+    // Internal upload state
+    // -------------------------------------------
+    
+    // Add a promise for the upload loop
+    let uploadPromise: Promise<void> | null = null;
 
     let abortController: AbortController | null = null;
     let currentUploadId: string | null = null;
     let currentKey: string | null = null;
     let currentVideoId: string | null = null;
-    // Actually make the upload session state belong to the uploader, not the URL
     let currentUploadSessionId: string | null = null;
+    
+    let pauseRequested = false;    
     let totalUploadedBytes = 0;
     let startTime = 0;
 
+    // -------------------------------------------
+    // Main upload
+    // -------------------------------------------
+
     async function upload(file: File, videoId: string, uploadSessionId: string) {
+        if (!videoId || !uploadSessionId) {
+            throw new Error("Missing videoId or uploadSessionId.");
+        }
+
         state.file = file;
         state.uploading = true;
         state.paused = false;
@@ -60,11 +77,6 @@ export function createVideoUploadSession() {
         abortController = new AbortController();
         // const signal = abortController.signal;
 
-
-        if (!videoId || !uploadSessionId) {
-            throw new Error("Missing videoId or uploadSessionId.");
-        }
-
         try {
             // STEP 1: Initiate Upload
             const { uploadId, key } = await initiateUpload(
@@ -83,64 +95,70 @@ export function createVideoUploadSession() {
             const parts: UploadedPart[] = [];
 
             // STEP 2-3: Upload Parts
-            for (let i = 0; i < chunks.length; i++) {
-                const chunk = chunks[i];
-                const partNumber = i + 1;
+            // for (let i = 0; i < chunks.length; i++) {
+            //     const chunk = chunks[i];
+            //     const partNumber = i + 1;
 
-                const uploadUrl = await getPresignedUrl(
-                    uploadId,
-                    key,
-                    partNumber,
-                    videoId,
-                    abortController.signal
-                );
+            //     const uploadUrl = await getPresignedUrl(
+            //         uploadId,
+            //         key,
+            //         partNumber,
+            //         videoId,
+            //         abortController.signal
+            //     );
 
-                let previousLoaded = 0;
+            //     let previousLoaded = 0;
 
-                const etag = await uploadChunk(
-                    uploadUrl,
-                    chunks[i],
-                    (loaded) => {
-                        const delta = loaded - previousLoaded;
-                        previousLoaded = loaded;
-                        totalUploadedBytes += delta;
+            //     const etag = await uploadChunk(
+            //         uploadUrl,
+            //         chunks[i],
+            //         (loaded) => {
+            //             const delta = loaded - previousLoaded;
+            //             previousLoaded = loaded;
+            //             totalUploadedBytes += delta;
 
-                        const elapsedSeconds = (Date.now() - startTime) / 1000;
+            //             const elapsedSeconds = (Date.now() - startTime) / 1000;
 
-                        state.speed = elapsedSeconds > 0 ? ( totalUploadedBytes / elapsedSeconds ) : 0;
+            //             state.speed = elapsedSeconds > 0 ? ( totalUploadedBytes / elapsedSeconds ) : 0;
 
-                        const remainingBytes = file.size - totalUploadedBytes;
+            //             const remainingBytes = file.size - totalUploadedBytes;
 
-                        state.eta = state.speed > 0 ? (remainingBytes / state.speed) : 0;
+            //             state.eta = state.speed > 0 ? (remainingBytes / state.speed) : 0;
 
-                        state.progress = Math.round(
-                            (totalUploadedBytes / file.size) * 100
-                        );
-                    },
-                    abortController.signal
-                );
+            //             state.progress = Math.round(
+            //                 (totalUploadedBytes / file.size) * 100
+            //             );
+            //         },
+            //         abortController.signal
+            //     );
 
-                if (!etag) {
-                    throw new Error(`Missing ETag for part ${partNumber}`);
-                }
+            //     if (!etag) {
+            //         throw new Error(`Missing ETag for part ${partNumber}`);
+            //     }
 
-                await recordUploadedPart(
-                    currentUploadId,
-                    currentVideoId,
-                    {
-                        ETag: etag,
-                        PartNumber: partNumber,
-                        SizeBytes: chunk.size,
-                    },
-                    abortController.signal
-                );
+            //     await recordUploadedPart(
+            //         currentUploadId,
+            //         currentVideoId,
+            //         {
+            //             ETag: etag,
+            //             PartNumber: partNumber,
+            //             SizeBytes: chunk.size,
+            //         },
+            //         abortController.signal
+            //     );
 
-                parts.push({
-                    ETag: etag,
-                    PartNumber: partNumber,
-                    SizeBytes: chunk.size,
-                });
-            }
+            //     parts.push({
+            //         ETag: etag,
+            //         PartNumber: partNumber,
+            //         SizeBytes: chunk.size,
+            //     });
+            // }
+
+            await uploadParts(
+                chunks,
+                parts,
+                new SvelteSet<number>()
+            );
 
             if (pauseRequested) {
                 return;
@@ -162,23 +180,196 @@ export function createVideoUploadSession() {
 
         } catch (err) {
             if (err instanceof Error && err.name === "AbortError") {
-                if (pauseRequested) {
-                    // expected pause
-                    console.log("Upload pause");
+
+            if (pauseRequested) {
+                console.log("Upload pause requested");
+
+                try {
+                    await pauseUpload(
+                        currentVideoId!,
+                        currentUploadId!
+                    );
+
                     state.uploading = false;
                     state.paused = true;
-                    return;
+
+                } catch (pauseErr) {
+                    state.error = pauseErr instanceof Error ? pauseErr.message : "Failed to pause upload";
+                    pauseRequested = false;
+                } finally {
+                    state.pausing = false;
                 }
 
-                // Actual cancellation
                 return;
+            }
+
+            // Actual cancellation
+            return;
             }
 
             state.error = err instanceof Error ? err.message : "Unknown error occurred";
 
             state.uploading = false;
-        }   
     }
+
+    // --------------------------------------------------
+    // Multipart part uploading
+    // --------------------------------------------------
+
+    async function uploadParts(chunks: Blob[], parts: UploadedPart[], uploadedPartNumbers: Set<number>) {
+        for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            const partNumber = i + 1;
+
+            if (uploadedPartNumbers.has(partNumber)) {
+                continue;
+            }
+
+            const uploadUrl = await getPresignedUrl(
+                currentUploadId!,
+                currentKey!,
+                partNumber,
+                currentVideoId!,
+                abortController!.signal
+            );
+
+            let previousLoaded = 0;
+
+            const etag = await uploadChunk(
+                uploadUrl,
+                chunk,
+                (loaded) => {
+                    const delta = loaded - previousLoaded;
+                    previousLoaded = loaded;
+                    totalUploadedBytes += delta;
+
+                    const elapsedSeconds = (Date.now() - startTime) / 1000;
+
+                    state.speed = elapsedSeconds > 0 ? ( totalUploadedBytes / elapsedSeconds ) : 0;
+
+                    const remainingBytes = state.file!.size - totalUploadedBytes;
+
+                    state.eta = state.speed > 0 ? (remainingBytes / state.speed) : 0;
+
+                    state.progress = Math.round(
+                        (totalUploadedBytes / state.file!.size) * 100
+                    );
+                },
+                abortController!.signal
+            );
+
+            if (!etag) {
+                throw new Error(`Missing ETag for part ${partNumber}`);
+            }
+
+            const uploadedPart = {
+                ETag: etag,
+                PartNumber: partNumber,
+                SizeBytes: chunk.size
+            };
+
+            await recordUploadedPart(
+                currentUploadId!,
+                currentVideoId!,
+                uploadedPart,
+                abortController!.signal
+            );
+
+            parts.push(uploadedPart);
+            uploadedPartNumbers.add(partNumber);
+        }
+    }
+
+    // --------------------------------------------------
+    // Pause / Resume
+    // --------------------------------------------------
+
+    async function pause() {
+        if (!currentUploadId || !currentVideoId) {
+            return;
+        }
+
+        if (!state.uploading || state.paused || state.pausing) {
+            return;
+        }
+
+        state.pausing = true;
+        pauseRequested = true;
+
+        // Stop the currently running HTTP request.
+        abortController?.abort();
+
+        // Do NOT call pauseUpload() here yet.
+        // move the backend pause call into the AbortError branch of upload().
+
+        // try {
+        //     await pauseUpload(currentVideoId, currentUploadId);
+        //     state.paused = true;
+        //     state.uploading = false;
+        // } catch (err) {
+        //     state.error = err instanceof Error ? err.message : "Failed to pause upload";
+        //     pauseRequested = false;
+        // } finally {
+        //     state.pausing = false;
+        // }
+    }
+
+    async function resume() {
+        if (!currentUploadId || !currentVideoId || !state.file || !currentUploadSessionId) {
+            return;
+        }
+
+        if (!state.paused) {
+            return;
+        }
+
+        state.resuming = true;
+        state.error = null;
+
+        try {
+            const response = await resumeUpload(currentVideoId, currentUploadId);
+
+            const uploadedParts: UploadedPart[] = response.uploadedParts;
+
+            const chunks = splitFileIntoChunks(state.file);
+
+            const uploadedPartNumbers = new SvelteSet<number>(uploadedParts.map((part: UploadedPart) => part.PartNumber));
+
+            // Reconstruct progress from parts
+            totalUploadedBytes = uploadedParts.reduce((total, part) => total + part.SizeBytes, 0);
+            state.progress = Math.round((totalUploadedBytes / state.file.size) * 100);
+
+            pauseRequested = false;
+            abortController = new AbortController();
+
+            state.paused = false;
+            state.uploading = true;
+
+            await uploadParts(chunks, uploadedParts, uploadedPartNumbers);
+
+            await completeUpload(
+                currentKey!,
+                state.file.name,
+                currentUploadId!,
+                uploadedParts,
+                currentVideoId!,
+                currentUploadSessionId!,
+                abortController.signal
+            );
+
+            state.complete = true;
+            state.uploading = false;
+            // state.paused = false;
+        } catch (err) {
+            state.error = err instanceof Error ? err.message : "Failed to resume upload";
+        } finally {
+            state.resuming = false;
+        }
+    }
+
+    // --------------------------------------------------
+    // Cancel
+    // --------------------------------------------------
 
     async function cancel() {
         // Capture everything BEFORE aborting the upload
@@ -189,17 +380,7 @@ export function createVideoUploadSession() {
         // Cancel in-flight requests
         abortController?.abort();
 
-        // get videoId from cookies/localStorage
-        // const videoCookie = await cookieStore.get("videoId");
-        // const videoId = videoCookie?.value;
-
-        // if (!videoId) {
-        //     throw new Error("Missing videoId");
-        // }
-
         try {
-            console.log("Cancelling.. inside cancel()...")
-
             if (uploadId && key && videoId) {
                 await abortUpload(uploadId, key, videoId);
             }
@@ -207,6 +388,9 @@ export function createVideoUploadSession() {
             console.warn("Abort cleanup failed", err);
         } finally {
             state.uploading = false;
+            state.paused = false;
+            state.pausing = false;
+            state.resuming = false;
 
             // Reset controllers and trackers
             abortController = null;
@@ -215,6 +399,7 @@ export function createVideoUploadSession() {
             currentVideoId = null;
             currentUploadId = null;
             currentKey = null;
+            currentUploadSessionId = null;
 
             // reset metrics
             state.progress = 0;
@@ -229,6 +414,8 @@ export function createVideoUploadSession() {
     return {
         state,
         upload,
-        cancel
+        pause,
+        resume,
+        cancel,
     };
 }

@@ -4,7 +4,7 @@ import { uploadChunkWithProgress } from "$lib/helpers/multipartUploadHelper";
 const API_BASE = "http://127.0.0.1:8000/api/video/upload";
 
 export interface UploadedPart {
-    ETag: string | null;
+    ETag: string;
     PartNumber: number;
     SizeBytes: number;
 }
@@ -167,8 +167,8 @@ export async function abortUpload(
 export async function pauseUpload(
     videoId: string,
     uploadId: string,
-): Promise<{ success: string, status: string }> {
-    const res = await fetch(`${API_BASE}/${videoId}/abort-upload`, {
+): Promise<{ success: boolean, status: string }> {
+    const res = await fetch(`${API_BASE}/${uploadId}/video/${videoId}/pause-upload`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -180,7 +180,7 @@ export async function pauseUpload(
     });
 
     if (!res.ok) {
-        throw new Error("Failed to complete upload");
+        throw new Error("Failed to pause upload");
     }
 
     const { success, status } = await res.json();
@@ -192,8 +192,8 @@ export async function pauseUpload(
 export async function resumeUpload(
     videoId: string,
     uploadId: string,
-): Promise<{ success: string, status: string, uploadedParts: UploadedPart }> {
-    const res = await fetch(`${API_BASE}/${videoId}/resume-upload`, {
+): Promise<{ success: boolean, status: string, uploadedParts: UploadedPart[] }> {
+    const res = await fetch(`${API_BASE}/${uploadId}/video/${videoId}/resume-upload`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -205,15 +205,10 @@ export async function resumeUpload(
     });
 
     if (!res.ok) {
-        throw new Error("Failed to complete upload");
+        throw new Error("Failed to resume upload");
     }
 
     const { success, status, uploadedParts } = await res.json();
 
     return { success, status, uploadedParts };
-}
-
-
-export async function uploadParts(chunks: Blob[]) {
-    // upload missing parts
 }
