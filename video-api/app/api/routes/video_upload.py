@@ -1,9 +1,6 @@
-# import os
-# import shutil
 import logging
-from fastapi import APIRouter, HTTPException, Depends # , File, UploadFile, Form
+from fastapi import APIRouter, Depends
 from celery.result import AsyncResult
-from sqlalchemy import select
 
 from app.dependencies import get_upload_service, get_video_repository, get_transcode_repository
 from app.workers.celery_worker import celery
@@ -13,7 +10,6 @@ from app.exceptions.transcodetask import TranscodeTaskMismatch, TranscodeTaskNot
 from app.repositories.video_repository import VideoRepository
 from app.repositories.transcode_repository import TranscodeRepository
 from app.services.upload_service import UploadService
-# from app.services.storage.r2_storage_service import R2StorageService
 
 from app.core.config import get_settings
 settings = get_settings()
@@ -70,7 +66,6 @@ async def get_presigned_url(
     upload_service: UploadService = Depends(get_upload_service)
 ):
     return await upload_service.get_presigned_url(
-        # video_id=video_id,
         upload_id=req.uploadId,
         object_key=req.key,
         part_number=req.partNumber
@@ -174,8 +169,7 @@ async def resume_video_upload(video_id: str, upload_id: str, upload_service: Upl
     return await upload_service.resume(video_id=video_id, upload_id=upload_id)
 
 
-# Record Uploaded Part
-# After a successful chunk upload, frontend sends ETag.
+# Record Uploaded Part. After a successful chunk upload, frontend sends ETag.
 @router.post("/{upload_id}/video/{video_id}/record-uploaded-part")
 async def record_uploaded_part(
     upload_id: str,
@@ -202,9 +196,7 @@ async def get_video_processing_status(
         raise VideoNotFound()
 
     if video.transcode_task_id != transcode_task_id:
-        # raise HTTPException(status_code=503, detail="Task id doesn't belong to the video")
         raise TranscodeTaskMismatch()
-
 
     transcode_task = await transcode_repo.get(transcode_task_id)
 
@@ -303,26 +295,3 @@ async def retry_failed_upload(
         "uploaded_parts": uploaded_parts,
     }
     """
-
-    # RESTART UPLOAD
-    #
-    # Frontend
-    # Restart button
-    # ↓
-    # POST /restart-upload
-    # ↓
-    # receive
-
-    # new upload_session_id
-    # ↓
-    # POST /initiate-upload
-    # ↓
-    # receive
-
-    # new uploadId
-    # new objectKey
-    # ↓
-    # Upload ALL chunks
-    # ↓
-    # Complete upload
-    
