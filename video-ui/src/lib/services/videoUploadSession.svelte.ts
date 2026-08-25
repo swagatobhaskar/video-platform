@@ -334,23 +334,23 @@ export function createVideoUploadSession() {
         state.error = null;
 
         try {
-            console.log("4. Calling resumeUpload()");
+            // console.log("4. Calling resumeUpload()");
             const response = await resumeUpload(currentVideoId, currentUploadId);
-            console.log("5. Response from resume-upload: ", response);
+            // console.log("5. Response from resume-upload: ", response);
 
             const uploadedParts: UploadedPart[] = response.uploadedParts;
-            console.log("6. Uploaded parts:", uploadedParts);
+            // console.log("6. Uploaded parts:", uploadedParts);
 
             const chunks = splitFileIntoChunks(state.file);
-            console.log("7. Chunks:", chunks.length);
+            // console.log("7. Chunks:", chunks.length);
 
             const uploadedPartNumbers = new SvelteSet<number>(uploadedParts.map((part: UploadedPart) => part.PartNumber));
-            console.log("8. Uploaded part numbers:", [...uploadedPartNumbers]);
+            // console.log("8. Uploaded part numbers:", [...uploadedPartNumbers]);
 
             // Reconstruct progress from parts
             totalUploadedBytes = uploadedParts.reduce((total, part) => total + part.SizeBytes, 0);
             state.progress = Math.round((totalUploadedBytes / state.file.size) * 100);
-            console.log("9. Progress:", state.progress);
+            // console.log("9. Progress:", state.progress);
 
             pauseRequested = false;
             abortController = new AbortController();
@@ -358,14 +358,14 @@ export function createVideoUploadSession() {
             state.paused = false;
             state.uploading = true;
 
-            console.log("10. Calling uploadParts()");
+            // console.log("10. Calling uploadParts()");
             await uploadParts(chunks, uploadedParts, uploadedPartNumbers);
-            console.log("11. uploadParts() finished");
+            // console.log("11. uploadParts() finished");
 
             // make sure the array is sorted before completin.
             // S3's CompleteMultipartUpload expects the parts in ascending PartNumber order.
             const sortedUploadedParts = uploadedParts.sort((a, b) => a.PartNumber - b.PartNumber);
-            console.log("12. Sorted parts:", sortedUploadedParts);
+            // console.log("12. Sorted parts:", sortedUploadedParts);
 
             await completeUpload(
                 currentKey!,
@@ -377,17 +377,17 @@ export function createVideoUploadSession() {
                 currentUploadSessionId!,
                 abortController.signal
             );
-            console.log("14. completeUpload() finished");
+            // console.log("14. completeUpload() finished");
 
             state.complete = true;
             state.uploading = false;
             // state.paused = false;
         } catch (err) {
-            console.error("RESUME ERROR:", err);
+            // console.error("RESUME ERROR:", err);
             state.error = err instanceof Error ? err.message : "Failed to resume upload";
             state.uploading = false;
         } finally {
-            console.log("15. Resume finally");
+            // console.log("15. Resume finally");
             state.resuming = false;
         }
     }
