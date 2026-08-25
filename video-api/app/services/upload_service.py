@@ -338,7 +338,7 @@ class UploadService:
             "success": True,
             "status": "resumed",
             "uploadId": upload_id,
-            "uploaded_parts": uploaded_parts,
+            "uploadedParts": uploaded_parts,
         }
 
 
