@@ -208,7 +208,5 @@ export async function resumeUpload(
         throw new Error("Failed to resume upload");
     }
 
-    const { success, status, uploadedParts } = await res.json();
-
-    return { success, status, uploadedParts };
+    return await res.json();
 }

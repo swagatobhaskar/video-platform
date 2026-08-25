@@ -176,8 +176,8 @@ export function createVideoUploadSession() {
             state.uploading = false;
 
         } catch (err) {
-            if (err instanceof Error && err.name === "AbortError") {
-
+            // if (err instanceof Error && err.name === "AbortError") {
+            //     console.log("Upload pause requested");
             if (pauseRequested) {
                 console.log("Upload pause requested");
 
@@ -185,8 +185,10 @@ export function createVideoUploadSession() {
                     await pauseUpload(currentVideoId!, currentUploadId!);
                     state.uploading = false;
                     state.paused = true;
+                    state.error = null;
 
                 } catch (pauseErr) {
+                    console.error("Failed to pause upload:", pauseErr);
                     state.error = pauseErr instanceof Error ? pauseErr.message : "Failed to pause upload";
                     pauseRequested = false;
                 } finally {
@@ -197,8 +199,12 @@ export function createVideoUploadSession() {
             }
 
             // Actual cancellation
-            return;
-            }
+            // return;
+            if (err instanceof Error && err.name === "AbortError") {
+                    console.log("Upload cancelled");
+                    return;
+                }
+            // }
 
             state.error = err instanceof Error ? err.message : "Unknown error occurred";
             state.uploading = false;
@@ -278,6 +284,8 @@ export function createVideoUploadSession() {
     // --------------------------------------------------
 
     async function pause() {
+        console.log("Pause requested");
+
         if (!currentUploadId || !currentVideoId) {
             return;
         }
@@ -288,6 +296,8 @@ export function createVideoUploadSession() {
 
         state.pausing = true;
         pauseRequested = true;
+
+        console.log("Aborting current request...");
 
         // Stop the currently running HTTP request.
         abortController?.abort();
@@ -308,11 +318,15 @@ export function createVideoUploadSession() {
     }
 
     async function resume() {
+        console.log("Inside Resume Service.");
+
         if (!currentUploadId || !currentVideoId || !state.file || !currentUploadSessionId) {
+            console.log("2. Missing upload state");
             return;
         }
 
         if (!state.paused) {
+            console.log("3. Not paused");
             return;
         }
 
@@ -320,17 +334,23 @@ export function createVideoUploadSession() {
         state.error = null;
 
         try {
+            console.log("4. Calling resumeUpload()");
             const response = await resumeUpload(currentVideoId, currentUploadId);
+            console.log("5. Response from resume-upload: ", response);
 
             const uploadedParts: UploadedPart[] = response.uploadedParts;
+            console.log("6. Uploaded parts:", uploadedParts);
 
             const chunks = splitFileIntoChunks(state.file);
+            console.log("7. Chunks:", chunks.length);
 
             const uploadedPartNumbers = new SvelteSet<number>(uploadedParts.map((part: UploadedPart) => part.PartNumber));
+            console.log("8. Uploaded part numbers:", [...uploadedPartNumbers]);
 
             // Reconstruct progress from parts
             totalUploadedBytes = uploadedParts.reduce((total, part) => total + part.SizeBytes, 0);
             state.progress = Math.round((totalUploadedBytes / state.file.size) * 100);
+            console.log("9. Progress:", state.progress);
 
             pauseRequested = false;
             abortController = new AbortController();
@@ -338,24 +358,36 @@ export function createVideoUploadSession() {
             state.paused = false;
             state.uploading = true;
 
+            console.log("10. Calling uploadParts()");
             await uploadParts(chunks, uploadedParts, uploadedPartNumbers);
+            console.log("11. uploadParts() finished");
+
+            // make sure the array is sorted before completin.
+            // S3's CompleteMultipartUpload expects the parts in ascending PartNumber order.
+            const sortedUploadedParts = uploadedParts.sort((a, b) => a.PartNumber - b.PartNumber);
+            console.log("12. Sorted parts:", sortedUploadedParts);
 
             await completeUpload(
                 currentKey!,
                 state.file.name,
                 currentUploadId!,
-                uploadedParts,
+                // uploadedParts,
+                sortedUploadedParts,
                 currentVideoId!,
                 currentUploadSessionId!,
                 abortController.signal
             );
+            console.log("14. completeUpload() finished");
 
             state.complete = true;
             state.uploading = false;
             // state.paused = false;
         } catch (err) {
+            console.error("RESUME ERROR:", err);
             state.error = err instanceof Error ? err.message : "Failed to resume upload";
+            state.uploading = false;
         } finally {
+            console.log("15. Resume finally");
             state.resuming = false;
         }
     }

@@ -123,28 +123,6 @@
 
 </script>
 
-<!--
-Why use AbortController?
-
-Suppose the user navigates like this:
-
-/uploads/1
-→ /uploads/2
-→ /uploads/3
-
-Without aborting, the request for /1 might finish last and overwrite the data for /3.
-By aborting the previous request in the effect's cleanup function, only the latest request is allowed to complete and update your state.
-This avoids race conditions during rapid client-side navigation.
--->
-
-<!-- {#if loading}
-	<p>Loading...</p>
-{:else if error}
-	<p class="text-red-500">{error}</p>
-{:else if video}
-	<VideoDetails {video} />
-{/if} -->
-
 <VideoDropModal
     open={modalOpen}
     {videoInputController}
@@ -154,7 +132,6 @@ This avoids race conditions during rapid client-side navigation.
 <div class="w-5/6 mx-auto h-100vh flex flex-row">
     <!-- Form Area -->
     <section class="flex-2/3">
-        <!-- Form Component -->
          <FormComponent />
     </section>
     
@@ -163,7 +140,6 @@ This avoids race conditions during rapid client-side navigation.
         <!-- Upload Progress -->
         <VideoUploadProgressCard uploader={uploader} />
         
-        <!-- Thumbnail -->
         <ThumbnailCard controller={thumbnailInputController} />
     </section>
 </div>
