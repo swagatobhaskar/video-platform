@@ -44,14 +44,23 @@ class R2MultipartService:
                 "Failed to generate presigned upload URL"
             ) from exc
 
-    def get_uploaded_parts(self, key: str, uploadId: str):
+    def get_uploaded_parts(self, key: str, uploadId: str) -> list[dict]:
         response = self.client.list_parts(
             Bucket=self.BUCKET,
             Key=key,
             UploadId=uploadId
         )
         
-        return response.get("Parts", [])
+        # return response.get("Parts", [])
+
+        return [
+            {
+                "ETag": part["ETag"],
+                "PartNumber": part["PartNumber"],
+                "SizeBytes": part["Size"],
+            }
+            for part in response.get("Parts", [])
+        ]
 
 
     def complete_upload(self, key: str, uploadId: str, parts: dict[str, int]):
