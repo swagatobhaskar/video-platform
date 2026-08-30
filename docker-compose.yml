@@ -2,7 +2,7 @@ services:
 
   backend:
     build:
-      context: ./api
+      context: ./video-api
     container_name: api
     # ports are no longer required exposing because NGINX exposes only port 80
     # ports:
@@ -14,14 +14,16 @@ services:
     # environment:
     #   - DATABASE_URL=postgresql+asyncpg://swagato:ranDom1234@database:5432/  # database:5432 -- database is the service name
     env_file:
-      - ./api/.env
+      - ./video-api/.env
 
   database:
     image: postgres:18
     container_name: postgres_db
     restart: unless-stopped
+    # Point to the root .env file relative to the docker-compose.yml location
     env_file:
       - .env
+    # Following environment declaration is no longer required since they are obtained from the root .env
     # environment:
     #   POSTGRES_USER: ${POSTGRES_USER}
     #   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -30,7 +32,7 @@ services:
       - pg_data:/var/lib/postgresql/
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -58,22 +60,22 @@ services:
 
   celery_worker:
     build:
-      context: ./api
+      context: ./video-api
     container_name: celery_worker
-    command: celery -A app.celery_app.celery_app worker --loglevel=info -Q default
+    command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default
     depends_on:
       - backend
       - redis
       - database
     env_file:
-      - ./api/.env
+      - ./video-api/.env
     restart: unless-stopped
 
   outbox-worker:
-    build: ./api
+    build: ./video-api
     command: python -m api.app.workers.outbox_worker
     depends_on:
-      - postgres
+      - database
       - redis
 
   redis:
@@ -93,7 +95,7 @@ services:
 
   flower:
     build:
-      context: ./api
+      context: ./video-api
     container_name: celery_flower
     command: >
       celery -A app.celery_app.celery_app flower
@@ -107,12 +109,12 @@ services:
       - redis
       - celery_worker
     env_file:
-      - ./api/.env
+      - ./video-api/.env
     restart: unless-stopped
 
   frontend:
     build:
-      context: ./my-demo
+      context: ./video-ui
     container_name: frontend
     # NGINX exposes only port 80
     # ports:

@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int
     refresh_token_expire_days: int
     allowed_origins: List[str] = allowed_origins_list
+    # docker database envs
+    postgres_user: str
+    postgres_password: str
+    postgres_db: str
+    postgres_host: str
+    postgres_port: int
     # r2 creds
     r2_account_id: str
     r2_access_key_id: str
