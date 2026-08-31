@@ -130,7 +130,7 @@ class VideoRepository:
         return result.scalar_one_or_none()
 
 
-    async def get_upload_history(self) -> list[Video]:
+    async def get_upload_history(self) -> list:
         result = await self.session.execute(
             select(Video)
             .options(

@@ -1,14 +1,9 @@
 from uuid import UUID
 from sqlalchemy import select, func
-from sqlalchemy.exc import SQLAlchemyError
-import redis
-import kombu
 from datetime import datetime, timezone, timedelta
 
-from app.repositories.transcode_repository import TranscodeRepository
-from app.tasks.transcode.transcode_task import process_video_worker_operations
 from app.core.database import AsyncSession
-from app.models import OutboxStatusEnum, OutboxMessage, VideoProcessingStatusEnum
+from app.models import OutboxStatusEnum, OutboxMessage
 
 class OutboxMessageRepository:
 
@@ -54,7 +49,7 @@ class OutboxMessageRepository:
         return outbox_message
 
 
-    async def get_pending(self, limit: int = 100) -> list[OutboxMessage]:
+    async def get_pending(self, limit: int = 100): # -> list[OutboxMessage]:
         result = await self.session.execute(
             select(OutboxMessage)
             .where(
