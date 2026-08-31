@@ -11,10 +11,21 @@ services:
     depends_on:
       database:
         condition: service_healthy
+    environment:
+      ENV: production
     # environment:
     #   - DATABASE_URL=postgresql+asyncpg://swagato:ranDom1234@database:5432/  # database:5432 -- database is the service name
     env_file:
-      - ./video-api/.env
+      - ./video-api/.env.production
+    healthcheck:
+      # test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: [ "CMD", "python", "-c",
+        "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+      ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   database:
     image: postgres:18
@@ -38,7 +49,7 @@ services:
       retries: 5
       start_period: 10s
 
-      # You can peek inside the postgres container with: docker exec -it postgres_db psql -U swagato -d mypgdb
+      # You can peek inside the postgres container with: docker exec -it postgres_db psql -U swagato -d videodevdb
 
   # seed:
   #   build:
@@ -64,19 +75,27 @@ services:
     container_name: celery_worker
     command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default
     depends_on:
-      - backend
-      - redis
-      - database
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy # not defined in backend
     env_file:
-      - ./video-api/.env
+      - ./video-api/.env.production
     restart: unless-stopped
 
   outbox-worker:
     build: ./video-api
-    command: python -m api.app.workers.outbox_worker
+    command: python -m app.workers.outbox_worker
     depends_on:
-      - database
-      - redis
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./video-api/.env.production
+    restart: unless-stopped
 
   redis:
     image: redis:8-alpine
@@ -98,7 +117,7 @@ services:
       context: ./video-api
     container_name: celery_flower
     command: >
-      celery -A app.celery_app.celery_app flower
+      celery -A app.workers.celery_worker.celery flower
       --port=5555
       --url_prefix=flower
       --basic_auth=admin:Password123
@@ -109,7 +128,7 @@ services:
       - redis
       - celery_worker
     env_file:
-      - ./video-api/.env
+      - ./video-api/.env.production
     restart: unless-stopped
 
   frontend:
