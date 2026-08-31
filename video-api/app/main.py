@@ -17,47 +17,14 @@ from app.api.routes.thumbnail_upload import router as ThumbnailRouter
 from app.api.routes._task_routes import router as TaskRouter
 
 from app.exceptions.base import AppException
-from app.api.exception_handlers import app_exception_handler # (
-#     upload_not_found_handler,
-#     upload_already_completed_handler,
-#     new_upload_creation_failed_handler,
-#     category_exists_handler,
-#     category_not_found_handler,
-#     video_not_found_handler,
-#     video_publish_error_handler,
-#     video_archive_error_handler,
-#     video_already_linked_to_category_handler,
-#     video_already_in_series_handler,
-#     series_already_exists_handler,
-#     series_not_found_handler,
-#     storage_provider_error_handler,
-#     video_metadata_duplicate_entry_handler,
-#     no_image_in_request_handler,
-#     thumbnail_already_exists_handler,
-# )
-
-# from app.exceptions.category import CategoryAlreadyExists, CategoryNotFound, VideoAlreadyLinked
-# from app.exceptions.video import (
-#     VideoPublishError,
-#     VideoNotFound,
-#     VideoArchiveFailed,
-#     DuplicateEntryError,
-#     NoImageInRequest,
-#     ThumbnailAlreadyExists
-# )
-# from app.exceptions.series import SeriesAlreadyExists, SeriesNotFound, VideoAlreadyInTheSeries
-# from app.exceptions.upload import (
-#     UploadSessionNotFound,
-#     UploadAlreadyCompleted,
-#     NewUploadCreationFailed,
-# )
+from app.api.exception_handlers import app_exception_handler
 
 settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup logic: create DB tables
-    print("START-UP")
+    # print("START-UP")
     # async with engine.begin() as conn:
     #    await conn.run_sync(Base.metadata.create_all)
     
@@ -82,81 +49,6 @@ app.add_exception_handler(
     app_exception_handler,
 )
 
-# app.add_exception_handler(
-#     UploadSessionNotFound,
-#     upload_not_found_handler,
-# )
-
-# app.add_exception_handler(
-#     CategoryNotFound,
-#     category_not_found_handler,
-# )
-
-# app.add_exception_handler(
-#     NewUploadCreationFailed,
-#     new_upload_creation_failed_handler,
-# )
-
-# app.add_exception_handler(
-#     DuplicateEntryError,
-#     video_metadata_duplicate_entry_handler,
-# )
-
-# app.add_exception_handler(
-#     VideoNotFound,
-#     video_not_found_handler,
-# )
-
-# app.add_exception_handler(
-#     VideoPublishError,
-#     video_publish_error_handler,
-# )
-
-# app.add_exception_handler(
-#     VideoArchiveFailed,
-#     video_archive_error_handler,
-# )
-
-# app.add_exception_handler(
-#     CategoryAlreadyExists,
-#     category_exists_handler
-# )
-
-# app.add_exception_handler(
-#     UploadAlreadyCompleted,
-#     upload_already_completed_handler,
-# )
-
-# app.add_exception_handler(
-#     VideoAlreadyLinked,
-#     video_already_linked_to_category_handler,
-# )
-
-# app.add_exception_handler(
-#     VideoAlreadyInTheSeries,
-#     video_already_in_series_handler,
-# )
-
-# app.add_exception_handler(
-#     SeriesNotFound,
-#     series_not_found_handler,
-# )
-
-# app.add_exception_handler(
-#     SeriesAlreadyExists,
-#     series_already_exists_handler,
-# )
-
-# app.add_exception_handler(
-#     NoImageInRequest,
-#     no_image_in_request_handler,
-# )
-
-# app.add_exception_handler(
-#     ThumbnailAlreadyExists,
-#     thumbnail_already_exists_handler,
-# )
-
 app.include_router(UserRouter)
 app.include_router(AuthRouter)
 app.include_router(VideoUploadRouter)
@@ -167,15 +59,19 @@ app.include_router(SeriesRouter)
 app.include_router(ThumbnailRouter)
 
 # Use settings as Dependency Injection
-@app.get("/")
+@app.get("/root", status_code=status.HTTP_200_OK)
 def read_root(settings: Annotated[Settings, Depends(get_settings)]):
     
     return JSONResponse(
         status_code=status.HTTP_200_OK, 
         content= {
-            "message": "Hello, World!",
+            "message": "Response from /root",
             "App name": settings.app_name,
             "env": settings.env,
-            "debug": settings.debug
+            "debug": settings.debug,
         }
     )
+
+@app.get("/health", status_code=200)
+async def health():
+    return {"status": "ok"}
