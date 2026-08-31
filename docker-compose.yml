@@ -1,32 +1,5 @@
 services:
 
-  backend:
-    build:
-      context: ./video-api
-    container_name: api
-    # ports are no longer required exposing because NGINX exposes only port 80
-    # ports:
-    #   - "8000:8000"
-    restart: unless-stopped
-    depends_on:
-      database:
-        condition: service_healthy
-    environment:
-      ENV: production
-    # environment:
-    #   - DATABASE_URL=postgresql+asyncpg://swagato:ranDom1234@database:5432/  # database:5432 -- database is the service name
-    env_file:
-      - ./video-api/.env.production
-    healthcheck:
-      # test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      test: [ "CMD", "python", "-c",
-        "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
-      ]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
   database:
     image: postgres:18
     container_name: postgres_db
@@ -50,6 +23,40 @@ services:
       start_period: 10s
 
       # You can peek inside the postgres container with: docker exec -it postgres_db psql -U swagato -d videodevdb
+
+  backend:
+    build:
+      context: ./video-api
+    container_name: api
+    # ports are no longer required exposing because NGINX exposes only port 80
+    # ports:
+    #   - "8000:8000"
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      ENV: production
+    # environment:
+    #   - DATABASE_URL=postgresql+asyncpg://swagato:ranDom1234@database:5432/  # database:5432 -- database is the service name
+      POSTGRES_HOST: database
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    env_file:
+      - ./video-api/.env.production
+    healthcheck:
+      # test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: [ "CMD", "python", "-c",
+        "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+      ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+
 
   # seed:
   #   build:

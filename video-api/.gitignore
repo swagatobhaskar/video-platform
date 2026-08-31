@@ -3,7 +3,8 @@ venv/
 
 # .env # .env is used by database docker service
 .env.development
-# exclude .env.example, .env.production
+.env.production
+!.env.example
 
 *.db
 *.sqlite

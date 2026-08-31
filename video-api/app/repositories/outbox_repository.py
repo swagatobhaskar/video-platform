@@ -64,7 +64,7 @@ class OutboxMessageRepository:
         return result.scalars().all()
 
 
-    async def claim_pending(self, limit: int = 10) -> list[OutboxMessage]:
+    async def claim_pending(self, limit: int = 10): # -> list[OutboxMessage]:
         result = await self.session.execute(
             select(OutboxMessage)
             .where(
