@@ -1,9 +1,8 @@
 env/
 venv/
 
-# .env # .env is used by database docker service
-.env.development
-.env.production
+# .env
+.env.*
 !.env.example
 
 *.db
