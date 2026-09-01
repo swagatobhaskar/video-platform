@@ -8,7 +8,7 @@ from .config import get_settings
 
 settings = get_settings()
 
-DATABASE_URL = settings.database_url_resolved
+DATABASE_URL = settings.database_url
 
 # print(f"Using DATABASE_URL: {DATABASE_URL}")
 
