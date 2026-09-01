@@ -35,15 +35,15 @@ services:
     depends_on:
       database:
         condition: service_healthy
-    environment:
-      ENV: production
+    # environment:  # every required env variable is fetched from the .env.production file
     # environment:
     #   - DATABASE_URL=postgresql+asyncpg://swagato:ranDom1234@database:5432/  # database:5432 -- database is the service name
-      POSTGRES_HOST: database
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      # ENV: production
+      # POSTGRES_HOST: database
+      # POSTGRES_PORT: 5432
+      # POSTGRES_USER: ${POSTGRES_USER}
+      # POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # POSTGRES_DB: ${POSTGRES_DB}
     env_file:
       - ./video-api/.env.production
     healthcheck:
@@ -110,6 +110,9 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    depends_on:
+      backend:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s #1m30s
