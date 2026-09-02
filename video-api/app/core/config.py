@@ -1,6 +1,7 @@
 import os
 from typing import List, ClassVar
 from functools import lru_cache
+from sqlalchemy.engine import URL
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
@@ -22,16 +23,16 @@ class Settings(BaseSettings):
     allowed_origins: List[str] = allowed_origins_list
 
     # docker database envs
-    database_url: str | None = None
+    database_url: str
 
     # These are for PostgreSQL container configuration
-    # may be not required right here
-    #
-    # postgres_user: str | None = None
-    # postgres_password: str | None = None
-    # postgres_db: str | None = None
-    # postgres_host: str | None = None
-    # postgres_port: int | None = None
+    # Not required here, in the FastAPI app
+    # 
+    # postgres_user: str
+    # postgres_password: str
+    # postgres_db: str
+    # postgres_host: str
+    # postgres_port: int = 5432
 
     # r2 creds
     r2_account_id: str
@@ -47,6 +48,8 @@ class Settings(BaseSettings):
     thumbnails_bucket_dev_url: str
     category_image_bucket_dev_url: str
     processed_videos_bucket_dev_url: str
+
+    redis_url: str
     
     model_config = SettingsConfigDict(
         # env_file = ".env",
@@ -60,27 +63,15 @@ class Settings(BaseSettings):
     )
 
     # @property
-    # def database_url_resolved(self) -> str:
-    #     if self.env == "development":
-    #         if self.database_url is None:
-    #             raise ValueError("DATABASE_URL is required in development")
-    #         return self.database_url
-
-    #     if (
-    #         self.postgres_user is None
-    #         or self.postgres_password is None
-    #         or self.postgres_db is None
-    #         or self.postgres_host is None
-    #         or self.postgres_port is None
-    #     ):
-    #         raise ValueError("All POSTGRES_* variables are required in production")
-
-    #     return (
-    #         f"postgresql+asyncpg://"
-    #         f"{self.postgres_user}:{self.postgres_password}"
-    #         f"@{self.postgres_host}:{self.postgres_port}"
-    #         f"/{self.postgres_db}"
-    #     )
+    # def database_url(self) -> str:
+    #     return URL.create(
+    #         drivername="postgresql+asyncpg",
+    #         username=self.postgres_user,
+    #         password=self.postgres_password,
+    #         host=self.postgres_host,
+    #         port=self.postgres_port,
+    #         database=self.postgres_db,
+    #     ).render_as_string(hide_password=False)
     
 # The use of @lru_cache() avoids reloading settings every time they are accessed.
 @lru_cache()

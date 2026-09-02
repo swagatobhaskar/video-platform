@@ -23,7 +23,7 @@ class OutboxMessageRepository:
         return outbox_message
 
 
-    async def list(self) -> list[OutboxMessage]:
+    async def list_message(self) -> list[OutboxMessage]:
         result = await self.session.execute(select(OutboxMessage))
         return result.scalars().all()
 
@@ -49,7 +49,7 @@ class OutboxMessageRepository:
         return outbox_message
 
 
-    async def get_pending(self, limit: int = 100): # -> list[OutboxMessage]:
+    async def get_pending(self, limit: int = 100) -> list[OutboxMessage]:
         result = await self.session.execute(
             select(OutboxMessage)
             .where(
@@ -64,7 +64,7 @@ class OutboxMessageRepository:
         return result.scalars().all()
 
 
-    async def claim_pending(self, limit: int = 10): # -> list[OutboxMessage]:
+    async def claim_pending(self, limit: int = 10) -> list[OutboxMessage]:
         result = await self.session.execute(
             select(OutboxMessage)
             .where(
@@ -76,7 +76,7 @@ class OutboxMessageRepository:
             .with_for_update(skip_locked=True)
         )
 
-        messages = list(result.scalars().all())
+        messages = result.scalars().all()
 
         for message in messages:
             message.status = OutboxStatusEnum.PROCESSING
