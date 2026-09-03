@@ -1,12 +1,15 @@
 from celery import Celery
 
+from app.core.config import get_settings
+settings = get_settings()
+
 # broker = message queue
 # backend = stores task results
 
 celery = Celery(
     "worker",
-    broker="redis://localhost:6379/0",
-    backend="redis://localhost:6379/0",
+    broker=settings.redis_url, # "redis://localhost:6379/0",
+    backend=settings.redis_url, #"redis://localhost:6379/0",
     # broker="redis://redis:6379/0",  # when using docker-compose
     # backend="redis://redis:6379/0",
     include=["app.tasks.transcode.transcode_task"],
