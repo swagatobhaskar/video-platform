@@ -62,17 +62,6 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-    # @property
-    # def database_url(self) -> str:
-    #     return URL.create(
-    #         drivername="postgresql+asyncpg",
-    #         username=self.postgres_user,
-    #         password=self.postgres_password,
-    #         host=self.postgres_host,
-    #         port=self.postgres_port,
-    #         database=self.postgres_db,
-    #     ).render_as_string(hide_password=False)
-    
 # The use of @lru_cache() avoids reloading settings every time they are accessed.
 @lru_cache()
 def get_settings() -> Settings:
