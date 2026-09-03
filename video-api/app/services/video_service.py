@@ -133,7 +133,7 @@ class VideoService:
     async def list(self, status: VideoPublicationStatusEnum | None = None):
         return await self.video_repository.list_videos(status)
 
-    async def get_upload_history(self) -> list[VideoUploadHistoryRead]:
+    async def get_upload_history(self): # -> list[VideoUploadHistoryRead]:
         videos = await self.video_repository.get_upload_history()
 
         # return [
@@ -161,7 +161,7 @@ class VideoService:
         ]
 
     async def get_videos_requiring_user_action(self):
-        drafts: list[Video] = await self.video_repository.get_drafts()
+        drafts = await self.video_repository.get_drafts()
 
         response = []
 
