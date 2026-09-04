@@ -50,12 +50,19 @@ services:
   # Frontend - Development
   # ============================================================
   frontend:
+    build:
+      context: ./video-ui
+      dockerfile: Dockerfile.dev
+
     volumes:
+      # Development needs live source-code synchronization, and a bind mount is one way to achieve that.
       - ./video-ui:/app   # bind mount to application code during development
+      - frontend_node_modules:/app/node_modules  # Docker applies the more specific /app/node_modules mount over the /app bind mount.
     working_dir: /app
     command: npm run dev -- --host 0.0.0.0
     ports:
-      - "3000:3000"
+      # - "3000:3000"
+      - "3000:5173"  # Vite dev server runs on 5173 by default, but we can map it to 3000 for convenience.
 
   # ============================================================
   # Nginx - Development
@@ -63,3 +70,6 @@ services:
   nginx:
     ports:
       - "80:80"
+
+volumes:
+  frontend_node_modules:

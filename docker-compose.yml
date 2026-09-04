@@ -177,6 +177,8 @@ services:
     #   - "3000:3000"
     environment:
       PUBLIC_API_URL: /api
+    expose:
+      - "5173"
     depends_on:
       backend:
         condition: service_healthy
