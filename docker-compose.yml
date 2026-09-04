@@ -55,6 +55,21 @@ services:
       retries: 5
       start_period: 10s
 
+  redis:
+    image: redis:8-alpine
+    # container_name: redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+    # See if the redis container is working: docker exec -it redis redis-cli ping  <-- redis is the container name. You should get a PONG response.
+
   backend:
     build:
       context: ./video-api
@@ -66,6 +81,8 @@ services:
     depends_on:
       database:
         condition: service_healthy
+      redis:
+        condition: service_healthy  # why depend on redis? Because the backend uses redis for caching and Celery task queue.
     environment: *backend-env
       # It will use DATABASE_URL: ${DATABASE_URL}
       # 
@@ -101,7 +118,7 @@ services:
 # You can install it by adding the following lines to the Dockerfile in the api directory:
 # RUN apt-get update && apt-get install -y ffmpeg
 
-  celery_worker:
+  celery:
     build:
       context: ./video-api
     # container_name: celery_worker
@@ -118,7 +135,8 @@ services:
     restart: unless-stopped
 
   outbox_worker:
-    build: ./video-api
+    build:
+      context: ./video-api
     command: python -m app.workers.outbox_worker
     environment:
       <<: *backend-env
@@ -128,21 +146,6 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-
-  redis:
-    image: redis:8-alpine
-    # container_name: redis
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-
-    # See if the redis container is working: docker exec -it redis redis-cli ping  <-- redis is the container name. You should get a PONG response.
 
   flower:
     build:
@@ -156,6 +159,8 @@ services:
     # Remove the ports section. Instead, route it through nginx like /flower.
     # ports:
     #   - "5555:5555"
+    environment:
+      <<: *backend-env
     depends_on:
       redis:
         condition: service_healthy

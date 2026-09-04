@@ -2,7 +2,7 @@ services:
   # ============================================================
   # Database
   # ============================================================
-  postgres:
+  database:
     restart: unless-stopped
 
   # ============================================================
@@ -20,10 +20,9 @@ services:
     working_dir: /app
     environment:
       DATABASE_URL: ${DATABASE_URL}
-    command:
-      [ "alembic", "upgrade", "head" ]
+    command: [ "alembic", "upgrade", "head" ]
     depends_on:
-      postgres:
+      database:
         condition: service_healthy
 
   # ============================================================
@@ -32,9 +31,17 @@ services:
   backend:
     command:
       [
-        "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "app.main:app", \
+        "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "app.main:app",
         "--bind", "0.0.0.0:8000", "--workers", "4"
       ]
+    depends_on:
+      # If you require migrations to finish before the backend starts, Compose can express that:
+      migrate:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
 
@@ -42,10 +49,38 @@ services:
   # Celery - Production
   # ============================================================
   celery:
-    command:
-      [
-        "celery", "-A", "app.celery_app", "worker", "--loglevel=info"
-      ]
+    # command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default  # May be, command is not necessary in .prod.yml
+      # [
+      #   "celery", "-A", "app.celery_app", "worker", "--loglevel=info"
+      # ]
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  # ============================================================
+  # Outbox_worker - Production
+  # ============================================================
+  outbox_worker:
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ============================================================
+  # Flower - Production
+  # ============================================================
+  flower:
     restart: unless-stopped
 
   # ============================================================

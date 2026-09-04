@@ -1,15 +1,18 @@
 services:
 
+  # You don't need to repeat redis, database, etc. because they'll be inherited from the base Compose file.
+
   # ============================================================
   # Backend - Development
   # ============================================================
   backend:
     volumes:
-      - ./video-api:/app
+      - ./video-api:/app  # bind mount to application code during development
     working_dir: /app
+    # command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload  # also correct
     command:
       [
-        "uvicorn", "app.main:app", "--host", "0.0.0.0", \
+        "uvicorn", "app.main:app", "--host", "0.0.0.0",
         "--port", "8000", "--reload"
       ]
     ports:
@@ -20,19 +23,35 @@ services:
   # ============================================================
   celery:
     volumes:
+      - ./video-api:/app  # bind mount to application code during development
+    working_dir: /app
+    # command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default  # may be not required in .dev.yml
+      # [
+      #   "celery", "-A", "app.celery_app", "worker", "--loglevel=info"
+      # ]
+
+  # ============================================================
+  # Outbox-worker - Development
+  # ============================================================
+  outbox_worker:
+    volumes:
       - ./video-api:/app
     working_dir: /app
-    command:
-      [
-        "celery", "-A", "app.celery_app", "worker", "--loglevel=info"
-      ]
+
+  # ============================================================
+  # Flower - Development
+  # ============================================================
+  flower:
+    volumes:
+      - ./video-api:/app
+    working_dir: /app
 
   # ============================================================
   # Frontend - Development
   # ============================================================
   frontend:
     volumes:
-      - ./video-ui:/app
+      - ./video-ui:/app   # bind mount to application code during development
     working_dir: /app
     command: npm run dev -- --host 0.0.0.0
     ports:
