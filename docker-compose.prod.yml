@@ -1,0 +1,64 @@
+services:
+  # ============================================================
+  # Database
+  # ============================================================
+  postgres:
+    restart: unless-stopped
+
+  # ============================================================
+  # Redis
+  # ============================================================
+  redis:
+    restart: unless-stopped
+
+  # ============================================================
+  # Alembic Migration Job
+  # ============================================================
+  migrate:
+    build:
+      context: ./video-api
+    working_dir: /app
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    command:
+      [ "alembic", "upgrade", "head" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ============================================================
+  # Backend - Production
+  # ============================================================
+  backend:
+    command:
+      [
+        "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "app.main:app", \
+        "--bind", "0.0.0.0:8000", "--workers", "4"
+      ]
+    restart: unless-stopped
+
+
+  # ============================================================
+  # Celery - Production
+  # ============================================================
+  celery:
+    command:
+      [
+        "celery", "-A", "app.celery_app", "worker", "--loglevel=info"
+      ]
+    restart: unless-stopped
+
+  # ============================================================
+  # Frontend - Production
+  # ============================================================
+  frontend:
+    restart: unless-stopped
+
+  # ============================================================
+  # Nginx - Production
+  # ============================================================
+  nginx:
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    

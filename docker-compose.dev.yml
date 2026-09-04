@@ -1,0 +1,46 @@
+services:
+
+  # ============================================================
+  # Backend - Development
+  # ============================================================
+  backend:
+    volumes:
+      - ./video-api:/app
+    working_dir: /app
+    command:
+      [
+        "uvicorn", "app.main:app", "--host", "0.0.0.0", \
+        "--port", "8000", "--reload"
+      ]
+    ports:
+      - "8000:8000"
+
+  # ============================================================
+  # Celery - Development
+  # ============================================================
+  celery:
+    volumes:
+      - ./video-api:/app
+    working_dir: /app
+    command:
+      [
+        "celery", "-A", "app.celery_app", "worker", "--loglevel=info"
+      ]
+
+  # ============================================================
+  # Frontend - Development
+  # ============================================================
+  frontend:
+    volumes:
+      - ./video-ui:/app
+    working_dir: /app
+    command: npm run dev -- --host 0.0.0.0
+    ports:
+      - "3000:3000"
+
+  # ============================================================
+  # Nginx - Development
+  # ============================================================
+  nginx:
+    ports:
+      - "80:80"
