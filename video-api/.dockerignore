@@ -34,8 +34,10 @@ pip-delete-this-directory.txt
 # Virtual environments
 .venv
 .env
+.env.*
 .env.local
 .env.*.local
+!.env.example
 
 # Testing
 .tox/
