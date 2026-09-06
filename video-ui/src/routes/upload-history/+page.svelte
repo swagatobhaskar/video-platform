@@ -1,7 +1,7 @@
 <script lang="ts">
 
     import { onMount } from "svelte";
-    import { PUBLIC_API_URL } from '$env/static/public';
+    // import { PUBLIC_API_URL } from '$env/static/public';
 
     import type { VideoList } from "$lib/types/VideoList"
     import VideoPublishProgressItem from "./VideoPublishProgressItem.svelte";
@@ -29,9 +29,8 @@
     const fetchAllVideos = async () => {
         try {
             loading = true;
-            console.log("URL at client:- ", `${PUBLIC_API_URL}/video/upload-history`);
             // const response = await fetch('http://127.0.0.1:8000/api/video/upload-history');
-            const response = await fetch(`${PUBLIC_API_URL}/video/upload-history`);
+            const response = await fetch('/api/video/upload-history');
 
             if (!response.ok) {
 				throw new Error(
