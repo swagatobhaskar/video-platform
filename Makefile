@@ -29,6 +29,14 @@ rebuild:
 down:
 	$(COMPOSE) $(DEV_FILES) down
 
+.PHONY: stop
+stop:
+	$(COMPOSE) $(DEV_FILES) stop
+
+.PHONY: start
+start:
+	$(COMPOSE) $(DEV_FILES) start
+
 .PHONY: logs
 logs:
 	$(COMPOSE) $(DEV_FILES) logs -f
