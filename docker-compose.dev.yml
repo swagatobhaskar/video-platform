@@ -17,6 +17,9 @@ services:
       ]
     ports:
       - "8000:8000"
+    # For production, I would not expose FastAPI directly. Instead:
+    # expose:
+    #   - "8000"
 
   # ============================================================
   # Celery - Development
