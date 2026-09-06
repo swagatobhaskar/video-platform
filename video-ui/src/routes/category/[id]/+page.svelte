@@ -24,7 +24,7 @@
         formData.append('name', newName);
 
         try {
-            const resp = await fetch(`http://127.0.0.1:8000/api/category/${data.category.id}`, {
+            const resp = await fetch(`/api/category/${data.category.id}`, {     // or will it be http://backend:8000/api/category/<id> or http://localhost/api/category/<id> ?
                 method: 'PATCH',
                 body: formData
             });
