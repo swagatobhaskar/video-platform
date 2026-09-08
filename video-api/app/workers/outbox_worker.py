@@ -26,17 +26,19 @@ async def run_outbox_worker():
 
                 messages = await outbox_repository.claim_pending(limit=10)
 
+                logger.info("Claimed %d outbox messages", len(messages))
+
                 for message in messages:
                     try:
                         await processor.process(message)
-                    except Exception:
+                    except Exception as exc:
                         # print(f"Failed processing outbox message {message.id}: {exc}")
-                        logger.exception("Failed processing outbox message %s", message.id)
+                        logger.exception("Failed to process outbox message id=%s", message.id)
                         await session.rollback()
 
                         await outbox_repository.mark_retry(
                             message.id,
-                            error="Unexpected outbox processing error",
+                            error=str(exc), #"Unexpected outbox processing error",
                         )
                         await session.commit()
         except Exception:
