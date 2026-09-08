@@ -1,7 +1,7 @@
 // Only API Communication
 import { uploadChunkWithProgress } from "$lib/helpers/multipartUploadHelper";
 
-const API_BASE = "http://127.0.0.1:8000/api/video/upload";
+const API_BASE = "/api/video/upload"; // "http://127.0.0.1:8000/api/video/upload";
 
 export interface UploadedPart {
     ETag: string;
