@@ -45,13 +45,17 @@ logs:
 backend-logs:
 	$(COMPOSE) $(DEV_FILES) logs -f backend
 
-.PHONY: postgres-database
-postgres-database:
+.PHONY: exec-pg-db
+exec-pg-db:
 	$(COMPOSE) $(DEV_FILES) exec -it database psql -U swagato -d postgres
 
-.PHONY: dev-database
-dev-database:
+.PHONY: exec-db
+exec-db:
 	$(COMPOSE) $(DEV_FILES) exec -it database psql -U swagato -d videodevdb
+
+.PHONY: ps
+ps:
+	$(COMPOSE) $(DEV_FILES) ps
 
 # ==========================================
 # Alembic
