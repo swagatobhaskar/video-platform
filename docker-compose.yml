@@ -118,11 +118,17 @@ services:
 # You can install it by adding the following lines to the Dockerfile in the api directory:
 # RUN apt-get update && apt-get install -y ffmpeg
 
+# Normal worker
+# command: >
+#   celery -A app.workers.celery_worker.celery worker
+#   --loglevel=info
+#   -Q default
+
   celery:
     build:
       context: ./video-api
     # container_name: celery_worker
-    command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default
+    command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q transcode --concurrency=1
     depends_on:
       database:
         condition: service_healthy
