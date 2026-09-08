@@ -230,7 +230,7 @@ class UploadService:
                 payload={
                     "object_key": object_key,
                     "video_id": str(video_id),
-                    # "upload_id": upload_id,
+                    "upload_id": upload_id,
                     "upload_session_id": str(upload_session_id),
                     "transcode_task_id": str(transcode_task.id),
                 },
