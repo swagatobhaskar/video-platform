@@ -16,7 +16,8 @@ celery = Celery(
 )
 
 celery.conf.task_routes = {
-    "app.tasks.*": {"queue": "default"}
+    "app.tasks.transcode.*": {"queue": "transcode"},
+    "app.tasks.*": {"queue": "default"},
 }
 
 #  Example
