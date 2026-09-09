@@ -32,6 +32,25 @@ services:
       # [
       #   "celery", "-A", "app.celery_app", "worker", "--loglevel=info"
       # ]
+  # ============================================================
+  # Transcoder - Development
+  # ============================================================
+  transcoder:
+    build:
+      context: ./video-api
+      dockerfile: Dockerfile.transcoder
+    container_name: video-transcoder-dev
+    command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q transcode --concurrency=1
+    env_file:
+      - ./video-api/.env
+    volumes:
+      - ./video-api:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      database:
+        condition: service_healthy
+
 
   # ============================================================
   # Outbox-worker - Development

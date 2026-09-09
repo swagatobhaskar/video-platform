@@ -128,7 +128,7 @@ services:
     build:
       context: ./video-api
     # container_name: celery_worker
-    command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q transcode --concurrency=1
+    command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default
     depends_on:
       database:
         condition: service_healthy
