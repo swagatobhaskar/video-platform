@@ -319,7 +319,7 @@ class TranscodeService:
             },
         )
 
-    async def cleanup_source(
+    async def _cleanup_source(
         self, *, task_id, video_id, object_key, upload_id,
         upload_session_id, worker_id, celery_task_id
     ):
