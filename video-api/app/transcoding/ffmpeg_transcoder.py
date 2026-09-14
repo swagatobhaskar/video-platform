@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 
 from .transcoder import VideoTranscoder
-from app.tasks.transcode.utils import (
+from .utils import (
     generate_renditions, create_output_directories,
     build_ffmpeg_command, probe_video
 )
