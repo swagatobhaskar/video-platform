@@ -1,19 +1,19 @@
-services:
-  transcoder:
-    # It is simply a Celery worker.
-    build:
-      context: ./video-api
-      dockerfile: Dockerfile.transcoder
-    container_name: video-transcoder
-    # eventually change this to a prebuilt image.
-    # Then the high-CPU Droplet doesn't need the source code at all.
-    # image: ghcr.io/yourname/video-transcoder:VERSION
-    command: >
-      celery -A app.workers.celery_worker.celery
-      worker --loglevel=info -Q transcode
-      --concurrency=1
-    env_file:
-      - ./video-api/.env.transcoder
-      # When using the image:
-      # - .env.transcoder
-    restart: unless-stopped
+# services:
+#   transcoder:
+#     # It is simply a Celery worker.
+#     build:
+#       context: ./video-api
+#       dockerfile: Dockerfile.transcoder
+#     container_name: video-transcoder
+#     # eventually change this to a prebuilt image.
+#     # Then the high-CPU Droplet doesn't need the source code at all.
+#     # image: ghcr.io/yourname/video-transcoder:VERSION
+#     command: >
+#       celery -A app.workers.celery_worker.celery
+#       worker --loglevel=info -Q transcode
+#       --concurrency=1
+#     env_file:
+#       - ./video-api/.env.transcoder
+#       # When using the image:
+#       # - .env.transcoder
+#     restart: unless-stopped

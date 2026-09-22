@@ -19,12 +19,12 @@ services:
   # ============================================================
   # Redis
   # ============================================================
-  redis:
-    # Bind to VPC
-    # The VPC_IP will come from .env.transcoder
-    ports:
-      - "${VPC_IP}:6379:6379"
-    restart: unless-stopped
+  # redis:
+  #   # Bind to VPC
+  #   # The VPC_IP will come from .env.transcoder
+  #   ports:
+  #     - "${VPC_IP}:6379:6379"
+  #   restart: unless-stopped
 
   # ============================================================
   # Alembic Migration Job
@@ -55,48 +55,49 @@ services:
         condition: service_completed_successfully
       database:
         condition: service_healthy
-      redis:
-        condition: service_healthy
+      # redis:
+      #   condition: service_healthy
     restart: unless-stopped
 
 
   # ============================================================
   # Celery - Production
   # ============================================================
-  celery:
+  # celery:
+  #   restart: unless-stopped
+  #   depends_on:
+  #     migrate:
+  #       condition: service_completed_successfully
+  #     database:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     backend:
+  #       condition: service_healthy
+
     # command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default  # May be, command is not necessary in .prod.yml
       # [
       #   "celery", "-A", "app.celery_app", "worker", "--loglevel=info"
       # ]
-    restart: unless-stopped
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      database:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
 
   # ============================================================
   # Outbox_worker - Production
   # ============================================================
-  outbox_worker:
-    restart: unless-stopped
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      database:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+  # outbox_worker:
+  #   restart: unless-stopped
+  #   depends_on:
+  #     migrate:
+  #       condition: service_completed_successfully
+  #     database:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
 
   # ============================================================
   # Flower - Production
   # ============================================================
-  flower:
-    restart: unless-stopped
+  # flower:
+  #   restart: unless-stopped
 
   # ============================================================
   # Frontend - Production

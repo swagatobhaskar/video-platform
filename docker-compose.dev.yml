@@ -24,49 +24,46 @@ services:
   # ============================================================
   # Celery - Development
   # ============================================================
-  celery:
-    volumes:
-      - ./video-api:/app  # bind mount to application code during development
-    working_dir: /app
-    # command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default  # may be not required in .dev.yml
-      # [
-      #   "celery", "-A", "app.celery_app", "worker", "--loglevel=info"
-      # ]
+  # celery:
+  #   volumes:
+  #     - ./video-api:/app  # bind mount to application code during development
+  #   working_dir: /app
+
   # ============================================================
   # Transcoder - Development
   # ============================================================
-  transcoder:
-    build:
-      context: ./video-api
-      dockerfile: Dockerfile.transcoder
-    container_name: video-transcoder-dev
-    command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q transcode --concurrency=1
-    env_file:
-      - ./video-api/.env
-    volumes:
-      - ./video-api:/app
-    depends_on:
-      redis:
-        condition: service_healthy
-      database:
-        condition: service_healthy
+  # transcoder:
+  #   build:
+  #     context: ./video-api
+  #     dockerfile: Dockerfile.transcoder
+  #   container_name: video-transcoder-dev
+  #   command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q transcode --concurrency=1
+  #   env_file:
+  #     - ./video-api/.env
+  #   volumes:
+  #     - ./video-api:/app
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #     database:
+  #       condition: service_healthy
 
 
   # ============================================================
   # Outbox-worker - Development
   # ============================================================
-  outbox_worker:
-    volumes:
-      - ./video-api:/app
-    working_dir: /app
+  # outbox_worker:
+  #   volumes:
+  #     - ./video-api:/app
+  #   working_dir: /app
 
   # ============================================================
   # Flower - Development
   # ============================================================
-  flower:
-    volumes:
-      - ./video-api:/app
-    working_dir: /app
+  # flower:
+  #   volumes:
+  #     - ./video-api:/app
+  #   working_dir: /app
 
   # ============================================================
   # Frontend - Development

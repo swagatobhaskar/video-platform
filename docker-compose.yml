@@ -7,7 +7,7 @@ x-backend-env: &backend-env
   POSTGRES_HOST: ${POSTGRES_HOST}
   POSTGRES_PORT: ${POSTGRES_PORT}
 
-  REDIS_URL: ${REDIS_URL}
+  # REDIS_URL: ${REDIS_URL}
   SECRET_KEY: ${SECRET_KEY}
   ENV: ${ENV}
   DEBUG: ${DEBUG}
@@ -29,7 +29,7 @@ x-backend-env: &backend-env
   CATEGORY_IMAGE_BUCKET_DEV_URL: ${CATEGORY_IMAGE_BUCKET_DEV_URL}
   PROCESSED_VIDEOS_BUCKET_DEV_URL: ${PROCESSED_VIDEOS_BUCKET_DEV_URL}
 
-  FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH}
+  # FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH}
 
 services:
 
@@ -55,18 +55,18 @@ services:
       retries: 5
       start_period: 10s
 
-  redis:
-    image: redis:8-alpine
-    # container_name: redis
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
+  # redis:
+  #   image: redis:8-alpine
+  #   # container_name: redis
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
+  #     start_period: 10s
 
     # See if the redis container is working: docker exec -it redis redis-cli ping  <-- redis is the container name. You should get a PONG response.
 
@@ -81,8 +81,8 @@ services:
     depends_on:
       database:
         condition: service_healthy
-      redis:
-        condition: service_healthy  # why depend on redis? Because the backend uses redis for caching and Celery task queue.
+      # redis:
+      #   condition: service_healthy  # why depend on redis? Because the backend uses redis for caching and Celery task queue.
     environment: *backend-env
       # It will use DATABASE_URL: ${DATABASE_URL}
       # 
@@ -124,55 +124,55 @@ services:
 #   --loglevel=info
 #   -Q default
 
-  celery:
-    build:
-      context: ./video-api
-    # container_name: celery_worker
-    command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default
-    depends_on:
-      database:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-    environment:
-      <<: *backend-env
-    restart: unless-stopped
+  # celery:
+  #   build:
+  #     context: ./video-api
+  #   # container_name: celery_worker
+  #   command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default
+  #   depends_on:
+  #     database:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     backend:
+  #       condition: service_healthy
+  #   environment:
+  #     <<: *backend-env
+  #   restart: unless-stopped
 
-  outbox_worker:
-    build:
-      context: ./video-api
-    command: python -m app.workers.outbox_worker
-    environment:
-      <<: *backend-env
-    depends_on:
-      database:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
+  # outbox_worker:
+  #   build:
+  #     context: ./video-api
+  #   command: python -m app.workers.outbox_worker
+  #   environment:
+  #     <<: *backend-env
+  #   depends_on:
+  #     database:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
 
-  flower:
-    build:
-      context: ./video-api
-    # container_name: celery_flower
-    command: >
-      celery -A app.workers.celery_worker.celery flower
-      --port=5555
-      --url_prefix=flower
-      --basic_auth=${FLOWER_BASIC_AUTH}
-    # Remove the ports section. Instead, route it through nginx like /flower.
-    # ports:
-    #   - "5555:5555"
-    environment:
-      <<: *backend-env
-    depends_on:
-      redis:
-        condition: service_healthy
-    # env_file:
-    #   - ./video-api/.env.production
-    restart: unless-stopped
+  # flower:
+  #   build:
+  #     context: ./video-api
+  #   # container_name: celery_flower
+  #   command: >
+  #     celery -A app.workers.celery_worker.celery flower
+  #     --port=5555
+  #     --url_prefix=flower
+  #     --basic_auth=${FLOWER_BASIC_AUTH}
+  #   # Remove the ports section. Instead, route it through nginx like /flower.
+  #   # ports:
+  #   #   - "5555:5555"
+  #   environment:
+  #     <<: *backend-env
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   # env_file:
+  #   #   - ./video-api/.env.production
+  #   restart: unless-stopped
 
   frontend:
     build:
@@ -208,8 +208,8 @@ services:
         condition: service_healthy
       frontend:
         condition: service_started
-      flower:
-        condition: service_started
+      # flower:
+      #   condition: service_started
     restart: unless-stopped
 
   # certbot:
@@ -223,4 +223,4 @@ services:
 
 volumes:
   pg_data:
-  redis_data:
+  # redis_data:
