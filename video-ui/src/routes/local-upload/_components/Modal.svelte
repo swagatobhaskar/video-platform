@@ -1,0 +1,48 @@
+<script lang="ts">
+
+    let {
+        open = $bindable(false),
+        children
+    } = $props();
+    
+</script>
+
+
+{#if open}
+    <div class="backdrop">
+        <div
+            class="modal"
+            role="dialog"
+            aria-modal="true"
+            // aria-labelledby=""
+            tabindex="-1"
+            // onclick={(e) => e.stopPropagation()}  // Not required since backdrop no longer has click event
+        >
+            {@render children?.()}
+        </div>
+    </div>
+{/if}
+
+<style>
+    .backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgb(0 0 0 / 0.7);
+        display: grid;
+        place-items: center;
+    }
+
+    .modal {
+        /* position: relative;
+        z-index: 10000; */
+
+        background: white;
+        padding: 1rem;
+        border-radius: 1.5rem;
+        /* min-width: 40rem; */
+        /* max-width: 40rem; */
+        width: 50vw;
+        height: 60vh;
+    }
+</style>
