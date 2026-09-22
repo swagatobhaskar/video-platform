@@ -1,7 +1,7 @@
 from uuid import UUID
 from pydantic import BaseModel, Field
 
-from app.database.models.video import LanguageEnum
+from app.models import LanguageEnum
 
 class InitiateUploadRequest(BaseModel):
     fileName: str
@@ -15,7 +15,7 @@ class InitiateUploadRequest(BaseModel):
 class Part(BaseModel):    
     ETag: str = Field(..., min_length=1)
     PartNumber: int = Field(..., gt=0)
-    SizeBytes: int | None = None
+    SizeBytes: int | None = None # Field(..., gt=0)
     
 class PartRequest(BaseModel):
     key: str

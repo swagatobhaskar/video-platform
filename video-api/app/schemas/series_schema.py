@@ -36,6 +36,7 @@ class SeriesAssociatedVideoOut(BaseModel):
     # These are fields for Video
     id: uuid.UUID
     title: str | None = None
+    episode_number: int | None = None
 
 
 class SeriesDetailOutWithVideo(SeriesBase):

@@ -1,0 +1,116 @@
+# Don't put the following in production. That binds the ports to all host interfaces,
+# including the public interface. Instead, bind them specifically to the VPC/private IP.
+# ports:
+#   - "6379:6379"
+# or:
+# ports:
+#   - "5432:5432"
+
+services:
+  # ============================================================
+  # Database
+  # ============================================================
+  database:
+    # Bind to VPC
+    ports:
+      - "${VPC_IP}:5432:5432"
+    restart: unless-stopped
+
+  # ============================================================
+  # Redis
+  # ============================================================
+  # redis:
+  #   # Bind to VPC
+  #   # The VPC_IP will come from .env.transcoder
+  #   ports:
+  #     - "${VPC_IP}:6379:6379"
+  #   restart: unless-stopped
+
+  # ============================================================
+  # Alembic Migration Job
+  # ============================================================
+  migrate:
+    build:
+      context: ./video-api
+    working_dir: /app
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    command: [ "alembic", "upgrade", "head" ]
+    depends_on:
+      database:
+        condition: service_healthy
+
+  # ============================================================
+  # Backend - Production
+  # ============================================================
+  backend:
+    command:
+      [
+        "gunicorn", "-k", "uvicorn.workers.UvicornWorker", "app.main:app",
+        "--bind", "0.0.0.0:8000", "--workers", "4"
+      ]
+    depends_on:
+      # If you require migrations to finish before the backend starts, Compose can express that:
+      migrate:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+      # redis:
+      #   condition: service_healthy
+    restart: unless-stopped
+
+
+  # ============================================================
+  # Celery - Production
+  # ============================================================
+  # celery:
+  #   restart: unless-stopped
+  #   depends_on:
+  #     migrate:
+  #       condition: service_completed_successfully
+  #     database:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     backend:
+  #       condition: service_healthy
+
+    # command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default  # May be, command is not necessary in .prod.yml
+      # [
+      #   "celery", "-A", "app.celery_app", "worker", "--loglevel=info"
+      # ]
+
+  # ============================================================
+  # Outbox_worker - Production
+  # ============================================================
+  # outbox_worker:
+  #   restart: unless-stopped
+  #   depends_on:
+  #     migrate:
+  #       condition: service_completed_successfully
+  #     database:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+
+  # ============================================================
+  # Flower - Production
+  # ============================================================
+  # flower:
+  #   restart: unless-stopped
+
+  # ============================================================
+  # Frontend - Production
+  # ============================================================
+  frontend:
+    restart: unless-stopped
+
+  # ============================================================
+  # Nginx - Production
+  # ============================================================
+  nginx:
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      # - "443:443"
+    

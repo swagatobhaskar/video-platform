@@ -4,25 +4,27 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.config import get_settings, Settings
-from app.database.session import engine
-# from app.database.models.base import Base
+from app.core.config import get_settings, Settings
+from app.core.database import engine
 
-from app.routes.user import router as UserRouter
-from app.routes.auth import router as AuthRouter
-from app.routes.video_upload import router as VideoUploadRouter
-from app.routes.video import router as VideoRouter
-from app.routes.category import router as CategoryRouter
-from app.routes.series import router as SeriesRouter
-from app.routes.thumbnail_upload import router as ThumbnailRouter
-from app.routes._task_routes import router as TaskRouter
+from app.api.routes.user import router as UserRouter
+from app.api.routes.auth import router as AuthRouter
+from app.api.routes.video_upload import router as VideoUploadRouter
+from app.api.routes.video import router as VideoRouter
+from app.api.routes.category import router as CategoryRouter
+from app.api.routes.series import router as SeriesRouter
+from app.api.routes.thumbnail_upload import router as ThumbnailRouter
+from app.api.routes._task_routes import router as TaskRouter
+
+from app.exceptions.base import AppException
+from app.api.exception_handlers import app_exception_handler
 
 settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup logic: create DB tables
-    print("START-UP")
+    # print("START-UP")
     # async with engine.begin() as conn:
     #    await conn.run_sync(Base.metadata.create_all)
     
@@ -42,6 +44,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_exception_handler(
+    AppException,
+    app_exception_handler,
+)
+
 app.include_router(UserRouter)
 app.include_router(AuthRouter)
 app.include_router(VideoUploadRouter)
@@ -52,15 +59,19 @@ app.include_router(SeriesRouter)
 app.include_router(ThumbnailRouter)
 
 # Use settings as Dependency Injection
-@app.get("/")
+@app.get("/root", status_code=status.HTTP_200_OK)
 def read_root(settings: Annotated[Settings, Depends(get_settings)]):
     
     return JSONResponse(
         status_code=status.HTTP_200_OK, 
         content= {
-            "message": "Hello, World!",
+            "message": "Response from /root",
             "App name": settings.app_name,
             "env": settings.env,
-            "debug": settings.debug
+            "debug": settings.debug,
         }
     )
+
+@app.get("/health", status_code=200)
+async def health():
+    return {"status": "ok"}

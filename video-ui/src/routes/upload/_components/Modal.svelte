@@ -44,7 +44,7 @@
         position: fixed;
         inset: 0;
         z-index: 9999;
-        background: rgb(0 0 0 / 0.5);
+        background: rgb(0 0 0 / 0.7);
         display: grid;
         place-items: center;
     }
@@ -58,7 +58,7 @@
         border-radius: 1.5rem;
         /* min-width: 40rem; */
         /* max-width: 40rem; */
-        width: 45rem;
-        height: 90vh;
+        width: 50vw;
+        height: 60vh;
     }
 </style>

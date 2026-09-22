@@ -2,7 +2,9 @@ env/
 venv/
 
 .env
-# exclude .env.example
+.env.*
+!.env.example
+!.env.transcoder.example
 
 *.db
 *.sqlite

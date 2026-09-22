@@ -1,9 +1,79 @@
+x-backend-env: &backend-env
+  DATABASE_URL: ${DATABASE_URL}
+  
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  POSTGRES_DB: ${POSTGRES_DB}
+  POSTGRES_HOST: ${POSTGRES_HOST}
+  POSTGRES_PORT: ${POSTGRES_PORT}
+
+  # REDIS_URL: ${REDIS_URL}
+  SECRET_KEY: ${SECRET_KEY}
+  ENV: ${ENV}
+  DEBUG: ${DEBUG}
+  ALGORITHM: ${ALGORITHM}
+  ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+  REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS}
+
+  R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+
+  RAW_VIDEOS_BUCKET: ${RAW_VIDEOS_BUCKET}
+  PROCESSED_VIDEOS_BUCKET: ${PROCESSED_VIDEOS_BUCKET}
+  THUMBNAILS_BUCKET: ${THUMBNAILS_BUCKET}
+  CATEGORY_IMAGE_BUCKET: ${CATEGORY_IMAGE_BUCKET}
+
+  RAW_VIDEOS_BUCKET_DEV_URL: ${RAW_VIDEOS_BUCKET_DEV_URL}
+  THUMBNAILS_BUCKET_DEV_URL: ${THUMBNAILS_BUCKET_DEV_URL}
+  CATEGORY_IMAGE_BUCKET_DEV_URL: ${CATEGORY_IMAGE_BUCKET_DEV_URL}
+  PROCESSED_VIDEOS_BUCKET_DEV_URL: ${PROCESSED_VIDEOS_BUCKET_DEV_URL}
+
+  # FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH}
+
 services:
+
+  database:
+    image: postgres:18
+    # container_name: postgres_db
+    restart: unless-stopped
+    # env_file:
+    #   - ./video-api/.env.production
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # POSTGRES_HOST: ${POSTGRES_HOST}
+      # POSTGRES_PORT: ${POSTGRES_PORT}
+    volumes:
+      - pg_data:/var/lib/postgresql/
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # redis:
+  #   image: redis:8-alpine
+  #   # container_name: redis
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
+  #     start_period: 10s
+
+    # See if the redis container is working: docker exec -it redis redis-cli ping  <-- redis is the container name. You should get a PONG response.
 
   backend:
     build:
-      context: ./api
-    container_name: api
+      context: ./video-api
+    # container_name: api
     # ports are no longer required exposing because NGINX exposes only port 80
     # ports:
     #   - "8000:8000"
@@ -11,32 +81,24 @@ services:
     depends_on:
       database:
         condition: service_healthy
-    # environment:
-    #   - DATABASE_URL=postgresql+asyncpg://swagato:ranDom1234@database:5432/  # database:5432 -- database is the service name
-    env_file:
-      - ./api/.env
+      # redis:
+      #   condition: service_healthy  # why depend on redis? Because the backend uses redis for caching and Celery task queue.
+    environment: *backend-env
+      # It will use DATABASE_URL: ${DATABASE_URL}
+      # 
+      # Not doing the following since it ties the FastAPI application with docker-compose
+      # DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB} # # database is the service name
 
-  database:
-    image: postgres:18
-    container_name: postgres_db
-    restart: unless-stopped
-    env_file:
-      - .env
-    # environment:
-    #   POSTGRES_USER: ${POSTGRES_USER}
-    #   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    #   POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - pg_data:/var/lib/postgresql/
-
+    # env_file:
+    #   - ./video-api/.env.production
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
+      test: [ "CMD", "python", "-c",
+        "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"
+      ]
+      interval: 30s
       timeout: 5s
       retries: 5
-      start_period: 10s
-
-      # You can peek inside the postgres container with: docker exec -it postgres_db psql -U swagato -d mypgdb
+      start_period: 30s
 
   # seed:
   #   build:
@@ -50,75 +112,90 @@ services:
   #   profiles:
   #     - tools
 
-    # Run the seed service with: docker compose --profile tools run --rm seed or, docker compose --profile tools up seed
+# Run the seed service with: docker compose --profile tools run --rm seed or, docker compose --profile tools up seed
 
 # FFmpeg needs to be installed in the backend container or VM for the transcode task to work.
 # You can install it by adding the following lines to the Dockerfile in the api directory:
 # RUN apt-get update && apt-get install -y ffmpeg
 
-  celery_worker:
-    build:
-      context: ./api
-    container_name: celery_worker
-    command: celery -A app.celery_app.celery_app worker --loglevel=info -Q default
-    depends_on:
-      - backend
-      - redis
-      - database
-    env_file:
-      - ./api/.env
-    restart: unless-stopped
+# Normal worker
+# command: >
+#   celery -A app.workers.celery_worker.celery worker
+#   --loglevel=info
+#   -Q default
 
-  redis:
-    image: redis:8-alpine
-    container_name: redis
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s #1m30s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
+  # celery:
+  #   build:
+  #     context: ./video-api
+  #   # container_name: celery_worker
+  #   command: celery -A app.workers.celery_worker.celery worker --loglevel=info -Q default
+  #   depends_on:
+  #     database:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     backend:
+  #       condition: service_healthy
+  #   environment:
+  #     <<: *backend-env
+  #   restart: unless-stopped
 
-    # See if the redis container is working: docker exec -it redis redis-cli ping  <-- redis is the container name. You should get a PONG response.
+  # outbox_worker:
+  #   build:
+  #     context: ./video-api
+  #   command: python -m app.workers.outbox_worker
+  #   environment:
+  #     <<: *backend-env
+  #   depends_on:
+  #     database:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
 
-  flower:
-    build:
-      context: ./api
-    container_name: celery_flower
-    command: >
-      celery -A app.celery_app.celery_app flower
-      --port=5555
-      --url_prefix=flower
-      --basic_auth=admin:Password123
-    # Remove the ports section. Instead, route it through nginx like /flower.
-    ports:
-      - "5555:5555"
-    depends_on:
-      - redis
-      - celery_worker
-    env_file:
-      - ./api/.env
-    restart: unless-stopped
+  # flower:
+  #   build:
+  #     context: ./video-api
+  #   # container_name: celery_flower
+  #   command: >
+  #     celery -A app.workers.celery_worker.celery flower
+  #     --port=5555
+  #     --url_prefix=flower
+  #     --basic_auth=${FLOWER_BASIC_AUTH}
+  #   # Remove the ports section. Instead, route it through nginx like /flower.
+  #   # ports:
+  #   #   - "5555:5555"
+  #   environment:
+  #     <<: *backend-env
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   # env_file:
+  #   #   - ./video-api/.env.production
+  #   restart: unless-stopped
 
   frontend:
     build:
-      context: ./my-demo
-    container_name: frontend
+      context: ./video-ui
+      dockerfile: Dockerfile
+    # container_name: frontend
     # NGINX exposes only port 80
     # ports:
     #   - "3000:3000"
     environment:
-      - PUBLIC_API_URL=/api
+      PUBLIC_API_URL: /api
+    expose:
+    # Why expose instead of ports? Because Nginx is your public entry point.
+    # expose simply documents/makes the container port available to other containers on the Compose network.
+      - "5173"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   nginx:
     image: nginx:alpine
-    container_name: nginx
+    # container_name: nginx
     ports:
       - "80:80"
       # - "443:443"
@@ -127,8 +204,12 @@ services:
       # - ./certbot/conf:/etc/letsencrypt
       # - ./certbot/www:/var/www/certbot
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+      # flower:
+      #   condition: service_started
     restart: unless-stopped
 
   # certbot:
@@ -142,4 +223,4 @@ services:
 
 volumes:
   pg_data:
-  redis_data:
+  # redis_data:

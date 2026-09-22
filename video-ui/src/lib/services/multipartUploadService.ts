@@ -1,11 +1,12 @@
 // Only API Communication
 import { uploadChunkWithProgress } from "$lib/helpers/multipartUploadHelper";
 
-const API_BASE = "http://127.0.0.1:8000/api/video/uploads";
+const API_BASE = "/api/video/upload"; // "http://127.0.0.1:8000/api/video/upload";
 
 export interface UploadedPart {
-    ETag: string | null;
+    ETag: string;
     PartNumber: number;
+    SizeBytes: number;
 }
 
 export async function initiateUpload(
@@ -18,9 +19,6 @@ export async function initiateUpload(
     signal?: AbortSignal
 ): Promise<{ uploadId: string; key: string, uploadSessionId: string, videoId: string }> {
     
-    // Get the uploadSessionId from cookies
-    // const uploadSessionId = await cookieStore.get("uploadSessionId");
-
     const res = await fetch(`${API_BASE}/${videoId}/initiate-upload/`, {
         method: "POST",
         headers: {
@@ -94,21 +92,38 @@ export async function uploadChunk(
     return etag;
 }
 
+export async function recordUploadedPart(
+    uploadId: string,
+    videoId: string,
+    part: UploadedPart,
+    signal?: AbortSignal,
+): Promise<void> {
+    const res = await fetch(`${API_BASE}/${uploadId}/video/${videoId}/record-uploaded-part`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(part),
+            signal,
+        }
+    );
+
+    if (!res.ok) {
+        throw new Error(`Failed to record uploaded part ${part.PartNumber}: ${res.status}`)
+    }
+}
+
 
 export async function completeUpload(
     key: string,
     filename: string,
     uploadId: string,
     parts: UploadedPart[],
-    videoId?: string,
+    videoId: string,
+    uploadSessionId: string,
     signal?: AbortSignal
 ): Promise<void> {
-
-    const uploadSessionCookie = await cookieStore.get("uploadSessionId");
-    const uploadSessionId = uploadSessionCookie?.value;
-
-    // console.log("COOKIE Upload session ID: ", uploadSessionId); // working
-
     const res = await fetch(`${API_BASE}/${videoId}/complete-upload`, {
         method: "POST",
         headers: {
@@ -143,7 +158,55 @@ export async function abortUpload(
         },
         body: JSON.stringify({
             uploadId,
-            key
+            key,
+            videoId,
         })
     });
+}
+
+export async function pauseUpload(
+    videoId: string,
+    uploadId: string,
+): Promise<{ success: boolean, status: string }> {
+    const res = await fetch(`${API_BASE}/${uploadId}/video/${videoId}/pause-upload`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            videoId,
+            uploadId,
+        })
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to pause upload");
+    }
+
+    const { success, status } = await res.json();
+
+    return { success, status };
+}
+
+
+export async function resumeUpload(
+    videoId: string,
+    uploadId: string,
+): Promise<{ success: boolean, status: string, uploadedParts: UploadedPart[] }> {
+    const res = await fetch(`${API_BASE}/${uploadId}/video/${videoId}/resume-upload`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            videoId,
+            uploadId,
+        })
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to resume upload");
+    }
+
+    return await res.json();
 }

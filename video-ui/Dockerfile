@@ -33,12 +33,13 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/build ./build
 
 # Optional: Copy static assets if needed
-COPY --from=builder /app/package.json ./
+# COPY --from=builder /app/package.json ./
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV PORT=3000
+# PORT was 3000
+ENV PORT=5173
 
-EXPOSE 3000
+EXPOSE 5173
 
 CMD ["node", "build"]

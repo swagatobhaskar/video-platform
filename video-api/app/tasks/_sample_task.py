@@ -1,4 +1,4 @@
-from app.celery_worker import celery
+from app.workers.celery_worker import celery
 import time
 
 @celery.task #(bind=True, max_retries=3)

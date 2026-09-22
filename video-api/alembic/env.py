@@ -13,11 +13,15 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.database.models.base import Base
+from app.core.config import get_settings
+settings = get_settings()
 
-from app.database.models import *
+from app.models.base import Base
 
-DATABASE_URL = os.environ['DATABASE_URL']
+from app.models import *
+
+DATABASE_URL = settings.database_url
+# print("DATABASE_URL in alembic:- ", DATABASE_URL)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -22,3 +22,10 @@
   
 3. Connect to the running PostgreSQL container from your FastAPI app, use the following DATABASE_URL string: `postgresql+asyncpg://swagato:^dogesh39A@localhost:5432/videodevdb`.
 
+4. Drop a database:
+    1. Get into `postgres`: `docker exec -it chat_postgres psql -U postgres`
+    if it shows: `psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  database "swagato" does not exist`,
+    try: `docker exec -it video_postgres psql -d postgres -U swagato` (Since "POSTGRES_USER=swagato" in settings)
+    2. Once inside, do: `DROP DATABASE videodevdb;`
+    3. Then do: `CREATE DATABASE videodevdb;`.
+    

@@ -85,7 +85,11 @@ export function uploadChunkWithProgress(
 
         xhr.onabort = () => {
             cleanup();
-            reject(new Error("Upload Cancelled"));
+            // reject(new Error("Upload Cancelled"));
+            reject(new DOMException(
+                "The upload was aborted",
+                "AbortError"
+            ));
         }
 
         xhr.send(chunk);

@@ -1,0 +1,35 @@
+from celery import Celery
+
+from app.core.config import get_settings
+settings = get_settings()
+
+# broker = message queue
+# backend = stores task results
+
+celery = Celery(
+    "worker",
+    broker=settings.redis_url, # "redis://localhost:6379/0",
+    backend=settings.redis_url, #"redis://localhost:6379/0",
+    # broker="redis://redis:6379/0",  # when using docker-compose
+    # backend="redis://redis:6379/0",
+    include=["app.tasks.transcode.transcode_task"],
+)
+
+celery.conf.task_routes = {
+    "app.tasks.transcode.*": {"queue": "transcode"},
+    "app.tasks.*": {"queue": "default"},
+}
+
+#  Example
+# celery.conf.task_routes = {
+#     "app.tasks.email_*": {"queue": "emails"},
+#     "app.tasks.ai_*": {"queue": "ai"},
+# }
+
+# This tells Celery to look for 'tasks.py' inside the 'app' module
+# celery_app.autodiscover_tasks(["app.tasks"], force=True)
+
+celery.conf.update(
+    task_track_started=True,
+    result_expires=3600,
+)
