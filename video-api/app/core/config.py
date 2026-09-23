@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     category_image_bucket_dev_url: str
     processed_videos_bucket_dev_url: str
 
-    # redis_url: str
+    redis_url: str
     
     model_config = SettingsConfigDict(
         # env_file = ".env",
