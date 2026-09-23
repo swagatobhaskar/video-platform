@@ -4,15 +4,19 @@
     import { resolve } from '$app/paths';
 
     import FolderUploadModal from '../_components/FolderUploadModal.svelte';
-    import FormComponent from '../_components/FormComponent.svelte';
-    import ThumbnailCard from '../_components/ThumbnailCard.svelte';
-    import VideoUploadProgressCard from '../_components/VideoUploadProgressCard.svelte';
+    // import FormComponent from '../_components/FormComponent.svelte';
+    // import ThumbnailCard from '../_components/ThumbnailCard.svelte';
+    // import VideoUploadProgressCard from '../_components/VideoUploadProgressCard.svelte';
+
+    import { fileInputController } from '$lib/controllers/fileInputController.svelte';
+    const folderInputController = fileInputController({uploadFileType: "transcoded-directory"});
+    // const thumbnailInputController = fileInputController({uploadFileType: "image"})
 
     import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte'
     const uploader = createVideoUploadSession();
 
-    import { thumbnailUploadService } from '$lib/services/thumbnailUploadService.svelte';
-    const thumbnailUploader = thumbnailUploadService();
+    // import { thumbnailUploadService } from '$lib/services/thumbnailUploadService.svelte';
+    // const thumbnailUploader = thumbnailUploadService();
 
     // const videoId = $derived(!page.params.videoId);
     const videoId = $derived(page.params.videoId);
@@ -45,12 +49,13 @@
             });
 
             // Start the upload
-            const file = videoInputController.state.selectedFile;
+            const transcodedFiles = folderInputController.state.selectedDirFiles;
             
-            if (file) {
-                await uploader.upload(file, data.videoId, data.uploadSessionId);
+            // Because selectedDirFiles is always an array, use the following instead of if (transcodedFiles) {}
+            if (transcodedFiles.length > 0) {
+                // await uploader.upload(transcodedFiles, data.videoId, data.uploadSessionId);
+                // it has to batched file upload, not the same as multi-part upload
             }
-
 
 	    } catch (err) {
             console.error(err);
@@ -60,6 +65,6 @@
 
 <FolderUploadModal
     open={modalOpen}
-    {videoInputController}
+    {folderInputController}
     onUploadClick={handleUploadWithNewSession}
 />

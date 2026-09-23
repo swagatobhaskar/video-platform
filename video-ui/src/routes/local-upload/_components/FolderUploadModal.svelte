@@ -1,16 +1,41 @@
 <script lang="ts">
     import Modal from "./Modal.svelte";
 
-    let { open, onUploadClick, videoInputController } = $props<{
+    import { fileInputController } from "$lib/controllers/fileInputController.svelte";
+    type FileInputController = ReturnType<typeof fileInputController>;
+
+    let { open, onUploadClick, folderInputController } = $props<{
         open: boolean;
         onUploadClick: () => void;
-        videoInputController: FileInputController;
+        folderInputController: FileInputController;
     }>();
 
+    let videoFolderInputEl = $state<HTMLInputElement | null>(null);
+    let initiatingUpload: boolean = $state(false);
+
+    function openVideoFolderDialog() {
+        videoFolderInputEl?.click();
+    }
+    
+    const selectedFiles = $derived(
+        folderInputController.state.selectedDirFiles
+    );
+
+    const hasSelectedFolder = $derived(
+        selectedFiles.length > 0
+    );
+
+    const totalSize = $derived(
+        selectedFiles.reduce((total: number, file: File) => total + file.size, 0)
+    );
+
+    const segmentCount = $derived(
+        selectedFiles.filter((file: File) => file.name.endsWith(".m4s")).length
+    );
 </script>
 
-
-<Modal bind:open>
+<!-- <Modal bind:open> -->
+<Modal {open}>
     <section class="h-full flex flex-col items-center text-center relative">
         
         <!-- Inner border -->
@@ -18,23 +43,24 @@
             class="absolute inset-0 rounded-3xl p-3 border-2 border-dashed border-gray-400 flex items-center justify-center text-center"
             role="button"
             tabindex="0"
-            ondragenter={videoInputController.handleDragEnter}
-            ondragleave={videoInputController.handleDragLeave}
-            ondragover={videoInputController.handleDragOver}
-            ondrop={videoInputController.handleDrop}
-            class:border-blue-500={videoInputController.state.isDragging}
-            class:bg-blue-50={videoInputController.state.isDragging}
-            onclick={openVideoFileDialog}
-            
+            ondragenter={folderInputController.handleDragEnter}
+            ondragleave={folderInputController.handleDragLeave}
+            ondragover={folderInputController.handleDragOver}
+            ondrop={folderInputController.handleDrop}
+            onclick={openVideoFolderDialog}
+            class:border-blue-500={folderInputController.state.isDragging}
+            class:bg-blue-50={folderInputController.state.isDragging}
+
             onkeydown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    openVideoFileDialog();
+                    openVideoFolderDialog();
                 }
             }}
         >
             <!-- Show input options if file isn't selcted -->
-            {#if !videoInputController.state.selectedFile}
+            <!-- {#if folderInputController.state.selectedDirFiles.length === 0} -->
+            {#if !hasSelectedFolder}
                 <div class="flex flex-col items-center gap-3">
 
                     <svg fill="#C4C4C4" viewBox="-2.1 -2.1 39.20 39.20" version="1.1" xmlns="http://www.w3.org/2000/svg" stroke="#C4C4C4" stroke-width="0.00035">
@@ -48,14 +74,17 @@
                     </svg>
 
                     <p>
-                        Drop video here
+                        Drop folder containing transcoded video files here
                         <br />
                         or
                     </p>
 
                     <button
                         type="button"
-                        onclick={openVideoFileDialog}
+                        onclick={(e) => {
+                            e.stopPropagation();
+                            openVideoFolderDialog();
+                        }}
                         class="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
                     >
                         Browse from device
@@ -63,70 +92,53 @@
 
                     <input
                         type="file"
-                        accept="video/*"
                         class="hidden"
-                        bind:this={videoFileInputEl}
-                        onchange={videoInputController.handleFileSelect}
+                        multiple
+                        webkitdirectory                        
+                        bind:this={videoFolderInputEl}
+                        onchange={folderInputController.handleFolderSelect}
                     />
                 </div>
             {:else}
-                {#if videoPreviewUrl }
-                    <!-- Show video preview -->
-                    <div class="w-full h-full flex flex-col">
-
-                        <!-- Large video preview -->
-                        <div class="flex-1 min-h-0 overflow-hidden rounded-2xl bg-black">
-                            <!-- svelte-ignore a11y_media_has_caption -->
-                            <video
-                                src={videoPreviewUrl}
-                                controls
-                                class="w-full h-full object-contain bg-black"
-                            ></video>
-                        </div>
-
-                        <!-- Bottom info panel / Video metadata -->
-                        <div class="pt-5 flex flex-col gap-4">
-                            <!-- Metadata -->
-                            <div class="text-sm text-gray-700 space-y-1 w-2/4 text-left">
-                                <p class="font-medium text-gray-900 break-all">
-                                    {videoInputController.state.selectedFile.name}
-                                </p>
-                                
-                                {#if videoInputController.state.videoMetadata}
-                                    <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-gray-600">
-                                        <p>Type: {videoInputController.state.videoMetadata.mimeType}</p>
-                                        <p>Size: {(videoInputController.state.videoMetadata.size / (1024 * 1024)).toFixed(2)} MB</p>
-                                        <p>Duration: {(videoInputController.state.videoMetadata.duration / 60).toFixed(2)} mins</p>
-                                        <p>Resolution: {videoInputController.state.videoMetadata.width}x{videoInputController.state.videoMetadata.height}</p>
-                                    </div>
-                                {/if}
-                            </div>
-
-                            <!-- Actions - Upload & Cancel Buttons -->
-                            <div class="flex justify-end gap-3">
-                                <button
-                                    class="bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-5 rounded-xl transition cursor-pointer"
-                                    onclick={() => {
-                                        videoInputController.cancelSelectedFile();
-                                    }}
-                                >
-                                    Cancel
-                                </button>
-
-                                <button
-                                    class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-5 rounded-xl transform shadow cursor-pointer"
-                                    onclick={onUploadClick}
-                                >
-                                    { initiatingUpload ? 'Uploading...' : 'Upload' }
-                                </button>
+                <!-- Show Folder stats  -->
+                <div class="w-full h-full flex flex-col">
+                    <div class="flex-1 min-h-0 flex items-center justify-center">
+                        <div class="text-left">
+                            <h2 class="text-xl font-semibold">
+                                Transcoded video ready
+                            </h2>
+                            <div class="mt-4 space-y-2">
+                                <p>Files: {selectedFiles.length}</p>
+                                <p>Segments: {segmentCount}</p>
+                                <p>Size: {(totalSize / 1024 / 1024).toFixed(2)} MB</p>
                             </div>
                         </div>
                     </div>
-                {/if}
+
+                    <!-- Actions - Upload & Cancel Buttons -->
+                    <div class="pt-5 flex justify-end gap-3">
+                        <button
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-5 rounded-xl transition cursor-pointer"
+                            onclick={() => {
+                                folderInputController.cancelSelectedFile();
+                            }}
+                        >
+                            Cancel
+                        </button>
+
+                        <button
+                            class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-5 rounded-xl transform shadow cursor-pointer"
+                            onclick={onUploadClick}
+                            disabled={initiatingUpload}
+                        >
+                            { initiatingUpload ? 'Uploading...' : 'Upload' }
+                        </button>
+                    </div>
+                </div>
             {/if}
         </div>
-        {#if videoInputController.state.error}
-            <p class="error">{videoInputController.state.error}</p>
+        {#if folderInputController.state.error}
+            <p class="error">{folderInputController.state.error}</p>
         {/if}
     </section>
 </Modal>
