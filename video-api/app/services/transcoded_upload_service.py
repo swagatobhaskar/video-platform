@@ -1,3 +1,21 @@
+from uuid import UUID
+from datetime import datetime, timezone
+from sqlalchemy.exc import IntegrityError
+
+from app.core.database import AsyncSession
+from app.repositories.transcoded_upload_repository import TranscodedUploadRepository
+from app.repositories.video_repository import VideoRepository
+from app.repositories.video_event_repository import VideoEventRepository
+
+from app.exceptions.video import VideoNotFound
+from app.exceptions.upload import UploadSessionNotFound, InvalidUploadState
+
+from app.schemas.transcoded_upload_schema import TranscodedFileRequest, validate_transcoded_relative_path
+
+from app.models.upload import TranscodedUploadStatusEnum
+
+from app.storage.r2_transcoded_upload_service import R2TranscodedUploadService
+
 
 class TranscodedUploadService:
 
@@ -20,12 +38,9 @@ class TranscodedUploadService:
         video = await self.video_repository.get(video_id)
 
         if video is None:
-            raise VideoNotFound(video_id)
+            raise VideoNotFound(str(video_id))
 
-        upload = await self.upload_repository.create(
-            video_id=video_id,
-            status=TranscodedUploadStatusEnum.PENDING,
-        )
+        upload = await self.upload_repository.create_upload_session(video_id=video_id)
 
         await self.session.commit()
 
