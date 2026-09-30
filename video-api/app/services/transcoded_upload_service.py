@@ -1,6 +1,6 @@
 from uuid import UUID
 from datetime import datetime, timezone
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.database import AsyncSession
 from app.repositories.transcoded_upload_repository import TranscodedUploadRepository
@@ -8,11 +8,11 @@ from app.repositories.video_repository import VideoRepository
 from app.repositories.video_event_repository import VideoEventRepository
 
 from app.exceptions.video import VideoNotFound
-from app.exceptions.upload import UploadSessionNotFound, InvalidUploadState
+from app.exceptions.upload import UploadSessionNotFound, InvalidUploadState, NewUploadCreationFailed
 
 from app.schemas.transcoded_upload_schema import TranscodedFileRequest, validate_transcoded_relative_path
 
-from app.models.upload import TranscodedUploadStatusEnum
+from app.models.upload import TranscodedUploadStatusEnum, TranscodedUploadSession, TranscodedUploadFile
 
 from app.storage.r2_transcoded_upload_service import R2TranscodedUploadService
 
@@ -22,37 +22,69 @@ class TranscodedUploadService:
     def __init__(
         self,
         session: AsyncSession,
-        upload_repository: TranscodedUploadRepository,
+        transcoded_upload_repository: TranscodedUploadRepository,
         video_repository: VideoRepository,
         event_repository: VideoEventRepository,
         storage_service: R2TranscodedUploadService,
     ):
         self.session = session
-        self.upload_repository = upload_repository
+        self.transcoded_upload_repository = transcoded_upload_repository
         self.video_repository = video_repository
         self.event_repository = event_repository
         self.storage_service = storage_service
 
-    async def initiate(self, *, video_id: UUID) -> dict:
+    async def new_upload_record(self):
+        try:
+            # create an empty video and get the video_id
+            video = await self.video_repository.create()
 
-        video = await self.video_repository.get(video_id)
+            # create a new uploadsession linked to that Video
+            upload = await self.transcoded_upload_repository.create(video_id=video.id)
 
-        if video is None:
-            raise VideoNotFound(str(video_id))
+            # Commit both operations as one transaction
+            await self.session.commit()
+            await self.session.refresh(video)
 
-        upload = await self.upload_repository.create_upload_session(video_id=video_id)
+            return {
+                "success": True,
+                "transcodedUploadSessionId": str(upload.id),
+                "videoId": str(video.id),
+            }
+        
+        except SQLAlchemyError as exc:
+            # The service says: "These three persistence operations constitute one business operation, so rollback everything."
+            await self.session.rollback()
+            # logger.exception("Failed to create new transcoded upload session and new video!")
+            raise NewUploadCreationFailed() from exc
 
-        await self.session.commit()
 
-        return {
-            "uploadSessionId": str(upload.id),
-            "status": upload.status,
-        }
+    # async def initiate(self, video_id: UUID, upload_session_id: UUID) -> dict:
+    #     # 1. Get the video
+    #     video = await self.video_repository.get(video_id)
+        
+    #     if video is None:
+    #         raise VideoNotFound()
+        
+    #     upload_session = await self.upload_repository.get_by_video(upload_session_id, video_id)
+
+    #     if upload_session is None:
+    #         raise UploadSessionNotFound()
+        
+    #     try:
+    #         await self.session.commit()
+    #     except SQLAlchemyError:
+    #         await self.session.rollback()
+    #         raise Initit
+
+    #     return {
+    #         "uploadSessionId": str(upload.id),
+    #         "status": upload.status,
+    #     }
 
     async def get_presigned_urls(
         self, *, video_id: UUID, upload_session_id: UUID, files: list[TranscodedFileRequest]
     ):
-        upload_session = await self.upload_repository.get_for_video(upload_session_id, video_id)
+        upload_session = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
 
         if upload_session is None:
             raise UploadSessionNotFound()
@@ -72,10 +104,10 @@ class TranscodedUploadService:
             object_key = build_object_key(video_id, file.relative_path)
 
             # Create/update database record.
-            upload_file = await self.upload_repository.get_file_by_path(upload_session.id, file.relative_path)
+            upload_file = await self.transcoded_upload_repository.get_file_by_path(upload_session.id, file.relative_path)
 
             if upload_file is None:
-                upload_file = await self.upload_repository.create_file(
+                upload_file = await self.transcoded_upload_repository.create_file(
                     upload_session_id=upload_session.id,
                     client_file_id=file.file_id,
                     relative_path=file.relative_path,
@@ -109,14 +141,8 @@ class TranscodedUploadService:
 
         return {"files": result}
 
-    async def record_uploaded_file(
-        self,
-        *,
-        video_id: UUID,
-        upload_session_id: UUID,
-        file_id: str,
-    ):
-        upload_file = await self.upload_repository.get_file_by_client_id(upload_session_id, file_id)
+    async def record_uploaded_file(self, *, video_id: UUID, upload_session_id: UUID, file_id: str):
+        upload_file = await self.transcoded_upload_repository.get_file_by_client_id(upload_session_id, file_id)
 
         if upload_file is None:
             raise UploadedFileNotFound()
@@ -132,9 +158,9 @@ class TranscodedUploadService:
         self.storage_service.head_object(object_key=upload_file.object_key)
 
         try:
-            await self.upload_repository.mark_file_uploaded(upload_file.id)
-            await self.upload_repository.increment_uploaded_files(upload_session_id)
-            await self.upload_repository.increment_uploaded_bytes(
+            await self.transcoded_upload_repository.mark_file_uploaded(upload_file.id)
+            await self.transcoded_upload_repository.increment_uploaded_files(upload_session_id)
+            await self.transcoded_upload_repository.increment_uploaded_bytes(
                 upload_session_id,
                 upload_file.size_bytes,
             )
@@ -165,14 +191,9 @@ class TranscodedUploadService:
             "message": "file recorded successfully",
         }
 
-    async def pause(
-        self,
-        *,
-        video_id: UUID,
-        upload_session_id: UUID,
-    ):
+    async def pause(self, *, video_id: UUID, upload_session_id: UUID):
 
-        upload = await self.upload_repository.get_for_video(upload_session_id, video_id)
+        upload = await self.transcoded_upload_repository.get_for_video(upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
@@ -180,10 +201,7 @@ class TranscodedUploadService:
         if upload.status != TranscodedUploadStatusEnum.UPLOADING:
             raise InvalidUploadState()
 
-        await self.upload_repository.update(
-            upload.id,
-            status=TranscodedUploadStatusEnum.PAUSED,
-        )
+        await self.transcoded_upload_repository.update(upload.id, status=TranscodedUploadStatusEnum.PAUSED)
 
         await self.session.commit()
 
@@ -192,14 +210,9 @@ class TranscodedUploadService:
             "status": "paused",
         }
 
-    async def resume(
-        self,
-        *,
-        video_id: UUID,
-        upload_session_id: UUID,
-    ):
+    async def resume(self, *, video_id: UUID, upload_session_id: UUID):
 
-        upload = await self.upload_repository.get_for_video(upload_session_id, video_id)
+        upload = await self.transcoded_upload_repository.get_for_video(upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
@@ -207,7 +220,7 @@ class TranscodedUploadService:
         if upload.status != TranscodedUploadStatusEnum.PAUSED:
             raise InvalidUploadState()
 
-        await self.upload_repository.update(
+        await self.transcoded_upload_repository.update(
             upload.id,
             status=TranscodedUploadStatusEnum.UPLOADING,
         )
@@ -223,15 +236,15 @@ class TranscodedUploadService:
         self,
         *,
         video_id: UUID,
-        upload_session_id: UUID,
+        upload_session_id: UUID
     ):
 
-        upload = await self.upload_repository.get_for_video(upload_session_id, video_id)
+        upload = await self.transcoded_upload_repository.get_for_video(upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
 
-        files = await self.upload_repository.get_files(upload.id)
+        files = await self.transcoded_upload_repository.get_files(upload.id)
 
         if not files:
             raise InvalidUploadState("No transcoded files were uploaded.")
@@ -259,7 +272,7 @@ class TranscodedUploadService:
         if not has_segments:
             raise InvalidUploadState("No media segments were uploaded.")
 
-        await self.upload_repository.update(
+        await self.transcoded_upload_repository.update(
             upload.id,
             status=TranscodedUploadStatusEnum.COMPLETED,
             completed_at=datetime.now(timezone.utc),
@@ -272,4 +285,20 @@ class TranscodedUploadService:
             "status": "completed",
         }
 
+    async def get_status(self, *, video_id: UUID, upload_session_id: UUID):
+        upload = await self.transcoded_upload_repository.get_for_video(upload_session_id, video_id)
+
+        if upload is None:
+            raise UploadSessionNotFound()
+
+        return {
+            "uploadSessionId": str(upload.id),
+            "status": upload.status,
+            "totalFiles": upload.total_files,
+            "uploadedFiles": upload.uploaded_files,
+            "totalBytes": upload.total_bytes,
+            "uploadedBytes": upload.uploaded_bytes,
+            "createdAt": upload.created_at.isoformat(),
+            "completedAt": upload.completed_at.isoformat() if upload.completed_at else None,
+        }
     

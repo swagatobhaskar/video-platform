@@ -1,9 +1,13 @@
+from app.core.config import get_settings
+settings = get_settings()
+
 
 class R2TranscodedUploadService:
 
-    def __init__(self, client, bucket: str):
+    BUCKET = settings.processed_videos_bucket
+
+    def __init__(self, client):
         self.client = client
-        self.bucket = bucket
 
     def generate_presigned_put_url(
         self,
@@ -15,7 +19,7 @@ class R2TranscodedUploadService:
         return self.client.generate_presigned_url(
             ClientMethod="put_object",
             Params={
-                "Bucket": self.bucket,
+                "Bucket": self.BUCKET,
                 "Key": object_key,
                 "ContentType": content_type,
             },
@@ -23,8 +27,8 @@ class R2TranscodedUploadService:
         )
 
     def head_object(self, *, object_key: str):
-        return self.client.head_object(Bucket=self.bucket, Key=object_key)
+        return self.client.head_object(Bucket=self.BUCKET, Key=object_key)
 
     def delete_object(self, *, object_key: str):
-        return self.client.delete_object(Bucket=self.bucket, Key=object_key)
+        return self.client.delete_object(Bucket=self.BUCKET, Key=object_key)
     
