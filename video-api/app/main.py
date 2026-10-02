@@ -14,6 +14,7 @@ from app.api.routes.video import router as VideoRouter
 from app.api.routes.category import router as CategoryRouter
 from app.api.routes.series import router as SeriesRouter
 from app.api.routes.thumbnail_upload import router as ThumbnailRouter
+from app.api.routes.transcoded_upload import router as TranscodedVideoUploadRouter
 from app.api.routes._task_routes import router as TaskRouter
 
 from app.exceptions.base import AppException
@@ -52,6 +53,7 @@ app.add_exception_handler(
 app.include_router(UserRouter)
 app.include_router(AuthRouter)
 app.include_router(VideoUploadRouter)
+app.include_router(TranscodedVideoUploadRouter)
 app.include_router(TaskRouter)
 app.include_router(VideoRouter)
 app.include_router(CategoryRouter)
