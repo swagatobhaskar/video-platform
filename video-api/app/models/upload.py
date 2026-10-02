@@ -109,7 +109,7 @@ class UploadPart(Base):
     def __repr__(self) -> str:
         return f"<UploadPart(id={self.id}, upload_session_id={self.upload_session_id})>"
 
-class TranscodedUploadStatusEnum(str, Enum):
+class TranscodedUploadStatusEnum(str, enum.Enum):
     PENDING = "PENDING"
     UPLOADING = "UPLOADING"
     PAUSED = "PAUSED"
@@ -152,12 +152,10 @@ class TranscodedUploadFile(Base):
     uploaded_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
-    __table_args__ = (UniqueConstraint(
-        "upload_session_id",
-        "relative_path",
-        name="uq_transcoded_upload_file_path",
-    ))
+    __table_args__ = (
+        UniqueConstraint("transcoded_upload_session_id", "relative_path", name="uq_transcoded_upload_file_path"), # the last comma is required
+    )
 
     def __repr__(self) -> str:
-        return f"<TranscodedUploadSession(id={self.id}, transcoded_upload_session_id={self.transcoded_upload_session_id})>"
+        return f"<TranscodedUploadFile(id={self.id}, transcoded_upload_session_id={self.transcoded_upload_session_id})>"
     
