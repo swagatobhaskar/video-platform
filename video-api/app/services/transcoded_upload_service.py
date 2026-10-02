@@ -24,16 +24,16 @@ class TranscodedUploadService:
         session: AsyncSession,
         transcoded_upload_repository: TranscodedUploadRepository,
         video_repository: VideoRepository,
-        event_repository: VideoEventRepository,
+        video_event_repository: VideoEventRepository,
         storage_service: R2TranscodedUploadService,
     ):
         self.session = session
         self.transcoded_upload_repository = transcoded_upload_repository
         self.video_repository = video_repository
-        self.event_repository = event_repository
+        self.video_event_repository = video_event_repository
         self.storage_service = storage_service
 
-    async def new_upload_record(self):
+    async def new_transcoded_upload_record(self):
         try:
             # create an empty video and get the video_id
             video = await self.video_repository.create()
@@ -58,30 +58,7 @@ class TranscodedUploadService:
             raise NewUploadCreationFailed() from exc
 
 
-    # async def initiate(self, video_id: UUID, upload_session_id: UUID) -> dict:
-    #     # 1. Get the video
-    #     video = await self.video_repository.get(video_id)
-        
-    #     if video is None:
-    #         raise VideoNotFound()
-        
-    #     upload_session = await self.upload_repository.get_by_video(upload_session_id, video_id)
-
-    #     if upload_session is None:
-    #         raise UploadSessionNotFound()
-        
-    #     try:
-    #         await self.session.commit()
-    #     except SQLAlchemyError:
-    #         await self.session.rollback()
-    #         raise Initit
-
-    #     return {
-    #         "uploadSessionId": str(upload.id),
-    #         "status": upload.status,
-    #     }
-
-    async def get_presigned_urls(
+    async def get_batch_presigned_urls(
         self, *, video_id: UUID, upload_session_id: UUID, files: list[TranscodedFileRequest]
     ):
         upload_session = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
@@ -232,13 +209,7 @@ class TranscodedUploadService:
             "status": "resumed",
         }
 
-    async def complete(
-        self,
-        *,
-        video_id: UUID,
-        upload_session_id: UUID
-    ):
-
+    async def complete(self, *, video_id: UUID, upload_session_id: UUID):
         upload = await self.transcoded_upload_repository.get_for_video(upload_session_id, video_id)
 
         if upload is None:
@@ -284,6 +255,9 @@ class TranscodedUploadService:
             "success": True,
             "status": "completed",
         }
+
+    async def abort(self, *, video_id: UUID, upload_session_id: UUID):
+        pass
 
     async def get_status(self, *, video_id: UUID, upload_session_id: UUID):
         upload = await self.transcoded_upload_repository.get_for_video(upload_session_id, video_id)

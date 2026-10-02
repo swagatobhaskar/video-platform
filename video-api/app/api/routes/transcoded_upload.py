@@ -1,8 +1,14 @@
+from uuid import UUID
 import logging
 from fastapi import APIRouter, Depends
 
-from app.dependencies import get_upload_service, get_video_repository, get_transcode_repository
-
+from app.dependencies import get_transcoded_upload_service
+from app.services.transcoded_upload_service import TranscodedUploadService
+from app.schemas.transcoded_upload_schema import (
+    PresignedTranscodedFile, PresignTranscodedFilesRequest,
+    PresignTranscodedFilesResponse, RecordUploadedFileRequest,
+    CompleteTranscodedUploadRequest
+)
 from app.core.config import get_settings
 settings = get_settings()
 
@@ -10,20 +16,20 @@ router = APIRouter(prefix="/api/video/transcoded-upload", tags=["video", "transc
 
 logger = logging.getLogger(__name__)
 
-@router.post("/{video_id}/initiate")
-async def initiate_transcoded_upload(
-    video_id: UUID,
+@router.post("/new-upload-record")
+async def new_transcoded_upload_record(
     upload_service: TranscodedUploadService = Depends(get_transcoded_upload_service),
 ):
-    return await upload_service.initiate(video_id=video_id)
+    return await upload_service.new_transcoded_upload_record()
 
-@router.post("/{video_id}/presign")
-async def presign_transcoded_files(
+
+@router.post("/{video_id}/presign-batch")
+async def get_batch_presigned_urls(
     video_id: UUID,
     req: PresignTranscodedFilesRequest,
     upload_service: TranscodedUploadService = Depends(get_transcoded_upload_service),
 ):
-    return await upload_service.get_presigned_urls(
+    return await upload_service.get_batch_presigned_urls(
         video_id=video_id,
         upload_session_id=req.upload_session_id,
         files=req.files,
@@ -58,10 +64,15 @@ async def resume_transcoded_upload(
     upload_session_id: UUID,
     upload_service: TranscodedUploadService = Depends(get_transcoded_upload_service),
 ):
-    return await upload_service.resume(
-        video_id=video_id,
-        upload_session_id=upload_session_id,
-    )
+    return await upload_service.resume(video_id=video_id, upload_session_id=upload_session_id)
+
+@router.post("/{video_id}/abort")
+async def abort_transcoded_upload(
+    video_id: UUID,
+    upload_session_id: UUID,
+    upload_service: TranscodedUploadService = Depends(get_transcoded_upload_service),
+):
+    return await upload_service.abort(video_id=video_id, upload_session_id=upload_session_id)
 
 @router.post("/{video_id}/complete")
 async def complete_transcoded_upload(

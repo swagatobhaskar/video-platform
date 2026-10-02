@@ -16,11 +16,13 @@ from app.services.upload_service import UploadService
 from app.services.category_service import CategoryService
 from app.services.series_service import SeriesService
 from app.services.video_service import VideoService
+from app.services.transcoded_upload_service import TranscodedUploadService
 
 from app.storage.image_storage import ImageStorage
 from app.storage.client import get_s3_client
 from app.storage.r2_multipart_service import R2MultipartService
 from app.storage.r2_video_storage import R2VideoStorage
+from app.storage.r2_transcoded_upload_service import R2TranscodedUploadService
 
 from app.repositories.outbox_repository import OutboxMessageRepository
 from app.repositories.video_event_repository import VideoEventRepository
@@ -29,6 +31,7 @@ from app.repositories.video_repository import VideoRepository
 from app.repositories.transcode_repository import TranscodeRepository
 from app.repositories.category_repository import CategoryRepository
 from app.repositories.series_repository import SeriesRepository
+from app.repositories.transcoded_upload_repository import TranscodedUploadRepository
 
 settings = get_settings()
 
@@ -96,6 +99,9 @@ def get_r2_multipart_service(
     client = Depends(get_s3_client),
 ):
     return R2MultipartService(client)
+
+def get_r2_transcoded_upload_service(client = Depends(get_s3_client)) -> R2TranscodedUploadService:
+    return R2TranscodedUploadService(client)
 # --------------------------------------------------------------
 # R2 Image Storage
 # --------------------------------------------------------------
@@ -223,4 +229,25 @@ def get_upload_service(
         outbox_repository,
         # video_service,
         r2_multipart_service,
+    )
+
+# ------------------------------------------------------------------
+# TranscodedUploadSession
+# ------------------------------------------------------------------
+def get_transcoded_upload_repository(session: AsyncSession = Depends(get_db)) -> TranscodedUploadRepository:
+    return TranscodedUploadRepository(session)
+
+def get_transcoded_upload_service(
+    transcoded_upload_repository: TranscodedUploadRepository = Depends(get_transcoded_upload_repository),
+    session: AsyncSession = Depends(get_db),
+    video_repository: VideoRepository = Depends(get_video_repository),
+    video_event_repository: VideoEventRepository = Depends(get_video_event_repository),
+    r2_transcoded_upload_service: R2TranscodedUploadService = Depends(get_r2_transcoded_upload_service),
+) -> TranscodedUploadService:
+    return TranscodedUploadService(
+        session=session,
+        transcoded_upload_repository=transcoded_upload_repository,
+        video_repository=video_repository,
+        video_event_repository=video_event_repository,
+        storage_service=r2_transcoded_upload_service,
     )

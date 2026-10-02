@@ -20,6 +20,11 @@ class PresignedTranscodedFile(BaseModel):
 class PresignTranscodedFilesResponse(BaseModel):
     files: list[PresignedTranscodedFile]
 
+class CompleteTranscodedUploadRequest(BaseModel):
+    upload_session_id: UUID
+
+class RecordUploadedFileRequest(BaseModel):
+    pass
 
 def validate_transcoded_relative_path(relative_path: str) -> None:
 

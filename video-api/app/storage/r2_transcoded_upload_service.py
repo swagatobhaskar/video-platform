@@ -9,12 +9,7 @@ class R2TranscodedUploadService:
     def __init__(self, client):
         self.client = client
 
-    def generate_presigned_put_url(
-        self,
-        *,
-        object_key: str,
-        content_type: str,
-    ) -> str:
+    def generate_presigned_put_url(self, *, object_key: str, content_type: str) -> str:
 
         return self.client.generate_presigned_url(
             ClientMethod="put_object",
