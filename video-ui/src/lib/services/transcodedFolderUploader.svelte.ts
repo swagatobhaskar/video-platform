@@ -31,7 +31,9 @@ type PresignRequestFile = {
 type PresignResponseFile = {
     file_id: string;
     object_key: string;
-    upload_url: string;
+    // Omitted by the backend when already_uploaded is true.
+    upload_url?: string;
+    already_uploaded: boolean;
 };
 
 type UploadOptions = {
@@ -48,34 +50,83 @@ const DEFAULT_MAX_RETRIES = 4;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-function getContentType(file: File): string {
-    if (file.type) {
-        return file.type;
-    }
+const EXTENSION_CONTENT_TYPES: Record<string, string> = {
+    m4s: "video/iso.segment",
+    mp4: "video/mp4",
+    m3u8: "application/vnd.apple.mpegurl",
+    mpd: "application/dash+xml",
+};
 
-    switch (file.name.split(".").pop()?.toLowerCase()) {
-        case "m4s":
-            return "video/iso.segment";
-        case "mp4":
-            return "video/mp4";
-        case "m3u8":
-            return "application/vnd.apple.mpegurl";
-        case "mpd":
-            return "application/dash+xml";
-        default:
-            return "application/octet-stream";
-    }
+function getContentType(file: File): string {
+    if (file.type) return file.type;
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    return EXTENSION_CONTENT_TYPES[ext] ?? "application/octet-stream";
 }
 
 function getBackoffDelay(attempt: number): number {
     const base = 1000;
     const max = 15_000;
     const exponential = base * 2 ** attempt;
-
-    // Small jitter prevents many requests retrying simultaneously.
-    const jitter = Math.random() * 500;
-
+    const jitter = Math.random() * 500; // spreads out simultaneous retries
     return Math.min(exponential + jitter, max);
+}
+
+function apiUrl(videoId: string, path: string): string {
+    return `/api/video/transcoded-upload/${videoId}/${path}`;
+}
+
+async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Request to ${url} failed (${response.status})`);
+    }
+
+    return response.status === 204 ? (undefined as T) : response.json();
+}
+
+/** For the pause/resume/abort endpoints, which take upload_session_id as a query param, not a JSON body. */
+async function postWithQuery<T>(url: string, query: Record<string, string>): Promise<T> {
+    const response = await fetch(`${url}?${new URLSearchParams(query)}`, { method: "POST" });
+
+    if (!response.ok) {
+        throw new Error(`Request to ${url} failed (${response.status})`);
+    }
+
+    return response.status === 204 ? (undefined as T) : response.json();
+}
+
+/** PUTs one file to its presigned R2 URL, reporting live progress via `file.uploadedBytes`. */
+function putFileToR2(file: UploadFile, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", file.uploadUrl!);
+        xhr.setRequestHeader("Content-Type", getContentType(file.file));
+
+        xhr.upload.onprogress = event => {
+            if (event.lengthComputable) file.uploadedBytes = event.loaded;
+        };
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                file.uploadedBytes = file.size;
+                resolve();
+            } else {
+                reject(new Error(`R2 upload failed with HTTP ${xhr.status}`));
+            }
+        };
+
+        xhr.onerror = () => reject(new Error("Network error while uploading file."));
+        xhr.onabort = () => reject(new DOMException("Upload aborted", "AbortError"));
+
+        signal.addEventListener("abort", () => xhr.abort(), { once: true });
+        xhr.send(file.file);
+    });
 }
 
 export function createTranscodedFolderUploader() {
@@ -85,22 +136,20 @@ export function createTranscodedFolderUploader() {
             | "uploading"
             | "paused"
             | "completed"
-            | "failed",
+            | "failed"
+            | "cancelled",
 
         files: [] as UploadFile[],
         videoId: null as string | null,
         uploadSessionId: null as string | null,
         totalBytes: 0,
-        uploadedBytes: 0,
         error: null as string | null,
     });
 
     let abortController: AbortController | null = null;
-
     let batchSize = DEFAULT_BATCH_SIZE;
     let concurrency = DEFAULT_CONCURRENCY;
     let maxRetries = DEFAULT_MAX_RETRIES;
-
     let stopping = false;
 
     function initializeFiles(files: File[]) {
@@ -118,7 +167,6 @@ export function createTranscodedFolderUploader() {
         }));
 
         state.totalBytes = files.reduce((total, file) => total + file.size, 0);
-        state.uploadedBytes = 0;
         state.error = null;
         state.status = "idle";
     }
@@ -128,112 +176,75 @@ export function createTranscodedFolderUploader() {
         uploadSessionId: string,
         files: UploadFile[],
     ): Promise<void> {
-        if (files.length === 0) {
-            return;
-        }
+        if (files.length === 0) return;
 
-        for (const file of files) {
-            file.status = "presigning";
-        }
+        for (const file of files) file.status = "presigning";
 
-        const requestFiles: PresignRequestFile[] = 
-            files.map(file => ({
-                file_id: file.id,
-                relative_path: file.relativePath,
-                size: file.size,
-                content_type: getContentType(file.file),
-            }));
+        const requestFiles: PresignRequestFile[] = files.map(file => ({
+            file_id: file.id,
+            relative_path: file.relativePath,
+            size: file.size,
+            content_type: getContentType(file.file),
+        }));
 
-        const response = await fetch(
-            `/api/videos/transcoded-upload/${videoId}/presign-batch`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    upload_session_id: uploadSessionId,
-                    files: requestFiles,
-                }),
-            }
+        const { files: presigned } = await postJson<{ files: PresignResponseFile[] }>(
+            apiUrl(videoId, "presign-batch"),
+            { upload_session_id: uploadSessionId, files: requestFiles },
         );
 
-        if (!response.ok) {
-            throw new Error(`Failed to obtain upload URLs (${response.status})`);
-        }
-
-        const data: {files: PresignResponseFile[];} = await response.json();
-
-        const byId = new SvelteMap(
-            data.files.map(file => [
-                file.file_id,
-                file,
-            ])
-        );
+        const byId = new SvelteMap(presigned.map(file => [file.file_id, file]));
 
         for (const file of files) {
-            const presigned = byId.get(file.id);
-
-            if (!presigned) {
+            const match = byId.get(file.id);
+            if (!match) {
                 throw new Error(`Backend did not return an upload URL for ${file.relativePath}`);
             }
 
-            file.objectKey = presigned.object_key;
-            file.uploadUrl = presigned.upload_url;
+            file.objectKey = match.object_key;
+
+            // The backend already has this file recorded as UPLOADED (e.g. after
+            // a resume) -- nothing to PUT, no upload_url is even sent for it.
+            if (match.already_uploaded) {
+                file.status = "uploaded";
+                file.uploadedBytes = file.size;
+                continue;
+            }
+
+            if (!match.upload_url) {
+                throw new Error(`Backend did not return an upload URL for ${file.relativePath}`);
+            }
+
+            file.uploadUrl = match.upload_url;
         }
     }
 
-    async function uploadSingleFile(uploadFile: UploadFile): Promise<void> {
-        if (!uploadFile.uploadUrl) {
-            throw new Error(`No upload URL for ${uploadFile.relativePath}`);
-        }
+    async function uploadSingleFile(file: UploadFile): Promise<void> {
+        if (!file.uploadUrl) throw new Error(`No upload URL for ${file.relativePath}`);
 
-        while (uploadFile.attempts <= maxRetries) {
-            if (stopping) {
-                return;
-            }
+        while (file.attempts <= maxRetries) {
+            if (stopping) return;
 
-            uploadFile.status = "uploading";
-            uploadFile.error = null;
+            file.status = "uploading";
+            file.error = null;
+            file.uploadedBytes = 0;
 
             try {
-                // need XHR here
-                const response = await fetch(
-                    uploadFile.uploadUrl,
-                    {
-                        method: "PUT",
-                        headers: {
-                            "Content-Type": getContentType(uploadFile.file),
-                        },
-                        body: uploadFile.file,
-                        signal: abortController?.signal,
-                    }
-                );
-
-                if (!response.ok) {
-                    throw new Error(`R2 upload failed with HTTP ${response.status}`);
-                }
-
-                uploadFile.uploadedBytes = uploadFile.size;
-                uploadFile.status = "uploaded";
+                await putFileToR2(file, abortController!.signal);
+                file.status = "uploaded";
                 return;
             } catch (error) {
                 // Pause/cancel isn't a real upload failure.
-                if (error instanceof DOMException && error.name === "AbortError") {
-                    return;
-                }
+                if (error instanceof DOMException && error.name === "AbortError") return;
 
-                uploadFile.attempts++;
+                file.attempts++;
+                file.error = error instanceof Error ? error.message : "Upload failed";
 
-                if (uploadFile.attempts > maxRetries) {
-                    uploadFile.status = "failed";
-                    uploadFile.error = error instanceof Error ? error.message : "Upload Failed";
+                if (file.attempts > maxRetries) {
+                    file.status = "failed";
                     throw error;
                 }
 
-                uploadFile.error = error instanceof Error ? error.message : "Upload failed";
-
-                await sleep(getBackoffDelay(uploadFile.attempts - 1));
+                await sleep(getBackoffDelay(file.attempts - 1));
             }
         }
     }
@@ -241,135 +252,94 @@ export function createTranscodedFolderUploader() {
     async function recordUploadFile(
         videoId: string,
         uploadSessionId: string,
-        uploadFile: UploadFile,
-    ) {
-        const response = await fetch(
-            `/api/video/transcoded-upload/${videoId}/record-uploaded-file`,
+        file: UploadFile,
+    ): Promise<void> {
+        await postJson(
+            apiUrl(videoId, "record-uploaded-file"),
             {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-
-                body: JSON.stringify({
-                    upload_session_id: uploadSessionId,
-                    file_id: uploadFile.id,
-                    relative_path: uploadFile.relativePath,
-                    object_key: uploadFile.objectKey,
-                    size: uploadFile.size,
-                }),
-
-                signal: abortController?.signal,
-            }
+                upload_session_id: uploadSessionId,
+                file_id: file.id,
+                relative_path: file.relativePath,
+                object_key: file.objectKey,
+                size: file.size,
+            },
+            abortController?.signal,
         );
-
-        if (!response.ok) {
-            throw new Error(`Failed to record uploaded file (${response.status})`);
-        }
     }
 
     async function uploadWithWorkerPool(
         videoId: string,
         uploadSessionId: string,
         files: UploadFile[],
-    ) {
+    ): Promise<void> {
         let nextIndex = 0;
 
         async function worker() {
             while (true) {
-                if (stopping) {
-                    return;
-                }
+                if (stopping) return;
 
                 const index = nextIndex++;
+                if (index >= files.length) return;
 
-                if (index >= files.length) {
-                    return;
-                }
-
-                const uploadFile = files[index];
-
-                if (uploadFile.status === "uploaded") {
-                    continue;
-                }
+                const file = files[index];
+                if (file.status === "uploaded") continue;
 
                 try {
-                    await uploadSingleFile(uploadFile);
+                    await uploadSingleFile(file);
+                    // May be this check is not required since uploadSingleFile() already has a clear contract:
+                    // it returns normally when the upload succeeds, and throws when it ultimately fails.
+                    // if (file.status !== "uploaded") continue;
 
-                    if (uploadFile.status !== "uploaded") {
-                        continue;
-                    }
-
-                    await recordUploadFile(
-                        videoId,
-                        uploadSessionId,
-                        uploadFile
-                    );
-
-                    state.uploadedBytes += uploadFile.size;
+                    await recordUploadFile(videoId, uploadSessionId, file);
                 } catch (error) {
-                    if (stopping) {
-                        return;
-                    }
-
-                    console.error("File upload failed:", uploadFile.relativePath, error);
+                    if (stopping) return;
+                    console.error("File upload failed:", file.relativePath, error);
                 }
             }
         }
 
-        const workers = Array.from(
-            {length: Math.min(concurrency, files.length),},
-            () => worker()
-        );
-
+        const workers = Array.from({ length: Math.min(concurrency, files.length) }, worker);
         await Promise.all(workers);
     }
 
-    async function upload(files: File[], options: UploadOptions) {
-        if (state.status === "uploading") {
-            throw new Error("An upload is already running.");
+    async function complete(videoId: string, uploadSessionId: string): Promise<void> {
+        const files = state.files
+            .filter(file => file.status === "uploaded")
+            .map(file => ({
+                file_id: file.id,
+                relative_path: file.relativePath,
+                object_key: file.objectKey,
+                size: file.size,
+            }));
+
+        await postJson(apiUrl(videoId, "complete"), { upload_session_id: uploadSessionId, files });
+    }
+
+    /** Shared batch/presign/upload loop, used by both `start()` and `resume()`. */
+    async function runUploadLoop(): Promise<void> {
+        const videoId = state.videoId;
+        const uploadSessionId = state.uploadSessionId;
+        if (!videoId || !uploadSessionId) {
+            throw new Error("Upload session information is missing.");
         }
 
-        initializeFiles(files);
-
-        state.videoId = options.videoId;
-        state.uploadSessionId = options.uploadSessionId;
-
-        batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
-        concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
-        maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
         stopping = false;
         abortController = new AbortController();
-
         state.status = "uploading";
+        state.error = null;
 
         try {
-            for (let start  = 0; start < state.files.length; start += batchSize) {
-                if (stopping) {
-                    return;
-                }
+            for (let start = 0; start < state.files.length; start += batchSize) {
+                if (stopping) return;
+
                 const batch = state.files.slice(start, start + batchSize);
                 const pendingBatch = batch.filter(file => file.status !== "uploaded");
+                if (pendingBatch.length === 0) continue;
 
-                if (pendingBatch.length === 0) {
-                    continue;
-                }
+                await requestUploadUrls(videoId, uploadSessionId, pendingBatch);
+                await uploadWithWorkerPool(videoId, uploadSessionId, pendingBatch);
 
-                await requestUploadUrls(
-                    options.videoId,
-                    options.uploadSessionId,
-                    pendingBatch
-                );
-
-                await uploadWithWorkerPool(
-                    options.videoId,
-                    options.uploadSessionId,
-                    pendingBatch
-                );
-
-                const failed = pendingBatch.some(file => file.status === "failed");
-
-                if (failed) {
+                if (pendingBatch.some(file => file.status === "failed")) {
                     state.status = "failed";
                     state.error = "One or more files failed to upload.";
                     return;
@@ -377,153 +347,106 @@ export function createTranscodedFolderUploader() {
             }
 
             if (!stopping) {
-                await complete(options.videoId, options.uploadSessionId);
+                await complete(videoId, uploadSessionId);
                 state.status = "completed";
             }
         } catch (error) {
-            if (stopping) {
-                return;
-            }
-
+            if (stopping) return;
             state.status = "failed";
             state.error = error instanceof Error ? error.message : "Upload failed";
         }
     }
 
-    async function complete(videoId: string, uploadSessionId: string) {
-        const files = state.files
-            .filter(file => file.status === "uploaded")
-            .map(file => ({file_id: file.id, relative_path: file.relativePath, object_key: file.objectKey, size: file.size,}));
-
-        const response = await fetch(
-            `/api/video/transcoded-upload/${videoId}/complete`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-
-                body: JSON.stringify({
-                    upload_session_id: uploadSessionId,
-                    files,
-                }),
-            }
-        );
-
-        if (!response.ok) {
-            throw new Error(`Failed to complete upload (${response.status})`);
+    /** Begins a fresh upload. `videoId` / `uploadSessionId` must already exist (see your /new-upload-record step). */
+    async function start(files: File[], options: UploadOptions): Promise<void> {
+        if (state.status === "uploading") {
+            throw new Error("An upload is already running.");
         }
+
+        initializeFiles(files);
+        state.videoId = options.videoId;
+        state.uploadSessionId = options.uploadSessionId;
+        batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
+        concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
+        maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+
+        await runUploadLoop();
     }
 
-    function pause() {
-        if (state.status !== "uploading") {
-            return;
-        }
+    function pause(): void {
+        if (state.status !== "uploading") return;
+
         stopping = true;
         abortController?.abort();
         state.status = "paused";
+
+        if (state.videoId && state.uploadSessionId) {
+            postWithQuery(apiUrl(state.videoId, "pause"), { upload_session_id: state.uploadSessionId }).catch(
+                error => console.error("Failed to notify backend of pause:", error),
+            );
+        }
     }
 
-    function resume() {
-        if(state.status !== "paused") {
-            return;
-        }
+    /**
+     * Resumes without resetting progress. The backend doesn't hand back a list of
+     * already-uploaded files on /resume -- that reconciliation happens inside
+     * requestUploadUrls, via presign-batch's `already_uploaded` flag -- so this
+     * just flips the session back to UPLOADING and re-enters the normal loop.
+     */
+    async function resume(): Promise<void> {
+        if (state.status !== "paused") return;
         if (!state.videoId || !state.uploadSessionId) {
             throw new Error("Upload session information is missing.");
         }
-        stopping = false;
 
-        upload(
-            state.files.map(file => file.file),
-            {
-                videoId: state.videoId,
-                uploadSessionId: state.uploadSessionId,
-                batchSize,
-                concurrency,
-                maxRetries,
-            }
-        );
+        await postWithQuery(apiUrl(state.videoId, "resume"), { upload_session_id: state.uploadSessionId });
+        await runUploadLoop();
     }
 
-    function cancel() {
+    function cancel(): void {
         stopping = true;
         abortController?.abort();
+
         for (const file of state.files) {
-            if (file.status !== "uploaded") {
-                file.status = "cancelled";
-            }
+            if (file.status !== "uploaded") file.status = "cancelled";
+        }
+        state.status = "cancelled";
+
+        if (state.videoId && state.uploadSessionId) {
+            // Note: the backend's abort() is currently unimplemented (`pass`), so
+            // this won't actually clean up records server-side yet.
+            postWithQuery(apiUrl(state.videoId, "abort"), { upload_session_id: state.uploadSessionId }).catch(
+                error => console.error("Failed to notify backend of cancel:", error),
+            );
         }
     }
 
-    const progress = $derived.by(() => {
-        if (state.totalBytes === 0) {
-            return 0;
-        }
+    const uploadedBytes = $derived(
+        state.files.reduce((total, file) => total + file.uploadedBytes, 0),
+    );
 
-        return Math.round((state.uploadedBytes / state.totalBytes) * 100);
+    const progress = $derived.by(() => {
+        if (state.totalBytes === 0) return 0;
+        return Math.round((uploadedBytes / state.totalBytes) * 100);
     });
 
     const uploadedFileCount = $derived(
-        state.files.filter(file => file.status === "uploaded").length
+        state.files.filter(file => file.status === "uploaded").length,
     );
 
     const failedFileCount = $derived(
-        state.files.filter(file => file.status === "failed").length
+        state.files.filter(file => file.status === "failed").length,
     );
 
     return {
         state,
         progress,
+        uploadedBytes,
         uploadedFileCount,
         failedFileCount,
-        initializeFiles,
-        upload,
+        start,
         pause,
         resume,
         cancel,
     };
-}
-
-
-export function uploadFileWithProgress(
-    file: UploadFile,
-    signal: AbortSignal,
-): Promise<void> {
-    return new Promise((resolve, reject) => {
-
-        const xhr = new XMLHttpRequest();
-
-        xhr.open("PUT", file.uploadUrl!);
-
-        xhr.setRequestHeader("Content-Type", getContentType(file.file));
-
-        xhr.upload.onprogress = (event) => {
-
-            if (event.lengthComputable) {
-                file.uploadedBytes = event.loaded;
-            }
-        };
-
-        xhr.onload = () => {
-
-            if (xhr.status >= 200 && xhr.status < 300) {
-                file.uploadedBytes = file.size;
-                resolve();
-            } else {
-                reject(new Error(`R2 returned HTTP ${xhr.status}`));
-            }
-        };
-
-        xhr.onerror = () => {
-            reject(new Error("Network error while uploading file."));
-        };
-
-        xhr.onabort = () => {
-            reject(new DOMException("Upload aborted", "AbortError"));
-        };
-
-        signal.addEventListener("abort", () => xhr.abort(), { once: true });
-
-        xhr.send(file.file);
-    });
 }
