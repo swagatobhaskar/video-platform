@@ -14,12 +14,12 @@ from .base import Base
 
 from typing import TYPE_CHECKING
 
-from .upload import UploadSessionStatusEnum
+from .upload import UploadSessionStatusEnum, TranscodedUploadSession
 from .processing import TranscodeTask, VideoEvent, VideoProcessingStatusEnum
 
 # TYPE_CHECKING imports are ignored at runtime, so they don't create circular imports
 if TYPE_CHECKING:
-    from .upload import UploadSession, UploadSessionStatusEnum
+    from .upload import UploadSession, UploadSessionStatusEnum, TranscodedUploadSession
     from .processing import TranscodeTask, VideoEvent
 
 from app.core.config import get_settings
@@ -126,6 +126,14 @@ class Video(Base):
     # one-to-one relation with UploadSession and TranscodeTask
     upload_session: Mapped["UploadSession"] = relationship("UploadSession", back_populates="video", uselist=False, cascade="all, delete-orphan")
     transcode_task: Mapped["TranscodeTask"] = relationship("TranscodeTask", back_populates="video", uselist=False, cascade="all, delete-orphan")
+
+    # Added: transcoded-files upload flow. Separate attribute, separate relationship --
+    # a Video can have both an UploadSession (raw file) and a TranscodedUploadSession
+    # (transcoded outputs) at once, which is exactly what your two FK columns
+    # (upload_sessions.video_id, transcoded_upload_sessions.video_id) already allow.
+    transcoded_upload_session: Mapped["TranscodedUploadSession"] = relationship(
+        "TranscodedUploadSession", back_populates="video", uselist=False, cascade="all, delete-orphan"
+    )
 
     # SEO Fields
     seo_tags: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)

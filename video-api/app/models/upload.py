@@ -122,6 +122,12 @@ class TranscodedUploadSession(Base):
     id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     video_id: Mapped[UUID] = mapped_column(ForeignKey("videos.id"), nullable=False, unique=True)
+    # Added: the other side of Video.transcoded_upload_session. back_populates must
+    # name the attribute on Video ("transcoded_upload_session"), not the class name --
+    # this is a different attribute from UploadSession.video's own back_populates
+    # ("upload_session"), so the two relationships don't collide.
+    video: Mapped["Video"] = relationship("Video", back_populates="transcoded_upload_session")
+
     status: Mapped[TranscodedUploadStatusEnum] = mapped_column(
         Enum(TranscodedUploadStatusEnum), nullable=False, default=TranscodedUploadStatusEnum.PENDING
     )
