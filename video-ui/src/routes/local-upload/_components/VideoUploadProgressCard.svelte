@@ -4,12 +4,9 @@
 
     let { uploader } = $props<{ uploader: ReturnType<typeof createTranscodedFolderUploader>; }>();
 
-    import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
+    // import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
 	import UploadCompleteBar from "$lib/components/ui/uploadCompleteBar.svelte";
-
-    import VideoProcessingProgress from './VideoProcessingProgress.svelte';
-	// import VideoPicker from './VideoPicker.svelte';
 
     function handlePauseUpload() {
         uploader.pause();
@@ -35,10 +32,15 @@
     }
 </script>
 
+<!-- 
+<p>Status: {uploader.state.status}</p>
+<p>Overall: {uploader.progress}% ({uploader.uploadedFileCount}/{uploader.state.files.length} files)</p>
+-->
+
+
 <div class="h-80 relative overflow-hidden border border-gray-200 p-6">
 
-    {#if uploader.state.uploading}
-    <!-- {#if uploading} -->
+    {#if uploader.state.status === "uploading"}
         
         <div class="space-y-5">
 
@@ -67,7 +69,7 @@
                     class="shrink-0 rounded-full bg-blue-50 border border-blue-100
                     px-3 py-1 text-sm font-medium texxt-blue-600"
                 >
-                    {uploader.state.progress}%
+                    {uploader.progress}%
                 </div>
             </div>
 
@@ -78,7 +80,7 @@
                     <!-- Filled Portion -->
                     <div
                         class="relative h-full overflow-hidden rounded-full transition-all duration-500 ease-out"
-                        style={`width:${uploader.state.progress}%`}
+                        style={`width:${uploader.progress}%`}
                     >
                         <!-- Gradient fill -->
                         <div class="absolute inset-0 bg-linear-to-r from-value-500 via-indigo-500 to-purple-500"
@@ -112,7 +114,7 @@
                     </div>
 
                     <p class="font-medium text-gray-700">
-                        {uploader.state.progress}% uploaded
+                        {uploader.progress}% uploaded
                     </p>
                 </div>
             </div>
@@ -120,12 +122,12 @@
             <!-- Actions: Pause/Resume, Cancel -->
             <div class="flex items-center gap-3 pt-2">
 
-                {#if uploader.state.uploading && !uploader.state.paused}
+                {#if uploader.state.status === "uploading" && uploader.state.status !== "paused"}
                     <button
                         class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm
                             font-medium text-white transition hover:bg-black active:scale-[0.98]"
                         onclick={handlePauseUpload}
-                        disabled={uploader.state.pausing}
+                        disabled={uploader.state.status === "paused"}
                     >
                         Pause
                     </button>
@@ -135,7 +137,7 @@
                     class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm border-red-200
                         bg-red-50 font-medium text-red-600 transition hover:bg-red-100 active:scale-[0.98]"
                     onclick={() => {
-                        if (uploader.state.uploading) cancelUpload();
+                        if (uploader.state.status === "uploading") cancelUpload();
                     }}
                 >
                     X Cancel
@@ -143,7 +145,7 @@
             </div>
 
             <!-- Error -->
-            {#if uploader.error}
+            {#if uploader.state.error}
                 <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                     {uploader.state.error}
                 </div>
@@ -151,7 +153,7 @@
         </div>
     {/if}
 
-    {#if uploader.state.paused}
+    {#if uploader.state.status === "paused"}
         <div class="space-y-5">
 
             <!-- LIVE STATUS -->
@@ -179,7 +181,7 @@
                     class="shrink-0 rounded-full bg-blue-50 border border-blue-100
                     px-3 py-1 text-sm font-medium texxt-blue-600"
                 >
-                    {uploader.state.progress}%
+                    {uploader.progress}%
                 </div>
             </div>
 
@@ -190,7 +192,7 @@
                     <!-- Filled Portion -->
                     <div
                         class="relative h-full overflow-hidden rounded-full transition-all duration-500 ease-out"
-                        style={`width:${uploader.state.progress}%`}
+                        style={`width:${uploader.progress}%`}
                     >
                         <!-- Gradient fill -->
                         <div class="absolute inset-0 bg-linear-to-r from-value-500 via-yellow-500 to-amber-600"
@@ -224,7 +226,7 @@
                     </div>
 
                     <p class="font-medium text-gray-700">
-                        {uploader.state.progress}% uploaded
+                        {uploader.progress}% uploaded
                     </p>
                 </div>
             </div>
@@ -236,7 +238,7 @@
                 class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm
                     font-medium text-white transition hover:bg-black active:scale-[0.98]"
                 onclick={handleResumeUpload}
-                disabled={uploader.state.resuming}
+                disabled={uploader.state.status === "uploading"}
             >
                 Resume
             </button>
@@ -245,7 +247,7 @@
                 class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm border-red-200
                     bg-red-50 font-medium text-red-600 transition hover:bg-red-100 active:scale-[0.98]"
                 onclick={() => {
-                    if ( uploader.state.paused ) cancelUpload();
+                    if ( uploader.state.status === "paused" ) cancelUpload();
                 }}
             >
                 X Cancel
@@ -256,7 +258,6 @@
     {#if uploader.state.complete}
         <div class="flex flex-col">
             <UploadCompleteBar uploader={uploader} />
-            <VideoProcessingProgress />
         </div>
     {/if}
 

@@ -10,7 +10,7 @@
 
     import { fileInputController } from '$lib/controllers/fileInputController.svelte';
     const folderInputController = fileInputController({uploadFileType: "transcoded-directory"});
-    // const thumbnailInputController = fileInputController({uploadFileType: "image"})
+    const thumbnailInputController = fileInputController({uploadFileType: "image"})
 
     import { createTranscodedFolderUploader } from '$lib/services/transcodedFolderUploader.svelte'
     const uploader = createTranscodedFolderUploader();
@@ -27,10 +27,10 @@
 
         try {
             const response = await fetch(
-                // 'http://127.0.0.1:8000/api/video/upload/new-upload-record',
+                // 'http://127.0.0.1:8000/api/video/transcoded-upload/new-upload-record',
                 '/api/video/transcoded-upload/new-upload-record',
                 {
-                    method: 'POST'
+                    method: 'POST',
                 }
             );
 
@@ -38,23 +38,24 @@
                 throw new Error(`HTTP ${response.status}`);
             }
 
-            const data = await response.json();
+            const { videoId, transcodedUploadSessionId } = await response.json();
 
-            // Add the upload_session_id to the URL
             await goto(
-                resolve(`/local-upload/${data.videoId}`), {
+                resolve(`/local-upload/${videoId}`), {
                 replaceState: true,
                 noScroll: true,
                 keepFocus: true,
             });
 
-            // Start the upload
             const transcodedFiles = folderInputController.state.selectedDirFiles;
             
             // Because selectedDirFiles is always an array, use the following instead of- if (transcodedFiles) {}
             if (transcodedFiles.length > 0) {
-                // await uploader.upload(transcodedFiles, data.videoId, data.uploadSessionId);
-                // it has to batched file upload, not the same as multi-part upload
+                uploader.start(transcodedFiles, {
+                    videoId: videoId,
+                    uploadSessionId: transcodedUploadSessionId,
+                    // concurrency, batchSize, maxRetries all optional, defaults are sane
+                });
             }
 
 	    } catch (err) {
