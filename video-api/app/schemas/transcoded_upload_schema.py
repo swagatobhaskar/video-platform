@@ -16,6 +16,8 @@ class PresignedTranscodedFile(BaseModel):
     file_id: str
     object_key: str
     upload_url: str
+    # new
+    already_uploaded: bool = False
 
 class PresignTranscodedFilesResponse(BaseModel):
     files: list[PresignedTranscodedFile]
@@ -24,7 +26,8 @@ class CompleteTranscodedUploadRequest(BaseModel):
     upload_session_id: UUID
 
 class RecordUploadedFileRequest(BaseModel):
-    pass
+    transcoded_upload_session_id: UUID
+    file_id: str = Field(min_length=1, max_length=64)
 
 def validate_transcoded_relative_path(relative_path: str) -> None:
 

@@ -8,14 +8,25 @@ from app.repositories.video_repository import VideoRepository
 from app.repositories.video_event_repository import VideoEventRepository
 
 from app.exceptions.video import VideoNotFound
-from app.exceptions.upload import UploadSessionNotFound, InvalidUploadState, NewUploadCreationFailed
+from app.exceptions.upload import (
+    UploadSessionNotFound, InvalidUploadState, UploadedFileNotFound,
+    NewUploadCreationFailed, UploadAlreadyCompleted
+)
 
 from app.schemas.transcoded_upload_schema import TranscodedFileRequest, validate_transcoded_relative_path
-
 from app.models.upload import TranscodedUploadStatusEnum, TranscodedUploadSession, TranscodedUploadFile
-
 from app.storage.r2_transcoded_upload_service import R2TranscodedUploadService
 
+def build_object_key(video_id: UUID, relative_path: str) -> str:
+    """
+    NOTE:
+    Placeholder -- namespaced by video_id so the same relative_path can't
+    collide across two different videos. Confirm it matches the layout your
+    pipeline actually expects (Video.object_key / dash_manifest_key /
+    hls_manifest_key use a *different* UUID set elsewhere at publish time,
+    not video_id, so you may want this to line up with that instead).
+    """
+    return f"{video_id}/{relative_path}"
 
 class TranscodedUploadService:
 
@@ -61,12 +72,12 @@ class TranscodedUploadService:
     async def get_batch_presigned_urls(
         self, *, video_id: UUID, upload_session_id: UUID, files: list[TranscodedFileRequest]
     ):
-        upload_session = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
+        transcoded_upload_session = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
 
-        if upload_session is None:
+        if transcoded_upload_session is None:
             raise UploadSessionNotFound()
 
-        if upload_session.status not in {
+        if transcoded_upload_session.status not in {
             TranscodedUploadStatusEnum.PENDING,
             TranscodedUploadStatusEnum.UPLOADING,
             TranscodedUploadStatusEnum.PAUSED,
@@ -81,11 +92,11 @@ class TranscodedUploadService:
             object_key = build_object_key(video_id, file.relative_path)
 
             # Create/update database record.
-            upload_file = await self.transcoded_upload_repository.get_file_by_path(upload_session.id, file.relative_path)
+            upload_file = await self.transcoded_upload_repository.get_file_by_path(transcoded_upload_session.id, file.relative_path)
 
             if upload_file is None:
                 upload_file = await self.transcoded_upload_repository.create_file(
-                    upload_session_id=upload_session.id,
+                    upload_session_id=transcoded_upload_session.id,
                     client_file_id=file.file_id,
                     relative_path=file.relative_path,
                     object_key=object_key,
@@ -137,11 +148,8 @@ class TranscodedUploadService:
         try:
             await self.transcoded_upload_repository.mark_file_uploaded(upload_file.id)
             await self.transcoded_upload_repository.increment_uploaded_files(upload_session_id)
-            await self.transcoded_upload_repository.increment_uploaded_bytes(
-                upload_session_id,
-                upload_file.size_bytes,
-            )
-            await self.event_repository.create_video_event(
+            await self.transcoded_upload_repository.increment_uploaded_bytes(upload_session_id, upload_file.size_bytes)
+            await self.video_event_repository.create_video_event(
                 video_id=video_id,
                 event_type="TRANSCODED_FILE_UPLOADED",
                 payload={
@@ -168,9 +176,9 @@ class TranscodedUploadService:
             "message": "file recorded successfully",
         }
 
-    async def pause(self, *, video_id: UUID, upload_session_id: UUID):
 
-        upload = await self.transcoded_upload_repository.get_for_video(upload_session_id, video_id)
+    async def pause(self, *, video_id: UUID, upload_session_id: UUID):
+        upload = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
@@ -179,17 +187,14 @@ class TranscodedUploadService:
             raise InvalidUploadState()
 
         await self.transcoded_upload_repository.update(upload.id, status=TranscodedUploadStatusEnum.PAUSED)
-
         await self.session.commit()
-
         return {
             "success": True,
             "status": "paused",
         }
 
     async def resume(self, *, video_id: UUID, upload_session_id: UUID):
-
-        upload = await self.transcoded_upload_repository.get_for_video(upload_session_id, video_id)
+        upload = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
@@ -201,16 +206,15 @@ class TranscodedUploadService:
             upload.id,
             status=TranscodedUploadStatusEnum.UPLOADING,
         )
-
         await self.session.commit()
-
         return {
             "success": True,
             "status": "resumed",
         }
 
+
     async def complete(self, *, video_id: UUID, upload_session_id: UUID):
-        upload = await self.transcoded_upload_repository.get_for_video(upload_session_id, video_id)
+        upload = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
@@ -227,11 +231,8 @@ class TranscodedUploadService:
 
         # Required files
         paths = {file.relative_path for file in files}
-
         has_manifest = any(path.endswith("/dash/manifest.mpd") for path in paths)
-
         has_master = any(path.endswith("/dash/master.m3u8") for path in paths )
-
         has_segments = any(path.endswith(".m4s") for path in paths)
 
         if not has_manifest:
@@ -248,19 +249,39 @@ class TranscodedUploadService:
             status=TranscodedUploadStatusEnum.COMPLETED,
             completed_at=datetime.now(timezone.utc),
         )
-
         await self.session.commit()
-
         return {
             "success": True,
             "status": "completed",
         }
 
     async def abort(self, *, video_id: UUID, upload_session_id: UUID):
-        pass
+        upload = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
+
+        if upload is None:
+            raise UploadSessionNotFound()
+
+        if upload.status in {TranscodedUploadStatusEnum.COMPLETED, TranscodedUploadStatusEnum.ABORTED}:
+            raise InvalidUploadState()
+
+        files = await self.transcoded_upload_repository.get_files(upload.id)
+
+        for file in files:
+            # Best-effort cleanup -- don't let one bad delete block the rest.
+            try:
+                self.storage_service.delete_object(object_key=file.object_key)
+            except Exception:
+                pass
+
+        await self.transcoded_upload_repository.update(upload.id, status=TranscodedUploadStatusEnum.ABORTED)
+        await self.session.commit()
+        return {
+            "success": True,
+            "status": "aborted",
+        }
 
     async def get_status(self, *, video_id: UUID, upload_session_id: UUID):
-        upload = await self.transcoded_upload_repository.get_for_video(upload_session_id, video_id)
+        upload = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
