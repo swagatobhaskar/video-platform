@@ -1,8 +1,8 @@
 <script lang="ts">
 
-    import { createVideoUploadSession } from '$lib/services/videoUploadSession.svelte'
+    import { createTranscodedFolderUploader } from '$lib/services/transcodedFolderUploader.svelte'
 
-    let { uploader } = $props<{ uploader: ReturnType<typeof createVideoUploadSession>; }>();
+    let { uploader } = $props<{ uploader: ReturnType<typeof createTranscodedFolderUploader>; }>();
 
     import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
@@ -33,47 +33,6 @@
         uploader.state.file = null;
         uploadCancelled = true;
     }
-
-    // let progress = $state(0);
-	// let uploading = $state(false);
-	// let speed = $state(0);
-	// let eta = $state(0);
-    // let complete = $state(false);
-    // 
-    // const mockUploader = () => {
-    //     progress = 0;
-    //     uploading = true;
-    // 
-    //     const interval = setInterval(() => {
-    //         if (progress >= 100) {
-    //             clearInterval(interval);
-    //             uploading = false;
-    //             progress = 100;
-    //             speed = 0;
-	// 			eta = 0;
-    //             complete = true;
-    //             return;
-    //         }
-    //         progress += 10;
-    //         speed = +(Math.random() * 5 + 1).toFixed(2); // Mock speed between 1-6 MB/s
-    //         eta = +(((100 - progress) / 10) * (Math.random() * 2 + 1)).toFixed(1); // Mock ETA
-    //     }, 500);
-    // };
-
-    // Start uploading the video as soon as we land on this page
-    // $effect(() => {
-    //     const file = videoFile; // dependency is tracked here
-        
-    //     console.log("File in UploadProgressComponent $effect: ", videoFile);
-
-    //     if (!file) return;
-
-    //     const timer = setTimeout(() => {
-    //         uploader.upload(file);
-    //     }, 500);
-
-    //     return () => clearTimeout(timer);
-    // });
 </script>
 
 <div class="h-80 relative overflow-hidden border border-gray-200 p-6">
@@ -294,13 +253,6 @@
         </div>
     {/if}
 
-    <!-- If upload cancelled show file picker -->
-    {#if uploadCancelled}
-        <!-- <VideoPicker uploader={uploader}/> -->
-
-        <!-- Instead, ask whether user will upload another video, then Show the modal again, or exit-->
-    {/if}
-
     {#if uploader.state.complete}
         <div class="flex flex-col">
             <UploadCompleteBar uploader={uploader} />
@@ -309,17 +261,6 @@
     {/if}
 
 </div>
-
-
-<!-- {#if videoUploaded && videoTranscoding}
-    // show complete uploaded bar
-    // show transcode progress bar
-{/if}
-
-{#if videoReady}
-    // show video preview from R2 link
-{/if} -->
-
 
 <style>
     @keyframes shimmer {
