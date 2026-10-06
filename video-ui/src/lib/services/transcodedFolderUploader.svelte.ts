@@ -14,7 +14,7 @@ export type UploadFile = {
     relativePath: string;
     objectKey: string | null;
     uploadUrl: string | null;
-    size: number;
+    size_bytes: number;
     uploadedBytes: number;
     status: UploadFileStatus;
     attempts: number;
@@ -24,7 +24,7 @@ export type UploadFile = {
 type PresignRequestFile = {
     file_id: string;
     relative_path: string;
-    size: number;
+    size_bytes: number;
     content_type: string;
 };
 
@@ -38,7 +38,7 @@ type PresignResponseFile = {
 
 type UploadOptions = {
     videoId: string;
-    uploadSessionId: string;
+    transcodedUploadSessionId: string;
     batchSize?: number;
     concurrency?: number;
     maxRetries?: number;
@@ -90,7 +90,7 @@ async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Pr
     return response.status === 204 ? (undefined as T) : response.json();
 }
 
-/** For the pause/resume/abort endpoints, which take upload_session_id as a query param, not a JSON body. */
+/** For the pause/resume/abort endpoints, which take transcoded_upload_session_id as a query param, not a JSON body. */
 async function postWithQuery<T>(url: string, query: Record<string, string>): Promise<T> {
     const response = await fetch(`${url}?${new URLSearchParams(query)}`, { method: "POST" });
 
@@ -114,7 +114,7 @@ function putFileToR2(file: UploadFile, signal: AbortSignal): Promise<void> {
 
         xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 300) {
-                file.uploadedBytes = file.size;
+                file.uploadedBytes = file.size_bytes;
                 resolve();
             } else {
                 reject(new Error(`R2 upload failed with HTTP ${xhr.status}`));
@@ -141,7 +141,7 @@ export function createTranscodedFolderUploader() {
 
         files: [] as UploadFile[],
         videoId: null as string | null,
-        uploadSessionId: null as string | null,
+        transcodedUploadSessionId: null as string | null,
         totalBytes: 0,
         error: null as string | null,
 
@@ -201,7 +201,7 @@ export function createTranscodedFolderUploader() {
             relativePath: file.webkitRelativePath || file.name,
             objectKey: null,
             uploadUrl: null,
-            size: file.size,
+            size_bytes: file.size,
             uploadedBytes: 0,
             status: "pending",
             attempts: 0,
@@ -215,7 +215,7 @@ export function createTranscodedFolderUploader() {
 
     async function requestUploadUrls(
         videoId: string,
-        uploadSessionId: string,
+        transcodedUploadSessionId: string,
         files: UploadFile[],
     ): Promise<void> {
         if (files.length === 0) return;
@@ -225,13 +225,13 @@ export function createTranscodedFolderUploader() {
         const requestFiles: PresignRequestFile[] = files.map(file => ({
             file_id: file.id,
             relative_path: file.relativePath,
-            size: file.size,
+            size_bytes: file.size_bytes,
             content_type: getContentType(file.file),
         }));
 
         const { files: presigned } = await postJson<{ files: PresignResponseFile[] }>(
             apiUrl(videoId, "presign-batch"),
-            { upload_session_id: uploadSessionId, files: requestFiles },
+            { upload_session_id: transcodedUploadSessionId, files: requestFiles },
         );
 
         const byId = new SvelteMap(presigned.map(file => [file.file_id, file]));
@@ -248,7 +248,7 @@ export function createTranscodedFolderUploader() {
             // a resume) -- nothing to PUT, no upload_url is even sent for it.
             if (match.already_uploaded) {
                 file.status = "uploaded";
-                file.uploadedBytes = file.size;
+                file.uploadedBytes = file.size_bytes;
                 continue;
             }
 
@@ -293,17 +293,17 @@ export function createTranscodedFolderUploader() {
 
     async function recordUploadFile(
         videoId: string,
-        uploadSessionId: string,
+        transcodedUploadSessionId: string,
         file: UploadFile,
     ): Promise<void> {
         await postJson(
             apiUrl(videoId, "record-uploaded-file"),
             {
-                upload_session_id: uploadSessionId,
+                transcoded_upload_session_id: transcodedUploadSessionId,
                 file_id: file.id,
                 relative_path: file.relativePath,
                 object_key: file.objectKey,
-                size: file.size,
+                size: file.size_bytes,
             },
             abortController?.signal,
         );
@@ -311,7 +311,7 @@ export function createTranscodedFolderUploader() {
 
     async function uploadWithWorkerPool(
         videoId: string,
-        uploadSessionId: string,
+        transcodedUploadSessionId: string,
         files: UploadFile[],
     ): Promise<void> {
         let nextIndex = 0;
@@ -332,7 +332,7 @@ export function createTranscodedFolderUploader() {
                     // it returns normally when the upload succeeds, and throws when it ultimately fails.
                     // if (file.status !== "uploaded") continue;
 
-                    await recordUploadFile(videoId, uploadSessionId, file);
+                    await recordUploadFile(videoId, transcodedUploadSessionId, file);
                 } catch (error) {
                     if (stopping) return;
                     console.error("File upload failed:", file.relativePath, error);
@@ -344,24 +344,24 @@ export function createTranscodedFolderUploader() {
         await Promise.all(workers);
     }
 
-    async function complete(videoId: string, uploadSessionId: string): Promise<void> {
+    async function complete(videoId: string, transcodedUploadSessionId: string): Promise<void> {
         const files = state.files
             .filter(file => file.status === "uploaded")
             .map(file => ({
                 file_id: file.id,
                 relative_path: file.relativePath,
                 object_key: file.objectKey,
-                size: file.size,
+                size: file.size_bytes,
             }));
 
-        await postJson(apiUrl(videoId, "complete"), { upload_session_id: uploadSessionId, files });
+        await postJson(apiUrl(videoId, "complete"), { transcoded_upload_session_id: transcodedUploadSessionId, files });
     }
 
     /** Shared batch/presign/upload loop, used by both `start()` and `resume()`. */
     async function runUploadLoop(): Promise<void> {
         const videoId = state.videoId;
-        const uploadSessionId = state.uploadSessionId;
-        if (!videoId || !uploadSessionId) {
+        const transcodedUploadSessionId = state.transcodedUploadSessionId;
+        if (!videoId || !transcodedUploadSessionId) {
             throw new Error("Upload session information is missing.");
         }
 
@@ -379,8 +379,8 @@ export function createTranscodedFolderUploader() {
                 const pendingBatch = batch.filter(file => file.status !== "uploaded");
                 if (pendingBatch.length === 0) continue;
 
-                await requestUploadUrls(videoId, uploadSessionId, pendingBatch);
-                await uploadWithWorkerPool(videoId, uploadSessionId, pendingBatch);
+                await requestUploadUrls(videoId, transcodedUploadSessionId, pendingBatch);
+                await uploadWithWorkerPool(videoId, transcodedUploadSessionId, pendingBatch);
 
                 if (pendingBatch.some(file => file.status === "failed")) {
                     state.status = "failed";
@@ -391,7 +391,7 @@ export function createTranscodedFolderUploader() {
             }
 
             if (!stopping) {
-                await complete(videoId, uploadSessionId);
+                await complete(videoId, transcodedUploadSessionId);
                 state.status = "completed";
                 stopSpeedTracking();
             }
@@ -411,7 +411,7 @@ export function createTranscodedFolderUploader() {
 
         initializeFiles(files);
         state.videoId = options.videoId;
-        state.uploadSessionId = options.uploadSessionId;
+        state.transcodedUploadSessionId = options.transcodedUploadSessionId;
         batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
         concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
         maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
@@ -427,8 +427,8 @@ export function createTranscodedFolderUploader() {
         state.status = "paused";
         stopSpeedTracking();
 
-        if (state.videoId && state.uploadSessionId) {
-            postWithQuery(apiUrl(state.videoId, "pause"), { upload_session_id: state.uploadSessionId }).catch(
+        if (state.videoId && state.transcodedUploadSessionId) {
+            postWithQuery(apiUrl(state.videoId, "pause"), { transcoded_upload_session_id: state.transcodedUploadSessionId }).catch(
                 error => console.error("Failed to notify backend of pause:", error),
             );
         }
@@ -442,11 +442,11 @@ export function createTranscodedFolderUploader() {
      */
     async function resume(): Promise<void> {
         if (state.status !== "paused") return;
-        if (!state.videoId || !state.uploadSessionId) {
+        if (!state.videoId || !state.transcodedUploadSessionId) {
             throw new Error("Upload session information is missing.");
         }
 
-        await postWithQuery(apiUrl(state.videoId, "resume"), { upload_session_id: state.uploadSessionId });
+        await postWithQuery(apiUrl(state.videoId, "resume"), { transcoded_upload_session_id: state.transcodedUploadSessionId });
         await runUploadLoop();
     }
 
@@ -460,10 +460,10 @@ export function createTranscodedFolderUploader() {
         state.status = "cancelled";
         stopSpeedTracking();
 
-        if (state.videoId && state.uploadSessionId) {
+        if (state.videoId && state.transcodedUploadSessionId) {
             // Note: the backend's abort() is currently unimplemented (`pass`), so
             // this won't actually clean up records server-side yet.
-            postWithQuery(apiUrl(state.videoId, "abort"), { upload_session_id: state.uploadSessionId }).catch(
+            postWithQuery(apiUrl(state.videoId, "abort"), { transcoded_upload_session_id: state.transcodedUploadSessionId }).catch(
                 error => console.error("Failed to notify backend of cancel:", error),
             );
         }
