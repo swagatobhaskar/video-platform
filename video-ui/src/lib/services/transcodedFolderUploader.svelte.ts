@@ -8,7 +8,7 @@ type UploadFileStatus =
     | "failed"
     | "cancelled";
 
-type UploadFile = {
+export type UploadFile = {
     id: string;
     file: File;
     relativePath: string;
@@ -144,6 +144,11 @@ export function createTranscodedFolderUploader() {
         uploadSessionId: null as string | null,
         totalBytes: 0,
         error: null as string | null,
+
+        // Bytes/sec over a trailing window, and estimated seconds remaining.
+        // null speed/eta means "not enough data yet" (just started, or paused).
+        speedBytesPerSec: 0,
+        etaSeconds: null as number | null,
     });
 
     let abortController: AbortController | null = null;
@@ -151,6 +156,43 @@ export function createTranscodedFolderUploader() {
     let concurrency = DEFAULT_CONCURRENCY;
     let maxRetries = DEFAULT_MAX_RETRIES;
     let stopping = false;
+
+    // Rolling window of {time, bytes} samples, used to smooth the speed reading
+    // instead of just diffing two consecutive ticks (which is noisy per-second).
+    const SPEED_WINDOW_MS = 5000;
+    let speedSamples: { time: number; bytes: number }[] = [];
+    let speedInterval: ReturnType<typeof setInterval> | null = null;
+
+    function startSpeedTracking() {
+        speedSamples = [{time:  Date.now(), bytes: uploadedBytes}];
+        state.speedBytesPerSec = 0;
+        state.etaSeconds = null;
+
+        speedInterval = setInterval(() => {
+            const now = Date.now();
+            speedSamples.push({ time: now, bytes: uploadedBytes });
+            while (speedSamples.length > 2 && now - speedSamples[0].time > SPEED_WINDOW_MS) {
+                speedSamples.shift();
+            }
+ 
+            const oldest = speedSamples[0];
+            const elapsedSec = (now - oldest.time) / 1000;
+            const bytesDelta = uploadedBytes - oldest.bytes;
+ 
+            state.speedBytesPerSec = elapsedSec > 0 ? bytesDelta / elapsedSec : 0;
+ 
+            const remainingBytes = state.totalBytes - uploadedBytes;
+            state.etaSeconds =
+                state.speedBytesPerSec > 0 ? remainingBytes / state.speedBytesPerSec : null;
+        }, 1000);
+    }
+
+    function stopSpeedTracking() {
+        if (speedInterval) clearInterval(speedInterval);
+        speedInterval = null;
+        state.speedBytesPerSec = 0;
+        state.etaSeconds = null;
+    }
 
     function initializeFiles(files: File[]) {
         state.files = files.map(file => ({
@@ -327,6 +369,7 @@ export function createTranscodedFolderUploader() {
         abortController = new AbortController();
         state.status = "uploading";
         state.error = null;
+        startSpeedTracking();
 
         try {
             for (let start = 0; start < state.files.length; start += batchSize) {
@@ -342,6 +385,7 @@ export function createTranscodedFolderUploader() {
                 if (pendingBatch.some(file => file.status === "failed")) {
                     state.status = "failed";
                     state.error = "One or more files failed to upload.";
+                    stopSpeedTracking();
                     return;
                 }
             }
@@ -349,11 +393,13 @@ export function createTranscodedFolderUploader() {
             if (!stopping) {
                 await complete(videoId, uploadSessionId);
                 state.status = "completed";
+                stopSpeedTracking();
             }
         } catch (error) {
             if (stopping) return;
             state.status = "failed";
             state.error = error instanceof Error ? error.message : "Upload failed";
+            stopSpeedTracking();
         }
     }
 
@@ -379,6 +425,7 @@ export function createTranscodedFolderUploader() {
         stopping = true;
         abortController?.abort();
         state.status = "paused";
+        stopSpeedTracking();
 
         if (state.videoId && state.uploadSessionId) {
             postWithQuery(apiUrl(state.videoId, "pause"), { upload_session_id: state.uploadSessionId }).catch(
@@ -411,6 +458,7 @@ export function createTranscodedFolderUploader() {
             if (file.status !== "uploaded") file.status = "cancelled";
         }
         state.status = "cancelled";
+        stopSpeedTracking();
 
         if (state.videoId && state.uploadSessionId) {
             // Note: the backend's abort() is currently unimplemented (`pass`), so
