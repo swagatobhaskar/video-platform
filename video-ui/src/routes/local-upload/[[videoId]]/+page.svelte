@@ -53,7 +53,7 @@
             if (transcodedFiles.length > 0) {
                 uploader.start(transcodedFiles, {
                     videoId: videoId,
-                    uploadSessionId: transcodedUploadSessionId,
+                    transcodedUploadSessionId: transcodedUploadSessionId,
                     // concurrency, batchSize, maxRetries all optional, defaults are sane
                 });
             }

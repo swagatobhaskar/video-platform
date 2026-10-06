@@ -231,7 +231,7 @@ export function createTranscodedFolderUploader() {
 
         const { files: presigned } = await postJson<{ files: PresignResponseFile[] }>(
             apiUrl(videoId, "presign-batch"),
-            { upload_session_id: transcodedUploadSessionId, files: requestFiles },
+            { transcoded_upload_session_id: transcodedUploadSessionId, files: requestFiles },
         );
 
         const byId = new SvelteMap(presigned.map(file => [file.file_id, file]));
