@@ -31,7 +31,7 @@ async def get_batch_presigned_urls(
 ):
     return await upload_service.get_batch_presigned_urls(
         video_id=video_id,
-        upload_session_id=req.upload_session_id,
+        transcoded_upload_session_id=req.transcoded_upload_session_id,
         files=req.files,
     )
 
@@ -43,36 +43,36 @@ async def record_uploaded_file(
 ):
     return await upload_service.record_uploaded_file(
         video_id=video_id,
-        upload_session_id=req.upload_session_id,
+        transcoded_upload_session_id=req.transcoded_upload_session_id,
         file_id=req.file_id,
     )
 
 @router.post("/{video_id}/pause")
 async def pause_transcoded_upload(
     video_id: UUID,
-    upload_session_id: UUID,
+    transcoded_upload_session_id: UUID,
     upload_service: TranscodedUploadService = Depends(get_transcoded_upload_service),
 ):
     return await upload_service.pause(
         video_id=video_id,
-        upload_session_id=upload_session_id,
+        transcoded_upload_session_id=transcoded_upload_session_id,
     )
 
 @router.post("/{video_id}/resume")
 async def resume_transcoded_upload(
     video_id: UUID,
-    upload_session_id: UUID,
+    transcoded_upload_session_id: UUID,
     upload_service: TranscodedUploadService = Depends(get_transcoded_upload_service),
 ):
-    return await upload_service.resume(video_id=video_id, upload_session_id=upload_session_id)
+    return await upload_service.resume(video_id=video_id, transcoded_upload_session_id=transcoded_upload_session_id)
 
 @router.post("/{video_id}/abort")
 async def abort_transcoded_upload(
     video_id: UUID,
-    upload_session_id: UUID,
+    transcoded_upload_session_id: UUID,
     upload_service: TranscodedUploadService = Depends(get_transcoded_upload_service),
 ):
-    return await upload_service.abort(video_id=video_id, upload_session_id=upload_session_id)
+    return await upload_service.abort(video_id=video_id, transcoded_upload_session_id=transcoded_upload_session_id)
 
 @router.post("/{video_id}/complete")
 async def complete_transcoded_upload(
@@ -82,5 +82,5 @@ async def complete_transcoded_upload(
 ):
     return await upload_service.complete(
         video_id=video_id,
-        upload_session_id=req.upload_session_id,
+        transcoded_upload_session_id=req.transcoded_upload_session_id,
     )

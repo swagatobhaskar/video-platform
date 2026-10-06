@@ -72,7 +72,7 @@ class TranscodedUploadRepository:
     
 
     async def create_file(
-        self, *, upload_session_id: UUID, client_file_id: str,
+        self, *, transcoded_upload_session_id: UUID, client_file_id: str,
         relative_path: str, object_key: str, size_bytes: int, content_type: str,
     ) -> TranscodedUploadFile:
         """
@@ -87,7 +87,7 @@ class TranscodedUploadRepository:
         try:
             async with self.session.begin_nested():
                 upload_file = TranscodedUploadFile(
-                    transcoded_upload_session_id=upload_session_id,
+                    transcoded_upload_session_id=transcoded_upload_session_id,
                     client_file_id=client_file_id,
                     relative_path=relative_path,
                     object_key=object_key,
@@ -98,12 +98,12 @@ class TranscodedUploadRepository:
                 self.session.add(upload_file)
                 await self.session.flush()
         except IntegrityError:
-            existing = await self.get_file_by_path(upload_session_id, relative_path)
+            existing = await self.get_file_by_path(transcoded_upload_session_id, relative_path)
             if existing is None:
                 raise
             return existing
 
-        transcoded_upload_session = await self.get(upload_session_id)
+        transcoded_upload_session = await self.get(transcoded_upload_session_id)
         if transcoded_upload_session:
             transcoded_upload_session.total_files += 1
             transcoded_upload_session.total_bytes += size_bytes

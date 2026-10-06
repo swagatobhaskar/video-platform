@@ -70,9 +70,9 @@ class TranscodedUploadService:
 
 
     async def get_batch_presigned_urls(
-        self, *, video_id: UUID, upload_session_id: UUID, files: list[TranscodedFileRequest]
+        self, *, video_id: UUID, transcoded_upload_session_id: UUID, files: list[TranscodedFileRequest]
     ):
-        transcoded_upload_session = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
+        transcoded_upload_session = await self.transcoded_upload_repository.get_by_video(transcoded_upload_session_id, video_id)
 
         if transcoded_upload_session is None:
             raise UploadSessionNotFound()
@@ -96,7 +96,7 @@ class TranscodedUploadService:
 
             if upload_file is None:
                 upload_file = await self.transcoded_upload_repository.create_file(
-                    upload_session_id=transcoded_upload_session.id,
+                    transcoded_upload_session_id=transcoded_upload_session.id,
                     client_file_id=file.file_id,
                     relative_path=file.relative_path,
                     object_key=object_key,
@@ -129,8 +129,9 @@ class TranscodedUploadService:
 
         return {"files": result}
 
-    async def record_uploaded_file(self, *, video_id: UUID, upload_session_id: UUID, file_id: str):
-        upload_file = await self.transcoded_upload_repository.get_file_by_client_id(upload_session_id, file_id)
+
+    async def record_uploaded_file(self, *, video_id: UUID, transcoded_upload_session_id: UUID, file_id: str):
+        upload_file = await self.transcoded_upload_repository.get_file_by_client_id(transcoded_upload_session_id, file_id)
 
         if upload_file is None:
             raise UploadedFileNotFound()
@@ -147,13 +148,13 @@ class TranscodedUploadService:
 
         try:
             await self.transcoded_upload_repository.mark_file_uploaded(upload_file.id)
-            await self.transcoded_upload_repository.increment_uploaded_files(upload_session_id)
-            await self.transcoded_upload_repository.increment_uploaded_bytes(upload_session_id, upload_file.size_bytes)
+            await self.transcoded_upload_repository.increment_uploaded_files(transcoded_upload_session_id)
+            await self.transcoded_upload_repository.increment_uploaded_bytes(transcoded_upload_session_id, upload_file.size_bytes)
             await self.video_event_repository.create_video_event(
                 video_id=video_id,
                 event_type="TRANSCODED_FILE_UPLOADED",
                 payload={
-                    "upload_session_id": str(upload_session_id),
+                    "transcoded_upload_session_id": str(transcoded_upload_session_id),
                     "file_id": file_id,
                     "relative_path": upload_file.relative_path,
                     "object_key": upload_file.object_key,
@@ -177,8 +178,8 @@ class TranscodedUploadService:
         }
 
 
-    async def pause(self, *, video_id: UUID, upload_session_id: UUID):
-        upload = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
+    async def pause(self, *, video_id: UUID, transcoded_upload_session_id: UUID):
+        upload = await self.transcoded_upload_repository.get_by_video(transcoded_upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
@@ -193,8 +194,8 @@ class TranscodedUploadService:
             "status": "paused",
         }
 
-    async def resume(self, *, video_id: UUID, upload_session_id: UUID):
-        upload = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
+    async def resume(self, *, video_id: UUID, transcoded_upload_session_id: UUID):
+        upload = await self.transcoded_upload_repository.get_by_video(transcoded_upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
@@ -213,8 +214,8 @@ class TranscodedUploadService:
         }
 
 
-    async def complete(self, *, video_id: UUID, upload_session_id: UUID):
-        upload = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
+    async def complete(self, *, video_id: UUID, transcoded_upload_session_id: UUID):
+        upload = await self.transcoded_upload_repository.get_by_video(transcoded_upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
@@ -255,8 +256,8 @@ class TranscodedUploadService:
             "status": "completed",
         }
 
-    async def abort(self, *, video_id: UUID, upload_session_id: UUID):
-        upload = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
+    async def abort(self, *, video_id: UUID, transcoded_upload_session_id: UUID):
+        upload = await self.transcoded_upload_repository.get_by_video(transcoded_upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
@@ -280,14 +281,14 @@ class TranscodedUploadService:
             "status": "aborted",
         }
 
-    async def get_status(self, *, video_id: UUID, upload_session_id: UUID):
-        upload = await self.transcoded_upload_repository.get_by_video(upload_session_id, video_id)
+    async def get_status(self, *, video_id: UUID, transcoded_upload_session_id: UUID):
+        upload = await self.transcoded_upload_repository.get_by_video(transcoded_upload_session_id, video_id)
 
         if upload is None:
             raise UploadSessionNotFound()
 
         return {
-            "uploadSessionId": str(upload.id),
+            "transcodedUploadSessionId": str(upload.id),
             "status": upload.status,
             "totalFiles": upload.total_files,
             "uploadedFiles": upload.uploaded_files,

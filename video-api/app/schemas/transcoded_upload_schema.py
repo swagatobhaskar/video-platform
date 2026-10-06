@@ -9,7 +9,7 @@ class TranscodedFileRequest(BaseModel):
     content_type: str = Field(min_length=1, max_length=255)
 
 class PresignTranscodedFilesRequest(BaseModel):
-    upload_session_id: UUID
+    transcoded_upload_session_id: UUID
     files: list[TranscodedFileRequest] = Field(min_length=1, max_length=100)
 
 class PresignedTranscodedFile(BaseModel):
@@ -23,7 +23,7 @@ class PresignTranscodedFilesResponse(BaseModel):
     files: list[PresignedTranscodedFile]
 
 class CompleteTranscodedUploadRequest(BaseModel):
-    upload_session_id: UUID
+    transcoded_upload_session_id: UUID
 
 class RecordUploadedFileRequest(BaseModel):
     transcoded_upload_session_id: UUID
