@@ -1,4 +1,5 @@
 import { SvelteMap } from "svelte/reactivity";
+import type { FolderEntry } from "$lib/helpers/transcodedFolderSelection";
 
 type UploadFileStatus =
     | "pending"
@@ -39,6 +40,7 @@ type PresignResponseFile = {
 type UploadOptions = {
     videoId: string;
     transcodedUploadSessionId: string;
+    folderName?: string;
     batchSize?: number;
     concurrency?: number;
     maxRetries?: number;
@@ -142,6 +144,7 @@ export function createTranscodedFolderUploader() {
         files: [] as UploadFile[],
         videoId: null as string | null,
         transcodedUploadSessionId: null as string | null,
+        folderName: null as string | null,
         totalBytes: 0,
         error: null as string | null,
 
@@ -194,11 +197,15 @@ export function createTranscodedFolderUploader() {
         state.etaSeconds = null;
     }
 
-    function initializeFiles(files: File[]) {
-        state.files = files.map(file => ({
+    function initializeFiles(entries: FolderEntry[]) {
+        const files = entries.map(entry => entry.file);
+        state.files = entries.map(({ file, relativePath }) => ({
             id: crypto.randomUUID(),
             file,
-            relativePath: file.webkitRelativePath || file.name,
+            // relativePath: file.webkitRelativePath || file.name,
+            // Explicit path from the selection helper -- file.webkitRelativePath is
+            // empty for drag-and-dropped files, so it can't be relied on here.
+            relativePath,
             objectKey: null,
             uploadUrl: null,
             size_bytes: file.size,
@@ -404,12 +411,13 @@ export function createTranscodedFolderUploader() {
     }
 
     /** Begins a fresh upload. `videoId` / `uploadSessionId` must already exist (see your /new-upload-record step). */
-    async function start(files: File[], options: UploadOptions): Promise<void> {
+    async function start(entries: FolderEntry[], options: UploadOptions): Promise<void> {
         if (state.status === "uploading") {
             throw new Error("An upload is already running.");
         }
 
-        initializeFiles(files);
+        initializeFiles(entries);
+        state.folderName = options.folderName ?? null;
         state.videoId = options.videoId;
         state.transcodedUploadSessionId = options.transcodedUploadSessionId;
         batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
