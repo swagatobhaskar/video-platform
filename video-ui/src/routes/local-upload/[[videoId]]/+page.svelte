@@ -71,17 +71,18 @@
 />
 
 
-<div class="w-5/6 mx-auto h-100vh flex flex-row">
+<div class="w-5/6 mx-auto h-100vh"> 
     <!-- Form Area -->
-    <section class="flex-2/3">
-         <FormComponent />
-    </section>
-    
-    <!-- Upload Progress & Thumbnail -->
-    <section class="flex-1/3 flex flex-col justify-evenly">
-        <!-- Upload Progress -->
-        <VideoUploadProgressCard uploader={uploader} />
-        
-        <ThumbnailCard controller={thumbnailInputController} />
-    </section>
+    {#if uploader.state.status === "completed"}
+        <section class="flex flex-row justify-evenly">
+            <FormComponent />
+            <ThumbnailCard controller={thumbnailInputController} />
+        </section>
+    {:else}
+        <!-- Upload Progress & Thumbnail -->
+        <section class="w-2/3 mx-auto">
+            <!-- Upload Progress -->
+            <VideoUploadProgressCard uploader={uploader} />
+        </section>
+    {/if}
 </div>

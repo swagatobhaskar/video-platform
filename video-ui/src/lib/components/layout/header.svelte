@@ -22,10 +22,10 @@
 				<span class="disabled text-gray-700">New Upload</span>
 			{:else}
 				<a
-					href={resolve('/new')}
+					href={resolve('/local-upload')}
 					class="hover:text-violet-700 text-lg"
 				>
-					New Upload
+					Local Upload
 				</a>
 				<a
 					href={resolve('/upload')}

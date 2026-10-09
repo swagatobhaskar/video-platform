@@ -61,7 +61,8 @@
     let showAllFiles = $state(false);
 </script>
 
-<div class="h-80 relative overflow-hidden border border-gray-200 p-6">
+<div class="h-100vh relative overflow-y-scroll border border-gray-200 p-6">
+    
     {#if uploader.state.status === "uploading" || uploader.state.status === "paused"}
         {@const isPaused = uploader.state.status === "paused"}
  
