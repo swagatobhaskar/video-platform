@@ -7,7 +7,7 @@ from app.services.transcoded_upload_service import TranscodedUploadService
 from app.schemas.transcoded_upload_schema import (
     PresignedTranscodedFile, PresignTranscodedFilesRequest,
     PresignTranscodedFilesResponse, RecordUploadedFileRequest,
-    CompleteTranscodedUploadRequest
+    CompleteTranscodedUploadRequest, NewTranscodedUploadRequest
 )
 from app.core.config import get_settings
 settings = get_settings()
@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 
 @router.post("/new-upload-record")
 async def new_transcoded_upload_record(
+    req: NewTranscodedUploadRequest,
     upload_service: TranscodedUploadService = Depends(get_transcoded_upload_service),
 ):
-    return await upload_service.new_transcoded_upload_record()
+    return await upload_service.new_transcoded_upload_record(req)
 
 
 @router.post("/{video_id}/presign-batch")

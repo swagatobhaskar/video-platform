@@ -2,6 +2,16 @@ from pydantic import BaseModel, Field
 from uuid import UUID
 from pathlib import PurePosixPath
 
+class NewTranscodedUploadRequest(BaseModel):
+    # All optional so existing callers that send no body/fields keep working.
+    title: str | None = Field(default=None, max_length=255)
+    width: int | None = Field(default=None, ge=1)
+    height: int | None = Field(default=None, ge=1)
+    codec: str | None = Field(default=None, max_length=64)
+    fps: float | None = Field(default=None, gt=0)
+    bitrate: int | None = Field(default=None, ge=0)
+    duration_seconds: float | None = Field(default=None, ge=0)
+
 class TranscodedFileRequest(BaseModel):
     file_id: str = Field(min_length=1, max_length=64)
     relative_path: str = Field(min_length=1, max_length=1024)

@@ -13,7 +13,7 @@ from app.exceptions.upload import (
     NewUploadCreationFailed, UploadAlreadyCompleted
 )
 
-from app.schemas.transcoded_upload_schema import TranscodedFileRequest, validate_transcoded_relative_path
+from app.schemas.transcoded_upload_schema import TranscodedFileRequest, validate_transcoded_relative_path, NewTranscodedUploadRequest
 from app.models.upload import TranscodedUploadStatusEnum, TranscodedUploadSession, TranscodedUploadFile
 from app.storage.r2_transcoded_upload_service import R2TranscodedUploadService
 
@@ -44,10 +44,21 @@ class TranscodedUploadService:
         self.video_event_repository = video_event_repository
         self.storage_service = storage_service
 
-    async def new_transcoded_upload_record(self):
+    async def new_transcoded_upload_record(self, req: NewTranscodedUploadRequest):
         try:
             # create an empty video and get the video_id
-            video = await self.video_repository.create()
+            video = await self.video_repository.create(
+                # Apply title + probe_result.json metadata. Set directly on the ORM object
+                # because I haven't seen VideoRepository.create()'s signature; if you'd
+                # rather, extend create() to accept these and pass them through instead.
+                title=req.title,
+                width = req.width,
+                height = req.height,
+                codec = req.codec,
+                fps = req.fps,
+                bitrate = req.bitrate,
+                duration_seconds = req.duration_seconds,
+            )
 
             # create a new uploadsession linked to that Video
             upload = await self.transcoded_upload_repository.create(video_id=video.id)

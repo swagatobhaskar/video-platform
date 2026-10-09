@@ -56,11 +56,23 @@ class VideoRepository:
     async def create(
         self,
         title: str | None = None,
+        width: int | None = None,
+        height: int | None = None,
+        codec: str | None = None,
+        fps: float | None = None,
+        bitrate: int | None = None,
+        duration_seconds: float | None = None,
         publication_status: VideoPublicationStatusEnum = VideoPublicationStatusEnum.DRAFT,
         **extra
     ) -> Video:
         video = Video(
             title=title,
+            width=width,
+            height=height,
+            codec=codec,
+            fps=fps,
+            bitrate=bitrate,
+            duration_seconds=duration_seconds,
             publication_status=publication_status,
             **extra
         )
