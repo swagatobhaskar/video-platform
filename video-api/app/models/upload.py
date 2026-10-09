@@ -135,11 +135,8 @@ class TranscodedUploadSession(Base):
     uploaded_files_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     uploaded_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    completed_at: Mapped[datetime | None]
-
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
         
     def __repr__(self) -> str:
         return f"<TranscodedUploadSession(id={self.id}, video_id={self.video_id})>"
