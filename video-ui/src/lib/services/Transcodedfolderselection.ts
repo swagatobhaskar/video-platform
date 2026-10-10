@@ -151,7 +151,13 @@ export async function prepareTranscodedFolder(
     try {
         probe = parseProbe(JSON.parse(await probeEntry.file.text()));
     } catch (error) {
-        if (error instanceof SyntaxError) throw new Error("probe_result.json is not valid JSON.");
+        if (error instanceof SyntaxError) {
+            // cause: error preserves the original SyntaxError for debugging.
+            // Your custom error message remains user-friendly.
+            // The original error is accessible through newError.cause.
+            // Rethrowing error in the final line preserves all other errors unchanged.
+            throw new Error("probe_result.json is not valid JSON.", {cause: error})
+        };
         throw error;
     }
  
