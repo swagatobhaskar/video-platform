@@ -4,10 +4,13 @@
     import { fileInputController } from "$lib/controllers/fileInputController.svelte";
     type FileInputController = ReturnType<typeof fileInputController>;
 
-    let { open, onUploadClick, folderInputController } = $props<{
+    let { open, onUploadClick, folderInputController, selectionError, dragging, handleDrop, folderInput, handlePick } = $props<{
         open: boolean;
         onUploadClick: () => void;
         folderInputController: FileInputController;
+        selectionError: string | null;
+        dragging: boolean;
+        handleDrop: (e: DragEvent) => Promise<void>
     }>();
 
     let videoFolderInputEl = $state<HTMLInputElement | null>(null);
@@ -44,9 +47,12 @@
             role="button"
             tabindex="0"
             ondragenter={folderInputController.handleDragEnter}
-            ondragleave={folderInputController.handleDragLeave}
-            ondragover={folderInputController.handleDragOver}
-            ondrop={folderInputController.handleDrop}
+            // ondragleave={folderInputController.handleDragLeave}
+            // ondragover={folderInputController.handleDragOver}
+            ondragover={(e) => { e.preventDefault(); dragging = true; }}
+            ondragleave={() => (dragging = false)}
+            // ondrop={folderInputController.handleDrop}
+            ondrop={handleDrop}
             onclick={openVideoFolderDialog}
             class:border-blue-500={folderInputController.state.isDragging}
             class:bg-blue-50={folderInputController.state.isDragging}
@@ -74,7 +80,7 @@
                     </svg>
 
                     <p>
-                        Drop folder containing transcoded video files here
+                        Drop the parent folder here (the one containing dash/ and probe_result.json)
                         <br />
                         or
                     </p>
@@ -90,13 +96,15 @@
                         Browse from device
                     </button>
 
+                    <!-- bind:this={videoFolderInputEl} -->
+                     <!-- onchange={folderInputController.handleFolderSelect} -->
                     <input
                         type="file"
                         class="hidden"
                         multiple
                         webkitdirectory                        
-                        bind:this={videoFolderInputEl}
-                        onchange={folderInputController.handleFolderSelect}
+                        bind:this={folderInput}
+                        onchange={handlePick}
                     />
                 </div>
             {:else}
@@ -137,6 +145,10 @@
                 </div>
             {/if}
         </div>
+        {#if selectionError}
+            <p class="mt-2 text-sm text-red-600">{selectionError}</p>
+        {/if}
+
         {#if folderInputController.state.error}
             <p class="error">{folderInputController.state.error}</p>
         {/if}

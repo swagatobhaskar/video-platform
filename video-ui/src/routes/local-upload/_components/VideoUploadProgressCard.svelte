@@ -2,7 +2,7 @@
 
     import { createTranscodedFolderUploader, type UploadFile } from '$lib/services/transcodedFolderUploader.svelte'
 
-    let { uploader } = $props<{ uploader: ReturnType<typeof createTranscodedFolderUploader>; }>();
+    let { uploader } = $props<{uploader: ReturnType<typeof createTranscodedFolderUploader>;}>();
 
     // import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
@@ -82,6 +82,9 @@
  
             <!-- Header -->
             <div class="flex items-start justify-between gap-2">
+                <div class="">
+                    {uploader.state.status} {uploader.state.folderName}
+                </div>
                 <div class="min-w-0">
                     <h3 class="truncate font-semibold text-gray-900 text-lg">
                         {uploader.uploadedFileCount}/{uploader.state.files.length} files
