@@ -502,12 +502,22 @@ export function createTranscodedFolderUploader() {
         state.files.filter(file => file.status === "failed").length,
     );
 
+    // Getters, not plain properties: returning a $derived directly would capture its
+    // initial value once and never update. Callers still just write `uploader.progress`.
     return {
         state,
-        progress,
-        uploadedBytes,
-        uploadedFileCount,
-        failedFileCount,
+        get progress() {
+            return progress;
+        },
+        get uploadedBytes() {
+            return uploadedBytes;
+        },
+        get uploadedFileCount() {
+            return uploadedFileCount;
+        },
+        get failedFileCount() {
+            return failedFileCount;
+        },
         start,
         pause,
         resume,

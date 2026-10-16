@@ -1,5 +1,5 @@
 <script lang="ts">
-    // let { values } = $props();
+    let { videoId } = $props<{ videoId: string | null}>();
 
     type SEOTag = {
         id: string;
@@ -32,13 +32,28 @@
         selectedSEOTagsList = selectedSEOTagsList.filter(tag => tag.id !== id);
     }
 
-    // Periodically sync formController's data with DB and switch step
-    // $effect(() => {
+    let title = $state<string>('');
+    let description = $state<string | null>('');
+    let category = $state<string | null>('');
+    let seoTags = $state<string[]>(['']);
+    let language = $state<string>(''); // BENGALI or HINDI only
 
-    // });
+    // Periodically sync formController's data with DB and switch step
+    $effect(() => {
+        async function fetchFormData() {
+            const resp = await fetch(`/api/video/${videoId}`);
+            const data = await resp.json();
+            title = data.title;
+            description = data.description;
+            category = data.category;
+            language = data.language;
+            seoTags = data.seo_tags; // convert to list items
+        }
+        if (videoId) fetchFormData();
+    });
 </script>
 
-<div class="h-full w-5/6 mx-auto p-8 space-y-8">
+<div class="h-full w-4/6 p-4 space-y-8">
 
     <!-- Video Title -->
     <div class="space-y-2">
@@ -49,12 +64,13 @@
             Video Title
         </label>
         
+        <!-- bind:value={formController.formData.title} -->
         <input
             type="text"
             name="title"
             placeholder="Enter the video title"
             required
-            bind:value={formController.formData.title}
+            bind:value={title}
             class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
                 transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
                 focus:outline-none"

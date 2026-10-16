@@ -133,17 +133,6 @@
     }
 </script>
 
-<!-- <FolderUploadModal
-    open={modalOpen}
-    {folderInputController}
-    onUploadClick={handleUploadWithNewSession}
-    selectionError={selectionError}
-    dragging={dragging}
-    handleDrop={handleDrop}
-    folderInput={folderInput}
-    handlePick={handlePick}
-/> -->
-
 <FolderUploadModal
     open={modalOpen}
     {prepared}
@@ -159,7 +148,7 @@
     <!-- Form Area -->
     {#if uploader.state.status === "completed"}
         <section class="flex flex-row justify-evenly">
-            <FormComponent />
+            <FormComponent videoId={videoId} />
             <ThumbnailCard controller={thumbnailInputController} />
         </section>
     {:else}

@@ -6,8 +6,7 @@
 
     // import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
-	import UploadCompleteBar from "$lib/components/ui/uploadCompleteBar.svelte";
-	import { truncate } from 'fs';
+	// import UploadCompleteBar from "$lib/components/ui/uploadCompleteBar.svelte";
 
     function handlePauseUpload() {
         uploader.pause();

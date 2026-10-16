@@ -22,7 +22,7 @@
 
         try {
             const uploadRes = await fetch(
-                'http://127.0.0.1:8000/api/upload/thumbnail-upload',
+                '/api/upload/thumbnail-upload',
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json'}
@@ -66,7 +66,7 @@
 
 </script>
 
-<div class="h-80 overflow-hidden p-2 relative border border-gray-200"
+<div class="h-80 p-2 relative border border-gray-200"
 >
     <!-- If uploaded, show thumbnail from R2 link -->
     {#if thumbnailR2Url}
