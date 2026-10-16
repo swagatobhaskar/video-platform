@@ -40,6 +40,7 @@ type PresignResponseFile = {
 type UploadOptions = {
     videoId: string;
     transcodedUploadSessionId: string;
+    /** Parent folder name (e.g. "my-video"), shown in the UI / used as the default title. */
     folderName?: string;
     batchSize?: number;
     concurrency?: number;
@@ -454,7 +455,14 @@ export function createTranscodedFolderUploader() {
             throw new Error("Upload session information is missing.");
         }
 
-        await postWithQuery(apiUrl(state.videoId, "resume"), { transcoded_upload_session_id: state.transcodedUploadSessionId });
+        // await postWithQuery(apiUrl(state.videoId, "resume"), { transcoded_upload_session_id: state.transcodedUploadSessionId });
+        try {
+            await postWithQuery(apiUrl(state.videoId, "resume"), { upload_session_id: state.transcodedUploadSessionId });
+        } catch (error) {
+            // Stay paused and surface the problem instead of leaving an unhandled rejection.
+            state.error = error instanceof Error ? error.message : "Could not resume the upload.";
+            return;
+        }
         await runUploadLoop();
     }
 

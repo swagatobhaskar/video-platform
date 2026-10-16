@@ -7,14 +7,15 @@ from app.repositories.transcoded_upload_repository import TranscodedUploadReposi
 from app.repositories.video_repository import VideoRepository
 from app.repositories.video_event_repository import VideoEventRepository
 
-from app.exceptions.video import VideoNotFound
 from app.exceptions.upload import (
-    UploadSessionNotFound, InvalidUploadState, UploadedFileNotFound,
-    NewUploadCreationFailed, UploadAlreadyCompleted
+    UploadSessionNotFound,
+    InvalidUploadState,
+    UploadedFileNotFound,
+    NewUploadCreationFailed
 )
 
 from app.schemas.transcoded_upload_schema import TranscodedFileRequest, validate_transcoded_relative_path, NewTranscodedUploadRequest
-from app.models.upload import TranscodedUploadStatusEnum, TranscodedUploadSession, TranscodedUploadFile
+from app.models.upload import TranscodedUploadStatusEnum
 from app.storage.r2_transcoded_upload_service import R2TranscodedUploadService
 
 def build_object_key(video_id: UUID, relative_path: str) -> str:
@@ -52,12 +53,12 @@ class TranscodedUploadService:
                 # because I haven't seen VideoRepository.create()'s signature; if you'd
                 # rather, extend create() to accept these and pass them through instead.
                 title=req.title,
-                width = req.width,
-                height = req.height,
-                codec = req.codec,
-                fps = req.fps,
-                bitrate = req.bitrate,
-                duration_seconds = req.duration_seconds,
+                width=req.width,
+                height=req.height,
+                codec=req.codec,
+                fps=req.fps,
+                bitrate=req.bitrate,
+                duration_seconds=req.duration_seconds,
             )
 
             # create a new uploadsession linked to that Video
@@ -94,6 +95,13 @@ class TranscodedUploadService:
             TranscodedUploadStatusEnum.PAUSED,
         }:
             raise InvalidUploadState()
+
+        # Nothing else moves a fresh session out of PENDING, and pause() only accepts
+        # UPLOADING -- so without this, the first Pause click would always get a 409.
+        if transcoded_upload_session.status == TranscodedUploadStatusEnum.PENDING:
+            await self.transcoded_upload_repository.update(
+                transcoded_upload_session.id, status=TranscodedUploadStatusEnum.UPLOADING
+            )
 
         result = []
 

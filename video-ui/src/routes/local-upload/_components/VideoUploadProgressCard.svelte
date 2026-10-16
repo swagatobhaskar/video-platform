@@ -7,6 +7,7 @@
     // import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
 	import UploadCompleteBar from "$lib/components/ui/uploadCompleteBar.svelte";
+	import { truncate } from 'fs';
 
     function handlePauseUpload() {
         uploader.pause();
@@ -61,6 +62,20 @@
     let showAllFiles = $state(false);
 </script>
 
+<!-- Shared by the live view and the failed/cancelled view -->
+{#snippet failedList()}
+    {#if failedFiles.length > 0}
+        <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            <p class="font-medium">{failedFiles.length} file{failedFiles.length === 1 ? "" : "s"} failed</p>
+            <ul class="mt-1 space-y-0.5">
+                {#each failedFiles as file (file.id)}
+                    <li class="truncate">{file.relativePath} - {file.error}</li>
+                {/each}
+            </ul>
+        </div>
+    {/if}
+{/snippet}
+
 <div class="h-100vh relative overflow-y-scroll border border-gray-200 p-6">
     
     {#if uploader.state.status === "uploading" || uploader.state.status === "paused"}
@@ -82,13 +97,13 @@
  
             <!-- Header -->
             <div class="flex items-start justify-between gap-2">
-                <div class="">
-                    {uploader.state.status} {uploader.state.folderName}
-                </div>
                 <div class="min-w-0">
                     <h3 class="truncate font-semibold text-gray-900 text-lg">
-                        {uploader.uploadedFileCount}/{uploader.state.files.length} files
+                        {uploader.state.folderName ?? "Transcoded video"}
                     </h3>
+                    <p class="text-sm text-gray-500">
+                        {uploader.uploadedFileCount}/{uploader.state.files.length} files
+                    </p>
                 </div>
  
                 <div class="shrink-0 rounded-full bg-blue-50 border border-blue-100 px-3 py-1 text-sm font-medium text-blue-600">
@@ -156,17 +171,7 @@
                 <p class="text-sm text-gray-400">{pendingCount} more queued…</p>
             {/if}
  
-            <!-- Failed files -- shown in full since there should only ever be a handful -->
-            {#if failedFiles.length > 0}
-                <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                    <p class="font-medium">{failedFiles.length} file{failedFiles.length === 1 ? "" : "s"} failed</p>
-                    <ul class="mt-1 space-y-0.5">
-                        {#each failedFiles as file (file.id)}
-                            <li class="truncate">{file.relativePath} — {file.error}</li>
-                        {/each}
-                    </ul>
-                </div>
-            {/if}
+            {@render failedList()}
  
             {#if uploader.state.error}
                 <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
@@ -224,10 +229,23 @@
         </div>
     {/if}
  
-    {#if uploader.state.status === "completed"}
-        <div class="flex flex-col">
-            <!-- UploadCompleteBar likely needs its own update to the new `uploader.state.files` -->
-            <UploadCompleteBar uploader={uploader} />
+    <!-- Previously a failed or cancelled upload rendered an empty card. -->
+    {#if uploader.state.status === "failed" || uploader.state.status === "cancelled"}
+        <div class="space-y-4">
+            <p class="font-medium {uploader.state.status === 'failed' ? 'text-red-600' : 'text-gray-600'}">
+                {uploader.state.status === "failed" ? "Upload failed" : "Upload cancelled"}
+            </p>
+            <p class="text-sm text-gray-500">
+                {uploader.uploadedFileCount}/{uploader.state.files.length} files were uploaded.
+            </p>
+ 
+            {#if uploader.state.error}
+                <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {uploader.state.error}
+                </div>
+            {/if}
+ 
+            {@render failedList()}
         </div>
     {/if}
 </div>
