@@ -1,6 +1,6 @@
 <script lang="ts">
     // let { videoId } = $props<{ videoId: string | null }>();
-    let { videoId }: { videoId: string | null } = $props();
+    let { videoId }: { videoId?: string | null } = $props();
     
     type SEOKeyword = {
         id: string;
@@ -77,16 +77,41 @@
 
     // Periodically sync formController's data with DB and switch step
     $effect(() => {
+        if (!videoId) return;
+
+        // prevents outdated work from updating state
+        let isCurrent = true;
+        const abortController = new AbortController();
+
         async function fetchFormData() {
-            const resp = await fetch(`/api/video/${videoId}`);
-            const data = await resp.json();
-            formController.formData.title = data.title;
-            formController.formData.description = data.description;
-            formController.formData.category = data.category;
-            formController.formData.language = data.language;
-            formController.formData.seoTags = data.seo_tags; // convert to list items
+            try {
+                const resp = await fetch(`/api/video/${videoId}`, {
+                    signal: abortController.signal,
+                });
+
+                if (!resp.ok) {
+                    throw new Error(`Failed to fetch video: ${resp.status}`);
+                }
+                const data = await resp.json();
+
+                // Never update the form for an obsolete request.
+                if (!isCurrent) return;
+
+                formController.populate(data);
+            } catch (error) {
+                // Cancellation is expected; don't report it as an error.
+                if (!isCurrent || abortController.signal.aborted) return;
+                console.error("Failed to load video data:", error);
+            }
         }
-        if (videoId) fetchFormData();
+
+        void fetchFormData();
+
+        // Runs when videoId changes or this effect is destroyed.
+        return () => {
+            isCurrent = false;
+            abortController.abort();
+        };
     });
 </script>
 
@@ -449,7 +474,7 @@
         
             <div>
                 <label
-                    for="seoTags"
+                    for="seo_tags"
                     class="block text-sm font-semibold tracking-wide text-gray-700"
                 >
                     SEO Tags
@@ -463,7 +488,7 @@
             <div class="flex gap-3">
                 <input
                     type="text"
-                    name="seoTag"
+                    name="seo_tags"
                     bind:value={seoTagEntry}
                     placeholder="Add a SEO keyword..."
                     onkeydown={(e) =>
