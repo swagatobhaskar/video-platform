@@ -132,7 +132,6 @@
         if (!isLoaded || !videoId) return;
 
         const currentVideoId = videoId;
-        const data = formController.formData;
 
         // Create a snapshot so the payload reflects this particular edit.
         const payload = { ...formController.formData };
