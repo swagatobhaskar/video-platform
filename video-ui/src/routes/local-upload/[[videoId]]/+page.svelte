@@ -134,7 +134,7 @@
 </script>
 
 <FolderUploadModal
-    open={modalOpen}
+    open={!modalOpen}
     {prepared}
     {selectionError}
     {initiatingUpload}
@@ -146,16 +146,22 @@
 
 <div class="w-5/6 mx-auto h-100vh"> 
     <!-- Form Area -->
-    {#if uploader.state.status === "completed"}
+    <!-- {#if uploader.state.status === "completed"} -->
         <section class="flex flex-row justify-evenly">
             <FormComponent videoId={videoId} />
-            <ThumbnailCard controller={thumbnailInputController} />
+
+            <div class="h-screen w-1/3 flex flex-col justify-evenly">
+                <ThumbnailCard controller={thumbnailInputController} />
+                <!-- Video Viewer -->
+                 <!-- <VideoViewer /> -->
+                <ThumbnailCard controller={thumbnailInputController} />
+            </div>
         </section>
-    {:else}
+    <!-- {:else} -->
         <!-- Upload Progress & Thumbnail -->
-        <section class="w-2/3 mx-auto">
+        <!-- <section class="w-2/3 mx-auto"> -->
             <!-- Upload Progress -->
-            <VideoUploadProgressCard uploader={uploader} />
-        </section>
-    {/if}
+            <!-- <VideoUploadProgressCard uploader={uploader} /> -->
+        <!-- </section> -->
+    <!-- {/if} -->
 </div>
