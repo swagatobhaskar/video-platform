@@ -8,7 +8,7 @@ type MetadataFields = {
     episode_number: number | null,
     transcript: string,
     transcript_code: "bn" | "hi",
-    seoTags: string[],  // make it 'keywords'
+    seo_tags: string[],  // make it 'keywords'
     publication_status: "draft" | "published",
     meta_title: string,
     meta_description: string,
@@ -35,7 +35,7 @@ export function MetadataFormController() {
         episode_number: null,
         transcript: '',
         transcript_code: 'bn',
-        seoTags: [''],
+        seo_tags: [''],
         focus_keywords: [''],
         secondary_keywords: [''],
         publication_status: "draft",
@@ -45,7 +45,18 @@ export function MetadataFormController() {
         seo_summary_en: '',
     });
 
+    function populate(data: Partial<MetadataFields> & Record<string, unknown>) {
+    // This ensures that any incoming keys match the known fields of MetadataFields,
+    // while still allowing optional or extra API properties if needed.
+        Object.assign(formData, {
+            ...data,
+            meta_title: data.meta_title ?? data.title ?? '',
+            meta_description: data.meta_description ?? data.description ?? '',
+        });
+    }
+
     return {
         formData,
+        populate,
     }
 }
