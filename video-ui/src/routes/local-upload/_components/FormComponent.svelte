@@ -75,6 +75,14 @@
         selectedSecondaryKeywordsList = selectedSecondaryKeywordsList.filter(tag => tag.id !== id);
     }
 
+    // Auto-save
+    let isLoaded = $state(false);
+    let saveStatus = $state<"idle" | "saving" | "saved" | "error">("idle");
+
+    // Plain variables: these don't need to trigger Svelte effects.
+    let lastSavedSnapshot = "";
+    let saveVersion = 0;
+
     // Periodically sync formController's data with DB and switch step
     $effect(() => {
         if (!videoId) return;
@@ -98,6 +106,11 @@
                 if (!isCurrent) return;
 
                 formController.populate(data);
+
+                // Record the initial state so loading isn't treated as an edit.
+                lastSavedSnapshot = JSON.stringify(formController.formData);
+                isLoaded = true;
+                saveStatus = "idle";
             } catch (error) {
                 // Cancellation is expected; don't report it as an error.
                 if (!isCurrent || abortController.signal.aborted) return;
@@ -113,24 +126,86 @@
             abortController.abort();
         };
     });
+
+    // Debounced autosave.
+    $effect(() => {
+        if (!isLoaded || !videoId) return;
+
+        const currentVideoId = videoId;
+        const data = formController.formData;
+
+        // Create a snapshot so the payload reflects this particular edit.
+        const payload = { ...formController.formData };
+
+        const snapshot = JSON.stringify(payload);
+
+        // Don't save unchanged data or the initial fetch.
+        if (snapshot === lastSavedSnapshot) return;
+
+        const version = ++saveVersion;
+
+        const timeout = setTimeout(async () => {
+            saveStatus = "saving";
+
+            try {
+                const resp = await fetch(`api/video/${currentVideoId}`, {
+                    method: "PUT",
+                    headers: {"Content-Type": "application/json",},
+                    body: snapshot,
+                });
+
+                if (!resp.ok) throw new Error("Autosave failed");
+
+                // Only the latest save may update the UI status.
+                if (version !== saveVersion) return;
+
+                lastSavedSnapshot = snapshot;
+                saveStatus = "saved";
+            } catch (error) {
+                if (version !== saveVersion) return;
+
+                saveStatus = "error";
+                console.error(error);
+            }
+        }, 800);
+
+        return () => clearTimeout(timeout);
+    });
+
 </script>
 
 <div class="h-full w-2/3 p-10 space-y-8">
 
     <!-- Publication status badge -->
-    <div class="mb-3">
-        <p class="block text-sm fornt-semibold tracking-wide text-gray-700">
-            Status:
-            {#if formController.formData.publication_status === "draft"}
-                <span class="inline-block px-2 py-1 rounded-md bg-amber-500 text-white">
-                    Draft
-                </span>
-            {:else}
-                <span class="inline-block px-2 py-1 rounded-md bg-green-500 text-white">
-                    Published
-                </span>
-            {/if}
-        </p>
+    <div class="flex flex-row justify-between">
+        <div class="mb-3">
+            <p class="block text-sm fornt-semibold tracking-wide text-gray-700">
+                Status:
+                {#if formController.formData.publication_status === "draft"}
+                    <span class="inline-block px-2 py-1 rounded-md bg-amber-500 text-white">
+                        Draft
+                    </span>
+                {:else}
+                    <span class="inline-block px-2 py-1 rounded-md bg-green-500 text-white">
+                        Published
+                    </span>
+                {/if}
+            </p>
+        </div>
+
+        <div>
+            <p aria-live="polite">
+                {#if !isLoaded}
+                    Loading form…
+                {:else if saveStatus === "saving"}
+                    Saving…
+                {:else if saveStatus === "saved"}
+                    All changes saved
+                {:else if saveStatus === "error"}
+                    Save failed. Please try again.
+                {/if}
+            </p>
+        </div>
     </div>
 
     <div class="mb-6 flex gap-2 border-b border-gray-200">
