@@ -2,7 +2,8 @@ import logging
 
 from app.models import (
     Video, UploadSessionStatusEnum, VideoPublicationStatusEnum,
-    VideoProcessingStatusEnum
+    VideoProcessingStatusEnum, TranscodedUploadSession,
+    TranscodedUploadStatusEnum
 )
 
 logger = logging.getLogger(__name__)
@@ -54,11 +55,14 @@ class VideoManager:
 
     @property
     def video_uploaded(self) -> bool:
-        # return any(
-        #     session.status == UploadSessionStatusEnum.COMPLETED
-        #     for session in self.video.upload_sessions
-        # )
-        return self.video.upload_session.status == UploadSessionStatusEnum.COMPLETED
+        upload_session = self.video.upload_session
+        transcoded_upload_session = self.video.transcoded_upload_session
+        # a video is uploaded when either upload session is completed
+        return (
+            (upload_session is not None and upload_session.status == UploadSessionStatusEnum.COMPLETED)
+            or
+            (transcoded_upload_session is not None and transcoded_upload_session.status == TranscodedUploadStatusEnum.COMPLETED)
+        )
 
     @property
     def thumbnail_uploaded(self) -> bool:
@@ -96,13 +100,17 @@ class VideoManager:
 
     @property
     def upload_status(self) -> str | None:
-        # session = self.latest_upload_session
         upload_session = self.video.upload_session
 
-        if not upload_session:
-            return None
+        if upload_session is not None:
+            return upload_session.status.value
 
-        return upload_session.status.value
+        transcoded_upload_session = self.video.transcoded_upload_session
+
+        if transcoded_upload_session is not None:
+            return transcoded_upload_session.status.value
+
+        return None
 
     @property
     def missing_metadata_fields(self) -> list[str]:

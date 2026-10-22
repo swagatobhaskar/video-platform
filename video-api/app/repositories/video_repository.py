@@ -210,7 +210,9 @@ class VideoRepository:
             select(Video)
             .options(
                 selectinload(Video.upload_session),
+                selectinload(Video.transcoded_upload_session),
                 selectinload(Video.transcode_task),
+                selectinload(Video.video_transcripts),
             )
             .where(
                 Video.publication_status == VideoPublicationStatusEnum.DRAFT
