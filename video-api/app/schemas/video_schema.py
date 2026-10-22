@@ -114,29 +114,6 @@ class TranscodeTaskRead(BaseModel):
 #     thumbnail_alt_text: str | None = None
 #     search_intent: str | None = None
 
-
-# class VideoUpdate(BaseModel):
-#     title: str | None = None
-#     slug: str | None = None
-#     description: str | None = None
-#     language: LanguageEnum | None = None
-
-#     category_id: uuid.UUID | None = None
-#     series_id: uuid.UUID | None = None
-#     episode_number: int | None = None
-
-#     seo_tags: list[str] | None = None
-#     keywords: list[str] | None = None
-#     secondary_keywords: list[str] | None = None
-
-#     focus_keyword: str | None = None
-#     seo_summary_en: str | None = None
-#     meta_title: str | None = None
-#     meta_description: str | None = None
-#     thumbnail_alt_text: str | None = None
-#     search_intent: str | None = None
-
-
 class VideoMetadataUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     title: str | None = None
@@ -336,4 +313,25 @@ class VideoActionRequiredResponse(BaseModel):
     upload_status: str | None
     transcoded: bool = False
     errors: dict[str, list[str]]
-    
+
+
+# class VideoUpdate(BaseModel):
+class AutoSaveFormData(BaseModel):
+    title: str | None = None
+    slug: str | None = None
+    description: str | None = None
+    language: LanguageEnum | None = None
+
+    category_id: uuid.UUID | None = None
+    series_id: uuid.UUID | None = None
+    episode_number: int | None = None
+
+    seo_tags: list[str] | None = None
+    keywords: list[str] | None = None
+    secondary_keywords: list[str] | None = None
+    focus_keyword: str | None = None
+    seo_summary_en: str | None = None
+    meta_title: str | None = None
+    meta_description: str | None = None
+    thumbnail_alt_text: str | None = None
+    search_intent: str | None = None

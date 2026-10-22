@@ -96,3 +96,10 @@ async def update_video_transcript(
     video_service: VideoService = Depends(get_video_service),
 ):
     return await video_service.update_transcript(video_id)
+
+@router.patch("/{video_id}/autosave-formdata")
+async def autosave_formdata(
+    video_id: uuid.UUID,
+    video_service: VideoService = Depends(get_video_service),
+):
+    return await video_service.autosave_formdata(video_id)

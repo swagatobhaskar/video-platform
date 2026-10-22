@@ -9,7 +9,7 @@ from app.exceptions.video import VideoPublishError, VideoNotFound, VideoArchiveF
 from app.core.database import AsyncSession
 from app.storage.r2_video_storage import R2VideoStorage
 from app.storage.image_storage import ImageStorage
-from app.schemas.video_schema import VideoUploadHistoryRead, VideoMetadataUpdate, VideoSEOUpdate
+from app.schemas.video_schema import VideoUploadHistoryRead, VideoMetadataUpdate, VideoSEOUpdate, AutoSaveFormData
 
 from app.core.config import get_settings
 settings = get_settings()
@@ -340,4 +340,15 @@ class VideoService:
             raise
 
         return video
+
+
+    async def autosave_formdata(self, video_id: UUID, req:AutoSaveFormData):
+        video = await self.video_repository.get(video_id)
+        
+        if not video:
+            raise VideoNotFound()
+
+        autosave_data = req.model_dump(exclude_unset=True)
+
+        return await self.update_video_fields(video_id, autosave_data)
     
