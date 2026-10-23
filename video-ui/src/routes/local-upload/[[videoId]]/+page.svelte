@@ -134,7 +134,7 @@
 </script>
 
 <FolderUploadModal
-    open={modalOpen} // was !modalOpen
+    open={!modalOpen} // was modalOpen. !modalOpen is to disable the video selection modal temporarily
     {prepared}
     {selectionError}
     {initiatingUpload}

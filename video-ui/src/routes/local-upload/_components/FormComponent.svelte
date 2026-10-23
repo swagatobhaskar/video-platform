@@ -2,6 +2,50 @@
     // let { videoId } = $props<{ videoId: string | null }>();
     let { videoId }: { videoId?: string | null } = $props();
     
+    import { onMount } from 'svelte';  // for fetching Category, Series, Language, etc.
+
+    type Category = {
+        id: number;
+        name: string;
+    };
+
+    type Series = {
+        id: number;
+        name: string;
+    };
+
+    let categories = $state<Category[]>([]);
+    let seriesList = $state<Series[]>([]);
+
+    let loading = $state(true);
+    let error = $state('');
+
+    onMount(async () => {
+        try {
+            const [categoriesResponse, seriesResponse] = await Promise.all([
+                fetch('/api/category'),
+                fetch('/api/series'),
+            ]);
+
+            if (!categoriesResponse.ok || !seriesResponse.ok) {
+                throw new Error('Failed to fetch dropdown data');
+            }
+
+            const [categoriesData, seriesData] = await Promise.all([
+                categoriesResponse.json(),
+                seriesResponse.json()
+            ]);
+
+            categories = categoriesData;
+            seriesList = seriesData;
+        } catch (err) {
+            console.error('Error loading dropdown data:', err);
+            error = 'Could not load form options. Please try again.';
+        } finally {
+            loading = false;
+        }
+    });
+
     type SEOKeyword = {
         id: string;
         value: string;
@@ -239,6 +283,12 @@
     <!-- Video fields -->
     {#if activeTab === 'video'}
 
+        {#if loading}
+            <p>Loading form options...</p>
+        {:else if error}
+            <p class="text-red-600">{error}</p>
+        {/if}
+
         <!-- Video Title -->
         <div class="space-y-2">
             <label
@@ -302,18 +352,25 @@
             </label>
 
             <select
+                id="category"
                 name="category"
                 bind:value={formController.formData.category}
                 required
+                disabled={loading || !!error}
                 class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
                     text-gray-800 transition-all duration-200
                     focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
                     focus:outline-none"
             >
                 <option value="">Select a category</option>
-                <option value="technology">Technology</option>
+                <!-- <option value="technology">Technology</option>
                 <option value="music">Music</option>
-                <option value="gaming">Gaming</option>
+                <option value="gaming">Gaming</option> -->
+                {#each categories as category (category.id)}
+                    <option value={category.name}>
+                        {category.name}
+                    </option>
+                {/each}
             </select>
         </div>
 
@@ -351,8 +408,10 @@
             </label>
 
             <select
+                id="series"
                 name="series"
                 bind:value={formController.formData.series}
+                disabled={loading || !!error}
                 // required
                 class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
                     text-gray-800 transition-all duration-200
@@ -360,9 +419,14 @@
                     focus:outline-none"
             >
                 <option value="">Select a Series</option>
-                <option value="technology">Technology</option>
+                <!-- <option value="technology">Technology</option>
                 <option value="music">Music</option>
-                <option value="gaming">Gaming</option>
+                <option value="gaming">Gaming</option> -->
+                {#each seriesList as series (series.id)}
+                    <option value={series.id}>
+                        {series.name}
+                    </option>
+                {/each}
             </select>
         </div>
 
