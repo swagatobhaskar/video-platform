@@ -100,6 +100,7 @@ async def update_video_transcript(
 @router.patch("/{video_id}/autosave-formdata")
 async def autosave_formdata(
     video_id: uuid.UUID,
+    req: video_schema.AutoSaveFormData,
     video_service: VideoService = Depends(get_video_service),
 ):
-    return await video_service.autosave_formdata(video_id)
+    return await video_service.autosave_formdata(video_id, req)
