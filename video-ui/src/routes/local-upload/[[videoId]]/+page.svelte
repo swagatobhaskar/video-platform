@@ -134,7 +134,7 @@
 </script>
 
 <FolderUploadModal
-    open={!modalOpen}
+    open={modalOpen} // was !modalOpen
     {prepared}
     {selectionError}
     {initiatingUpload}

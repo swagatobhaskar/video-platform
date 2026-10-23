@@ -85,7 +85,10 @@
 
     // Periodically sync formController's data with DB and switch step
     $effect(() => {
-        if (!videoId) return;
+        if (!videoId) {
+            console.error("Video Id Not found!");
+            return;
+        }
 
         // prevents outdated work from updating state
         let isCurrent = true;
@@ -147,7 +150,7 @@
             saveStatus = "saving";
 
             try {
-                const resp = await fetch(`api/video/${currentVideoId}`, {
+                const resp = await fetch(`api/video/${currentVideoId}/autosave-formdata`, {
                     method: "PUT",
                     headers: {"Content-Type": "application/json",},
                     body: snapshot,
