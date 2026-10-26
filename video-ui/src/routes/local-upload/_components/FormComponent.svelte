@@ -51,8 +51,8 @@
         value: string;
     };
 
-    let selectedSEOTagsList = $state<SEOKeyword[]>([]);
-    let seoTagEntry = $state<string>('');
+    // let selectedSEOTagsList = $state<SEOKeyword[]>([]);
+    // let seoTagEntry = $state<string>('');
 
     let focusKeywordEntry = $state<string>('');
     let selectedFocusKeywordsList = $state<SEOKeyword[]>([]);
@@ -68,22 +68,22 @@
 
     const formController = MetadataFormController();
 
-    const addItemToSEOList = () => {
-        const trimmed = seoTagEntry.trim();
-        if (!trimmed) return;
+    // const addItemToSEOList = () => {
+    //     const trimmed = seoTagEntry.trim();
+    //     if (!trimmed) return;
 
-        const newTag: SEOKeyword = {
-            id: crypto.randomUUID(),
-            value: trimmed
-        }
+    //     const newTag: SEOKeyword = {
+    //         id: crypto.randomUUID(),
+    //         value: trimmed
+    //     }
         
-        selectedSEOTagsList = [...selectedSEOTagsList, newTag];
-        seoTagEntry = '';
-    }
+    //     selectedSEOTagsList = [...selectedSEOTagsList, newTag];
+    //     seoTagEntry = '';
+    // }
 
-    const removeItemFromSEOList = (id: string) => {
-        selectedSEOTagsList = selectedSEOTagsList.filter(tag => tag.id !== id);
-    }
+    // const removeItemFromSEOList = (id: string) => {
+    //     selectedSEOTagsList = selectedSEOTagsList.filter(tag => tag.id !== id);
+    // }
 
     const addItemToFocusKeywordsList = () => {
         const trimmed = focusKeywordEntry.trim();
@@ -829,7 +829,7 @@
         </div>
 
         <!-- keywords -->
-        <div class="space-y-3">
+        <!-- <div class="space-y-3">
         
             <div>
                 <label
@@ -850,7 +850,7 @@
                     type="text"
                     name="keywords"
                     aria-describedby="keywords-help"
-                    bind:value={seoTagEntry} // keywordsEntry
+                    bind:value={seoTagEntry}
                     placeholder="Add a SEO keyword..."
                     onkeydown={(e) =>
                         e.key === 'Enter' && addItemToSEOList()
@@ -864,7 +864,7 @@
 
                 <button
                     type="button"
-                    onclick={addItemToSEOList} // addItemToKeywordsList
+                    onclick={addItemToSEOList}
                     disabled={!seoTagEntry.trim()}  
                     class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white
                     shadow-lg shadow-blue-200 transition-all duration-200
@@ -873,10 +873,10 @@
                 >
                     Add
                 </button>
-            </div>
+            </div> -->
                 
-            <!-- Tags Container -->
-            <div
+            <!-- Keyword items Container -->
+            <!-- <div
                 class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
                 border border-dashed border-gray-300 bg-gray-50 p-4"
             >
@@ -905,8 +905,8 @@
                         </div>
                     {/each}
                 {/if}
-            </div>
-        </div>
+            </div> -->
+        <!-- </div> -->
 
     {/if}
 
