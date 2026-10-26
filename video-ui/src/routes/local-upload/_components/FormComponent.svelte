@@ -308,12 +308,16 @@
                 Video Title
             </label>
             
-            <!-- bind:value={formController.formData.title} -->
+            <p id="title-help" class="text-sm text-gray-600">
+                Enter a clear, descriptive title for your video.
+            </p>
+
             <input
                 type="text"
                 name="title"
                 placeholder="Enter the video title"
                 required
+                aria-describedby="title-help"
                 bind:value={formController.formData.title}
                 class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
                     transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
@@ -393,10 +397,15 @@
                 Language
             </label>
 
+            <p id="language-help" class="text-sm text-gray-600">
+                For viewers only. Available options are Hindi & Bengali. Default is Bengali.
+            </p>
+
             <select
                 name="language"
                 bind:value={formController.formData.language}
                 required
+                aria-describedby="language-help"
                 class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
                     text-gray-800 transition-all duration-200
                     focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
@@ -414,7 +423,7 @@
                 for="series"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
-                Series
+                Series (Optional)
             </label>
 
             <select
@@ -440,35 +449,42 @@
             </select>
         </div>
 
-        <!-- Series Episode Number -->
-        <div class="space-y-2">
-            <label
-                for="Episode Number"
-                class="block text-sm font-semibold tracking-wide text-gray-700"
-            >
-                Episode Number
-            </label>
+        <!-- Series Episode Number. Show Episode Number only if a Series is selected. -->
+        {#if formController.formData.series}
+            <div class="space-y-2">
+                <label
+                    for="Episode Number"
+                    class="block text-sm font-semibold tracking-wide text-gray-700"
+                >
+                    Episode Number (Optional. Must, if a Series is selected.)
+                </label>
 
-            <select
-                name="series"
-                bind:value={formController.formData.episode_number}
-                // required
-                class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
-                    text-gray-800 transition-all duration-200
-                    focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
-                    focus:outline-none"
-            >
-                <option value="">Select Episode Number</option>
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-                <option value="6">6</option>
-                <option value="7">7</option>
-                <option value="8">8</option>
-            </select>
-        </div>
+                <p id="episode-number-help" class="text-sm text-gray-600">
+                    Only add Episode Number if the video is part of a Series.
+                </p>
+
+                <select
+                    name="series"
+                    bind:value={formController.formData.episode_number}
+                    // required
+                    aria-describedby="episode-number-help"
+                    class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
+                        text-gray-800 transition-all duration-200
+                        focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
+                        focus:outline-none"
+                >
+                    <option value="">Select Episode Number</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                </select>
+            </div>
+        {/if}
 
         <!-- Transcript code -->
         <div class="space-y-2">
@@ -479,10 +495,15 @@
                 Transcript Code
             </label>
 
+            <p id="transcript-code-help" class="text-sm text-gray-600">
+                This is the language of the transcript. Available options are: Hindi (Hi), Bengali (Bn). Default is Bengali.
+            </p>
+
             <select
                 name="series"
                 bind:value={formController.formData.transcript_code}
                 // required
+                aria-describedby="transcript-code-help"
                 class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
                     text-gray-800 transition-all duration-200
                     focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
@@ -495,14 +516,18 @@
         </div>
 
         <!-- Video Transcript -->
-        <div class="space-y-2">
+        <div class="space-y-2">            
+            <label
+                for="description"        
+                class="block text-sm font-semibold tracking-wide text-gray-700"
+            >
+                Transcript
+            </label>
+
             <div class="flex items-center justify-between">
-                <label
-                    for="description"        
-                    class="block text-sm font-semibold tracking-wide text-gray-700"
-                >
-                    Transcript
-                </label>
+                <p id="transcript-help" class="text-sm text-gray-600">
+                    Copy and paste the entire transcript text. 
+                </p>
 
                 <span class="text-xs text-gray-400">
                     {formController.formData.transcript.length}
@@ -515,6 +540,7 @@
                 bind:value={formController.formData.transcript}
                 // maxlength="400"
                 // required
+                aria-describedby="transcript-help"
                 class="w-full h-36 resize-none rounded-xl border border-gray-300
                     bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
                     transition-all duration-200 focus:border-blue-500 focus:bg-white
@@ -526,178 +552,6 @@
 
     {:else if activeTab === "seo"}
 
-        <!-- Meta Title -->
-        <div class="space-y-2">
-            <label
-                for="meta_title"
-                class="block text-sm font-semibold tracking-wide text-gray-700"
-            >
-                SEO Meta Title
-            </label>
-            
-            <input
-                type="text"
-                name="meta_title"
-                placeholder="Enter video meta title for SEO"
-                required
-                bind:value={formController.formData.meta_title}
-                class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
-                    transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
-                    focus:outline-none"
-            />
-        
-        </div>
-
-        <!-- Meta Description -->
-        <div class="space-y-2">
-            <div class="flex items-center justify-between">
-                <label
-                    for="meta_description"        
-                    class="block text-sm font-semibold tracking-wide text-gray-700"
-                >
-                    SEO Meta Description
-                </label>
-
-                <span class="text-xs text-gray-400">
-                    {formController.formData.meta_description.length}/400
-                </span>
-            </div>
-
-            <textarea
-                name="description"
-                placeholder="Enter video meta description for SEO"
-                bind:value={formController.formData.meta_description}
-                maxlength="400"
-                required
-                class="w-full h-36 resize-none rounded-xl border border-gray-300
-                    bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
-                    transition-all duration-200 focus:border-blue-500 focus:bg-white
-                    focus:ring-4 focus:ring-blue-100 focus:outline-none"
-                // class="w-full h-32 overflow-y-auto resize-none border-2 border-gray-300
-                //     rounded-md p-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            ></textarea>
-        </div>
-
-        <!-- Thumbnail Alt Text -->
-        <div class="space-y-2">
-            <label
-                for="thumbnail_alt_text"
-                class="block text-sm font-semibold tracking-wide text-gray-700"
-            >
-                SEO Thumbnail Alt Text
-            </label>
-            
-            <input
-                type="text"
-                name="thumbnail_alt_text"
-                placeholder="Enter alternative text for thumbnail (for SEO)"
-                required
-                bind:value={formController.formData.thumbnail_alt_text}
-                class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
-                    transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
-                    focus:outline-none"
-            />
-        </div>
-
-        <!-- SEO Summary En -->
-        <div class="space-y-2">
-            <label
-                for="seo_summary_en"
-                class="block text-sm font-semibold tracking-wide text-gray-700"
-            >
-                SEO Summary En
-            </label>
-            
-            <input
-                type="text"
-                name="seo_summary_en"
-                placeholder="Enter Summary of the Entire Video Story in English (for SEO)"
-                required
-                bind:value={formController.formData.seo_summary_en}
-                class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
-                    transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
-                    focus:outline-none"
-            />
-        </div>
-
-        <!-- SEO Tags / keywords -->
-        <div class="space-y-3">
-        
-            <div>
-                <label
-                    for="seo_tags"
-                    class="block text-sm font-semibold tracking-wide text-gray-700"
-                >
-                    SEO Tags
-                </label>
-
-                <p class="mt-1 text-xs text-gray-500">
-                    Add keywords to improve discoverability
-                </p>
-            </div>
-
-            <div class="flex gap-3">
-                <input
-                    type="text"
-                    name="seo_tags"
-                    bind:value={seoTagEntry}
-                    placeholder="Add a SEO keyword..."
-                    onkeydown={(e) =>
-                        e.key === 'Enter' && addItemToSEOList()
-                    }
-                    class="flex-1 rounded-xl border border-gray-300 bg-gray-50
-                    px-4 py-3 text-gray-800 placeholder:text-gray-400
-                    transition-all duration-200
-                    focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
-                    focus:outline-none"
-                />
-
-                <button
-                    type="button"
-                    onclick={addItemToSEOList}
-                    disabled={!seoTagEntry.trim()}
-                    class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white
-                    shadow-lg shadow-blue-200 transition-all duration-200
-                    hover:bg-blue-700 hover:shadow-blue-300
-                    disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    Add
-                </button>
-            </div>
-                
-            <!-- Tags Container -->
-            <div
-                class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
-                border border-dashed border-gray-300 bg-gray-50 p-4"
-            >
-                {#if selectedSEOTagsList.length === 0}
-                    <div class="flex items-center text-sm text-gray-400">
-                        No SEO tags added yet
-                    </div>
-                {:else}
-                    {#each selectedSEOTagsList as tag (tag.id)}
-                        <div
-                            class="group flex items-center gap-2 rounded-lg
-                            bg-linear-to-r from-indigo-500 to-blue-500
-                            px-4 py-2 text-sm font-medium text-white
-                            shadow-md transition-transform duration-200
-                            hover:scale-105"
-                        >
-                            <span>{tag.value}</span>
-
-                            <button
-                                type="button"
-                                onclick={() => removeItemFromSEOList(tag.id)}
-                                class="text-white/80 transition hover:text-white"
-                            >
-                                &times;
-                            </button>
-                        </div>
-                    {/each}
-                {/if}
-            </div>
-        </div>
-
         <!-- Focus Keywords -->
         <div class="space-y-3">
             <div>
@@ -708,8 +562,9 @@
                     Focus Keywords
                 </label>
 
-                <p class="mt-1 text-xs text-gray-500">
-                    Add focus keywords to improve discoverability
+                <p id="focus-keywords-help" class="text-sm text-gray-600">
+                    This is your collection of keywords for this video. These keywords must be included in the Title, Meta Title, Description, Meta Description,
+                    Thumbnail Alt Text, Transcript. Keep a list of 2-3 focus keywords.
                 </p>
             </div>
 
@@ -717,6 +572,7 @@
                 <input
                     type="text"
                     name="focusKeyword"
+                    aria-describedby="focus-keywords-help"
                     bind:value={focusKeywordEntry}
                     placeholder="Add a focus keyword..."
                     onkeydown={(e) =>
@@ -782,11 +638,12 @@
                     for="secondaryKeywords"
                     class="block text-sm font-semibold tracking-wide text-gray-700"
                 >
-                    Secondary Keywords
+                    Secondary Keywords (Optional)
                 </label>
 
-                <p class="mt-1 text-xs text-gray-500">
-                    Add keywords to improve discoverability
+                <p id="secondary-keywords-help" class="text-sm text-gray-600">
+                    This is your collection of related or long-tailed keywords for this video. Include them in the Description, Meta Description, Transcript.
+                    Keep a list of 1-2 secondary keywords.
                 </p>
             </div>
 
@@ -796,6 +653,7 @@
                     name="secondaryKeyword"
                     bind:value={secondaryKeywordEntry}
                     placeholder="Add a secondary keyword..."
+                    aria-describedby="secondary-keywords-help"
                     onkeydown={(e) =>
                         e.key === 'Enter' && addItemToSecondaryKeywordsList()
                     }
@@ -851,7 +709,207 @@
                 {/if}
             </div>
         </div>
+
+        <!-- Meta Title -->
+        <div class="space-y-2">
+            <label
+                for="meta_title"
+                class="block text-sm font-semibold tracking-wide text-gray-700"
+            >
+                SEO Meta Title (Must for SEO)
+            </label>
+            
+            <p id="meta-title-help" class="text-sm text-gray-600">
+                This shown on Google Search Results Page as the title. This can be the same with Video Title.
+                <br/>
+                However, you must include the Keywords in the Meta Title.
+            </p>
+
+            <input
+                type="text"
+                name="meta_title"
+                placeholder="Enter video meta title for SEO"
+                required
+                aria-describedby="meta-title-help"
+                bind:value={formController.formData.meta_title}
+                class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
+                    transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
+                    focus:outline-none"
+            />
+        
+        </div>
+
+        <!-- Meta Description -->
+        <div class="space-y-2">
+            <label
+                for="meta_description"        
+                class="block text-sm font-semibold tracking-wide text-gray-700"
+            >
+                SEO Meta Description
+            </label>
+
+            <div class="flex items-center justify-between">
+                <p id="meta-description-help" class="text-sm text-gray-600">
+                    This shown on Google Search Results Page as the description. This can be the same with Video Description.
+                    <br/>
+                    You must include the Keywords in the Meta Description.
+                </p>
+
+                <span class="text-xs text-gray-400">
+                    {formController.formData.meta_description.length}/400
+                </span>
+            </div>
+
+            <textarea
+                name="description"
+                placeholder="Enter video meta description for SEO"
+                bind:value={formController.formData.meta_description}
+                maxlength="400"
+                required
+                aria-describedby="meta-description-help"
+                class="w-full h-36 resize-none rounded-xl border border-gray-300
+                    bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
+                    transition-all duration-200 focus:border-blue-500 focus:bg-white
+                    focus:ring-4 focus:ring-blue-100 focus:outline-none"
+            ></textarea>
+        </div>
+
+        <!-- Thumbnail Alt Text -->
+        <div class="space-y-2">
+            <label
+                for="thumbnail_alt_text"
+                class="block text-sm font-semibold tracking-wide text-gray-700"
+            >
+                SEO Thumbnail Alt Text
+            </label>
+            
+            <p id="thumbnail-alt-text-help" class="text-sm text-gray-600">
+                Explain what the thumbnail represents or what the video covers. Try to include the main topic or keyword when relevant.
+                <br/>
+                For example, if the video is about learning Bengali, use: "Learn Bengali for beginners - video thumbnail".
+            </p>
+            <input
+                type="text"
+                name="thumbnail_alt_text"
+                placeholder="Enter alternative text for thumbnail"
+                aria-describedby="thumbnail-alt-text-help"
+                required
+                bind:value={formController.formData.thumbnail_alt_text}
+                class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
+                    transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
+                    focus:outline-none"
+            />
+        </div>
+
+        <!-- SEO Summary En -->
+        <div class="space-y-2">
+            <label
+                for="seo_summary_en"
+                class="block text-sm font-semibold tracking-wide text-gray-700"
+            >
+                SEO Summary En
+            </label>
+            
+            <p id="seo-summary-en-help" class="text-sm text-gray-600">
+                English summary for the entire Bengali/Hindi Video story. Helps in English language discoverability.
+                Must include the main topic or keyword when relevant.
+            </p>
+
+            <input
+                type="text"
+                name="seo_summary_en"
+                placeholder="Enter Summary of the Entire Video Story in English (for SEO)"
+                required
+                aria-describedby="seo-summary-en-help"
+                bind:value={formController.formData.seo_summary_en}
+                class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
+                    transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
+                    focus:outline-none"
+            />
+        </div>
+
+        <!-- keywords -->
+        <div class="space-y-3">
+        
+            <div>
+                <label
+                    for="keywords"
+                    class="block text-sm font-semibold tracking-wide text-gray-700"
+                >
+                    General Keywords Specific to this Video
+                </label>
+
+                <p id="keywords-help" class="text-sm text-gray-600">
+                    English summary for the entire Bengali/Hindi Video story. Helps in English language discoverability.
+                    Must include the main topic or keyword when relevant.
+                </p>
+            </div>
+
+            <div class="flex gap-3">
+                <input
+                    type="text"
+                    name="keywords"
+                    aria-describedby="keywords-help"
+                    bind:value={seoTagEntry} // keywordsEntry
+                    placeholder="Add a SEO keyword..."
+                    onkeydown={(e) =>
+                        e.key === 'Enter' && addItemToSEOList()
+                    }
+                    class="flex-1 rounded-xl border border-gray-300 bg-gray-50
+                        px-4 py-3 text-gray-800 placeholder:text-gray-400
+                        transition-all duration-200
+                        focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
+                        focus:outline-none"
+                />
+
+                <button
+                    type="button"
+                    onclick={addItemToSEOList} // addItemToKeywordsList
+                    disabled={!seoTagEntry.trim()}  
+                    class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white
+                    shadow-lg shadow-blue-200 transition-all duration-200
+                    hover:bg-blue-700 hover:shadow-blue-300
+                    disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                    Add
+                </button>
+            </div>
+                
+            <!-- Tags Container -->
+            <div
+                class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
+                border border-dashed border-gray-300 bg-gray-50 p-4"
+            >
+                {#if selectedSEOTagsList.length === 0}
+                    <div class="flex items-center text-sm text-gray-400">
+                        No SEO tags added yet
+                    </div>
+                {:else}
+                    {#each selectedSEOTagsList as tag (tag.id)}
+                        <div
+                            class="group flex items-center gap-2 rounded-lg
+                            bg-linear-to-r from-indigo-500 to-blue-500
+                            px-4 py-2 text-sm font-medium text-white
+                            shadow-md transition-transform duration-200
+                            hover:scale-105"
+                        >
+                            <span>{tag.value}</span>
+
+                            <button
+                                type="button"
+                                onclick={() => removeItemFromSEOList(tag.id)}
+                                class="text-white/80 transition hover:text-white"
+                            >
+                                &times;
+                            </button>
+                        </div>
+                    {/each}
+                {/if}
+            </div>
+        </div>
+
     {/if}
+
     <!-- Save Button for User Satisfaction-->
     <div class="mt-5 flex items-center justify-end gap-4">
         <span class="text-sm text-gray-400">
