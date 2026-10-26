@@ -126,6 +126,45 @@
     // Plain variables: these don't need to trigger Svelte effects.
     let lastSavedSnapshot = "";
     let saveVersion = 0;
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+    async function save(currentVideoId: string, snapshot: string) {
+        // Nothing changed since the last successful save.
+        if (snapshot === lastSavedSnapshot) {
+            saveStatus = "saved";
+            return;
+        }
+
+        const version = ++saveVersion;
+        saveStatus = "saving";
+
+        try {
+            const resp = await fetch(`/api/video/${currentVideoId}/autosave-formdata`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: snapshot,
+            });
+
+            if (!resp.ok) throw new Error("Save failed");
+
+            // Only the latest save may update the UI state.
+            if (version !== saveVersion) return;
+
+            lastSavedSnapshot = snapshot;
+            saveStatus = "saved";
+        } catch (error) {
+            if (version !== saveVersion) return;
+            saveStatus = "error";
+            console.error(error);
+        }
+    }
+
+    function saveNow() {
+        if (!isLoaded || !videoId) return;
+
+        clearTimeout(debounceTimer); // cancel any pending autosave
+        void save(videoId, JSON.stringify({ ...formController.formData }));
+    }
 
     // Periodically sync formController's data with DB and switch step
     $effect(() => {
@@ -180,42 +219,14 @@
 
         const currentVideoId = videoId;
 
-        // Create a snapshot so the payload reflects this particular edit.
-        const payload = { ...formController.formData };
-
-        const snapshot = JSON.stringify(payload);
+        // Read formData here (top level of the effect) so it stays tracked.
+        const snapshot = JSON.stringify({ ...formController.formData });
 
         // Don't save unchanged data or the initial fetch.
         if (snapshot === lastSavedSnapshot) return;
 
-        const version = ++saveVersion;
-
-        const timeout = setTimeout(async () => {
-            saveStatus = "saving";
-
-            try {
-                const resp = await fetch(`api/video/${currentVideoId}/autosave-formdata`, {
-                    method: "PUT",
-                    headers: {"Content-Type": "application/json",},
-                    body: snapshot,
-                });
-
-                if (!resp.ok) throw new Error("Autosave failed");
-
-                // Only the latest save may update the UI status.
-                if (version !== saveVersion) return;
-
-                lastSavedSnapshot = snapshot;
-                saveStatus = "saved";
-            } catch (error) {
-                if (version !== saveVersion) return;
-
-                saveStatus = "error";
-                console.error(error);
-            }
-        }, 800);
-
-        return () => clearTimeout(timeout);
+        debounceTimer = setTimeout(() => save(currentVideoId, snapshot), 800);
+        return () => clearTimeout(debounceTimer);
     });
 
 </script>
@@ -226,7 +237,6 @@
     <div class="flex flex-row justify-between">
         <div class="mb-3">
             <p class="block text-sm fornt-semibold tracking-wide text-gray-700">
-                Status:
                 {#if formController.formData.publication_status === "draft"}
                     <span class="inline-block px-2 py-1 rounded-md bg-amber-500 text-white">
                         Draft
@@ -842,4 +852,22 @@
             </div>
         </div>
     {/if}
+    <!-- Save Button for User Satisfaction-->
+    <div class="mt-5 flex items-center justify-end gap-4">
+        <span class="text-sm text-gray-400">
+            {#if saveStatus === "saving"} Saving...
+            {:else if saveStatus === "saved"} Saved
+            {:else if saveStatus === "error"} Save Failed
+            {/if}
+        </span>
+        <button
+            type="button"
+            disabled={!isLoaded || saveStatus === "saving"}
+            class="py-2 px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-lg
+                disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            onclick={saveNow}
+        >
+            Save
+        </button>
+    </div>
 </div>
