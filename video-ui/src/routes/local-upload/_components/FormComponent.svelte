@@ -1,5 +1,4 @@
 <script lang="ts">
-    // let { videoId } = $props<{ videoId: string | null }>();
     let { videoId }: { videoId?: string | null } = $props();
     
     import { onMount } from 'svelte';  // for fetching Category, Series, Language, etc.
