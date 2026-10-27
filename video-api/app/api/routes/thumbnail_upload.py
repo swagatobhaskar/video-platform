@@ -19,7 +19,7 @@ async def upload_video_thumbnail(
     return await thumbnail_upload_service.upload(video_id, thumbnail_image)
 
 
-@router.patch("/video/{video_id}/upload")
+@router.patch("/video/{video_id}/change")
 async def change_video_thumbnail(
     video_id: uuid.UUID,
     thumbnail_image: UploadFile = File(),
