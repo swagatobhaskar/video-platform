@@ -228,7 +228,7 @@ export function fileInputController({uploadFileType}: FileInputPreference) {
             const img = new Image();
 
             img.onload = () => {
-                URL.revokeObjectURL(objectURL);                                                                                                                                                                                                                                                                         
+                URL.revokeObjectURL(objectURL);
                 resolve({
                     width: img.width,
                     height: img.height,
