@@ -261,8 +261,6 @@ export function fileInputController({uploadFileType}: FileInputPreference) {
     const handleProcessFile = async (file?: File) => {
         if (!file) return;
 
-        // validateFile(file);
-
         const validationError = validateFile(file);
         if (validationError) {
             state.error = validationError;
