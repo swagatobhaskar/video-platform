@@ -151,7 +151,7 @@
             <FormComponent videoId={videoId} />
 
             <div class="h-screen w-1/3 flex flex-col justify-evenly">
-                <ThumbnailCard controller={thumbnailInputController} />
+                <ThumbnailCard videoId={videoId} controller={thumbnailInputController} />
                 <!-- Video Viewer -->
                  <!-- <VideoViewer /> -->
                 <ThumbnailCard controller={thumbnailInputController} />
