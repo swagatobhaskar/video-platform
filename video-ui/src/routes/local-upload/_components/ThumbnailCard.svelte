@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { page } from '$app/state';
 
     let uploading: boolean = $state(false);
     let error: string | null = $state(null);
@@ -13,21 +14,26 @@
 
     let thumbnailFileInputEl = $state<HTMLInputElement | null>(null);
 
+    const videoId = $derived(page.params.videoId);
+
     function openThumbnailFileDialog() {
         thumbnailFileInputEl?.click();
     }
 
     const handleThumbnailUpload = async () => {
+        if (!videoId) return;
+
         uploading = true;
 
+        const formData = new FormData();
+        formData.append('thumbnail_image', thumbnailInput.state.selectedFile)
+
         try {
-            const uploadRes = await fetch(
-                '/api/upload/thumbnail-upload',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json'}
-                }
-            )
+            const uploadRes = await fetch(`/api/thumbnail/video/${videoId}/upload`,{
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json'},
+                body: formData,
+            })
             if (!uploadRes.ok) return;
             else {
                 // thumbnailR2Url = uploadRes.json();
