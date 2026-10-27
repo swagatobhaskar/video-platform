@@ -186,12 +186,9 @@ export function fileInputController({uploadFileType}: FileInputPreference) {
     }
 
     const validateFile = (file: File) => {
-        if (uploadFileType === "video") {
-            return validateVideoFile(file);
-        } else if (uploadFileType === "image") {
-            // The function only returns error, otherwise null
-            return validateImageFile(file);
-        }
+        if (uploadFileType === "video") return validateVideoFile(file);
+        if (uploadFileType === "image") return validateImageFile(file);
+        return null;
     }
 
     const getVideoMetadata = async (file: File): Promise<VideoMetadata> => {
@@ -266,6 +263,14 @@ export function fileInputController({uploadFileType}: FileInputPreference) {
 
         // validateFile(file);
 
+        const validationError = validateFile(file);
+        if (validationError) {
+            state.error = validationError;
+            return;
+        }
+
+        state.error = null;
+
         state.selectedFile = file;
         
         console.log(file);
@@ -313,6 +318,7 @@ export function fileInputController({uploadFileType}: FileInputPreference) {
 
     function cancelSelectedFile() {
         state.selectedFile = null;
+        state.thumbnailMetadata = null;
         state.selectedDirFiles = [];
         state.error = null;
     }
