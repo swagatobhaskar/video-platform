@@ -71,9 +71,10 @@ class ThumbnailUploadService:
             await self.session.commit()
 
             return {
-                "thumbnail_object_key": thumbnail_key,
+                "thumbnail_object_key": f"{settings.thumbnails_bucket_dev_url}/{thumbnail_key}",
+                # "thumbnail_object_key": thumbnail_key,
             }
-               
+
         except SQLAlchemyError:
             await self.session.rollback()
             # This avoids calling delete_object(Key=None) if the failure happened before the upload.
