@@ -7,12 +7,12 @@
     import FormComponent from '../_components/FormComponent.svelte';
     import ThumbnailCard from '../_components/ThumbnailCard.svelte';
     import VideoUploadProgressCard from '../_components/VideoUploadProgressCard.svelte';
+    import DashPlayer from '$lib/components/DashPlayer.svelte';
 
     // Only the thumbnail still needs this controller; folder selection now goes
     // through transcodedFolderSelection.ts, so folderInputController is gone.
     import { fileInputController } from '$lib/controllers/fileInputController.svelte';
     // const folderInputController = fileInputController({uploadFileType: "transcoded-directory"});
-    const thumbnailInputController = fileInputController({uploadFileType: "image"})
 
     import {
         entriesFromInput,
@@ -151,10 +151,10 @@
             <FormComponent videoId={videoId} />
 
             <div class="h-screen w-1/3 flex flex-col justify-evenly">
-                <ThumbnailCard videoId={videoId} controller={thumbnailInputController} />
+                <ThumbnailCard videoId={videoId} />
                 <!-- Video Viewer -->
-                 <!-- <VideoViewer /> -->
-                <ThumbnailCard controller={thumbnailInputController} />
+                <!-- <ThumbnailCard controller={thumbnailInputController} /> Replace it with Video Player -->
+                <DashPlayer src="https://media.yourdomain.com/videos/abc123/manifest.mpd" />
             </div>
         </section>
     <!-- {:else} -->
