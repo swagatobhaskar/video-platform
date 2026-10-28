@@ -152,13 +152,11 @@
 
             <div class="h-screen w-1/3 flex flex-col justify-evenly">
                 <ThumbnailCard videoId={videoId} />
-                <!-- Video Viewer -->
-                <!-- <DashPlayer videoId={videoId} /> -->
-                <DashPlayer />
+                <!-- Video Player -->
+                <DashPlayer videoId={videoId} />
             </div>
         </section>
     <!-- {:else} -->
-        <!-- Upload Progress & Thumbnail -->
         <!-- <section class="w-2/3 mx-auto"> -->
             <!-- Upload Progress -->
             <!-- <VideoUploadProgressCard uploader={uploader} /> -->
