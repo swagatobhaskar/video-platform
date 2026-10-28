@@ -153,8 +153,8 @@
             <div class="h-screen w-1/3 flex flex-col justify-evenly">
                 <ThumbnailCard videoId={videoId} />
                 <!-- Video Viewer -->
-                <!-- <ThumbnailCard controller={thumbnailInputController} /> Replace it with Video Player -->
-                <DashPlayer src="https://media.yourdomain.com/videos/abc123/manifest.mpd" />
+                <!-- <DashPlayer videoId={videoId} /> -->
+                <DashPlayer />
             </div>
         </section>
     <!-- {:else} -->
