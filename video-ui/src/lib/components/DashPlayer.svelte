@@ -1,12 +1,10 @@
 <script lang="ts">
     import type { MediaPlayerClass } from 'dashjs';
-    // let { videoId, poster = undefined, autoplay = false } : { videoId: string | undefined; poster?: string; autoplay?: boolean } = $props();
-    let { poster = undefined, autoplay = false } : { poster?: string; autoplay?: boolean } = $props();
+    let { videoId, poster = undefined, autoplay = false } : { videoId: string | undefined; poster?: string; autoplay?: boolean } = $props();
 
     let video = $state<HTMLVideoElement>();
     let dashManifestKey = $state<string | undefined>(undefined);
-
-    const videoId = "13c7c8b4-0a35-4840-9fe8-5b3c9333d65b";
+    // dashManifestKey = "https://pub-bf798d5654fd4493ba78254210f3e1aa.r2.dev/319ae8f8-b2df-41cd-b24f-7c69c8104ace/busy-bodies/dash/manifest.mpd"
 
     // 1. Fetch the object key whenever videoId changes
     $effect(() => {
@@ -69,6 +67,6 @@
     {poster}
     controls
     playsinline
-    class="w-full"
+    class="w-full backdrop:gray-900/80 rounded-md shadow-lg"
 >
 </video>
