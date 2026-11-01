@@ -298,7 +298,8 @@ class VideoUploadHistoryRead(BaseModel):
     series: SeriesRead | None = None
     video_status: str
     progress_percent: int | None
-
+    published_at: datetime | None
+    publication_status: VideoPublicationStatusEnum
 
 class VideoAdminRead(BaseModel):
     # these fields aren't in VideoRead
