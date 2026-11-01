@@ -336,3 +336,48 @@ class AutoSaveFormData(BaseModel):
     meta_description: str | None = None
     thumbnail_alt_text: str | None = None
     search_intent: str | None = None
+
+
+class VideoPlayerViewSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    # Basic information
+    id: uuid.UUID
+    title: str | None = None
+    slug: str | None = None
+    description: str | None = None
+    published_at: datetime | None
+
+    # SEO information
+    meta_title: str | None = None
+    meta_description: str | None = None
+    thumbnail_alt_text: str | None = None
+
+    # Classification
+    language: LanguageEnum | None = None
+    category: CategoryRead | None = None
+    series: SeriesRead | None = None
+    category_id: uuid.UUID | None = None
+    series_id: uuid.UUID | None = None
+    episode_number: int | None = None
+
+    # Transcripts
+    video_transcripts: list[VideoTranscriptRead] = Field(default_factory=list)
+
+    # Playback information
+    dash_manifest_key: str | None = None
+    hls_manifest_key: str | None = None
+    thumbnail_object_key: str | None = None
+
+    # Video technical information
+    duration_seconds: float | None  = None
+    bitrate: int | None = None
+    codec: str | None = None
+    width: int | None = None
+    height: int | None = None
+    fps: float | None = None
+
+    # Engagement
+    view_count: int = 0
+    like_count: int = 0
+    dislike_count: int = 0

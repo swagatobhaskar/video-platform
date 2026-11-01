@@ -106,7 +106,7 @@ async def autosave_formdata(
     return await video_service.autosave_formdata(video_id, req)
 
 
-@router.get("/view/{video_id}") #, response_model=video_schema.VideoPlayerViewSchema)
+@router.get("/view/{video_id}", response_model=video_schema.VideoPlayerViewSchema)
 async def get_video_player_view(
     video_id: uuid.UUID,
     video_service: VideoService = Depends(get_video_service)

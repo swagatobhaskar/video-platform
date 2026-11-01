@@ -4,12 +4,21 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 from app.domain.video_manager import VideoManager
 from app.repositories.video_repository import VideoRepository
+from app.repositories.series_repository import SeriesRepository
+from app.repositories.category_repository import CategoryRepository
+from app.repositories.video_transcript_repository import VideoTranscriptRepository
 from app.models import Video, VideoPublicationStatusEnum
 from app.exceptions.video import VideoPublishError, VideoNotFound, VideoArchiveFailed, DuplicateEntryError
+from app.exceptions.series import SeriesNotFound
+from app.exceptions.category import CategoryNotFound
+from app.exceptions.video_transcript import VideoTranscriptNotFound
 from app.core.database import AsyncSession
 from app.storage.r2_video_storage import R2VideoStorage
 from app.storage.image_storage import ImageStorage
-from app.schemas.video_schema import VideoUploadHistoryRead, VideoMetadataUpdate, VideoSEOUpdate, AutoSaveFormData
+from app.schemas.video_schema import (
+    VideoUploadHistoryRead, VideoMetadataUpdate, 
+    VideoSEOUpdate, AutoSaveFormData, VideoPlayerViewSchema
+)
 
 from app.core.config import get_settings
 settings = get_settings()
@@ -20,6 +29,9 @@ class VideoService:
         session: AsyncSession,
         video_repository: VideoRepository,
         storage: R2VideoStorage,
+        series_repository: SeriesRepository,
+        category_repository: CategoryRepository,
+        video_transcript_repository: VideoTranscriptRepository,
         # manager: VideoManager should probably not be injected because the VideoManager is created for a particular Video
         # So you don't have a reusable manager instance to inject.
         # manager: VideoManager
@@ -27,6 +39,9 @@ class VideoService:
         self.session = session
         self.video_repository = video_repository
         self.storage = storage
+        self.series_repository = series_repository
+        self.category_repository = category_repository
+        self.video_transcript_repository = video_transcript_repository
         # self.manager = manager
 
 
@@ -360,17 +375,63 @@ class VideoService:
     async def get_video_player_page_data(self, video_id: UUID):
         """
         Input: video_id
-        Output: title, description, meta_title_meta_description, JSON-LD,
+
+        Output: title, description, meta_title, meta_description, JSON-LD,
             series, category, category_name, category_image_url,
-            thumbnail_object_key, object_key or dash/hls manifest key,
+            thumbnail_object_key, dash/hls manifest key,
             published at, bitrate, codec, width, height, fps, view count,
             like count, dislike count, thumbnail_alt_text, duration_seconds,
             language, slug.
         """
         
-        video = await self.video_repository.get(video_id)
+        video = await self.video_repository.get_with_category_series_transcript(video_id)
                 
         if not video:
             raise VideoNotFound()
 
+        # Get related data
+        series = video.series
+        category = video.category
+        transcripts = video.video_transcripts or []
         
+        return VideoPlayerViewSchema(
+            id = video.id,
+            title = video.title,
+            slug = video.slug,
+            language = video.language,
+            description = video.description,
+            meta_title = video.meta_title,
+            meta_description = video.meta_description,
+
+            thumbnail_object_key = video.thumbnail_key,
+            thumbnail_alt_text = video.thumbnail_alt_text,
+
+            dash_manifest_key = video.dash_manifest_key,
+            hls_manifest_key = video.hls_manifest_key,
+
+            published_at = video.published_at,
+            bitrate = video.bitrate,
+            codec = video.codec,
+            width = video.width,
+            height = video.height,
+            fps = video.fps,
+            duration_seconds = video.duration_seconds,
+            
+            view_count = video.view_count,
+            like_count = video.like_count,
+            dislike_count = video.dislike_count,
+
+            category=category,
+            series=series,
+            video_transcripts=transcripts,
+
+            category_id = video.category_id,
+            # category_name = category.name,
+            # category_image_url = category.image_url,
+            
+            series_id = video.series_id,
+            # series_name = series.name,
+            episode_number = video.episode_number,
+        )
+
+
