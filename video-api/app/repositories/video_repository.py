@@ -163,8 +163,6 @@ class VideoRepository:
     
         return result.scalar_one_or_none()
 
-    async def get_for_player(self, video_id: UUID):
-        pass
 
     async def get_for_admin(self, status: VideoPublicationStatusEnum):
         stmt = (
@@ -322,5 +320,16 @@ class VideoRepository:
         video.bitrate = bitrate
         video.duration_seconds = duration_seconds
 
+        await self.session.flush()
+        return video
+
+
+    async def save_object_key_for_transcoded_files_upload(self, video_id: UUID):
+        video = await self.get(video_id)
+        
+        if video is None:
+            return None
+        
+        video.object_key = video_id
         await self.session.flush()
         return video
