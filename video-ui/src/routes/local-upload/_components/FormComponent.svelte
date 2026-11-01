@@ -139,7 +139,7 @@
 
         try {
             const resp = await fetch(`/api/video/${currentVideoId}/autosave-formdata`, {
-                method: "PUT",
+                method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: snapshot,
             });
@@ -336,7 +336,7 @@
                 </label>
 
                 <span class="text-xs text-gray-400">
-                    {formController.formData.description.length}/400
+                    {formController.formData.description?.length}/400
                 </span>
             </div>
 
