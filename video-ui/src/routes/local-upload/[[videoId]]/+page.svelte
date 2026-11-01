@@ -9,11 +9,6 @@
     import VideoUploadProgressCard from '../_components/VideoUploadProgressCard.svelte';
     import DashPlayer from '$lib/components/DashPlayer.svelte';
 
-    // Only the thumbnail still needs this controller; folder selection now goes
-    // through transcodedFolderSelection.ts, so folderInputController is gone.
-    import { fileInputController } from '$lib/controllers/fileInputController.svelte';
-    // const folderInputController = fileInputController({uploadFileType: "transcoded-directory"});
-
     import {
         entriesFromInput,
         entriesFromDrop,
@@ -134,7 +129,7 @@
 </script>
 
 <FolderUploadModal
-    open={!modalOpen} // was modalOpen. !modalOpen is to disable the video selection modal temporarily
+    open={modalOpen} // was modalOpen. !modalOpen is to disable the video selection modal temporarily
     {prepared}
     {selectionError}
     {initiatingUpload}
@@ -146,7 +141,7 @@
 
 <div class="w-5/6 mx-auto h-100vh"> 
     <!-- Form Area -->
-    <!-- {#if uploader.state.status === "completed"} -->
+    {#if uploader.state.status === "completed"}
         <section class="flex flex-row justify-evenly">
             <FormComponent videoId={videoId} />
 
@@ -156,10 +151,10 @@
                 <DashPlayer videoId={videoId} />
             </div>
         </section>
-    <!-- {:else} -->
-        <!-- <section class="w-2/3 mx-auto"> -->
+    {:else}
+        <section class="w-2/3 mx-auto">
             <!-- Upload Progress -->
-            <!-- <VideoUploadProgressCard uploader={uploader} /> -->
-        <!-- </section> -->
-    <!-- {/if} -->
+            <VideoUploadProgressCard uploader={uploader} />
+        </section>
+    {/if}
 </div>
