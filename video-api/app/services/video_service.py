@@ -304,6 +304,8 @@ class VideoService:
                 raise ValueError("Slug already exists.")
 
         VIDEO_UPDATEABLE_FIELDS = {
+            "series_id",
+            "category_id",
             "title",
             "description",
             "slug",
