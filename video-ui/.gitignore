@@ -12,6 +12,7 @@ vite.config.ts.timestamp-*
 
 # Node dependencies
 node_modules/
+**/node_modules/
 
 # SvelteKit build output
 .svelte-kit/
