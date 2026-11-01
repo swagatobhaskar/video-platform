@@ -18,7 +18,7 @@
 
         (async () => {
             try {
-                const resp = await fetch(`/api/video/${videoId}`, {
+                const resp = await fetch(`/api/video/view/${videoId}`, {
                     signal: abortController.signal,
                 });
 
