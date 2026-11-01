@@ -1,6 +1,7 @@
 from uuid import UUID
 from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from pathlib import PurePosixPath
 
 from app.core.database import AsyncSession
 from app.repositories.transcoded_upload_repository import TranscodedUploadRepository
@@ -20,14 +21,14 @@ from app.storage.r2_transcoded_upload_service import R2TranscodedUploadService
 
 def build_object_key(video_id: UUID, relative_path: str) -> str:
     """
-    NOTE:
-    Placeholder -- namespaced by video_id so the same relative_path can't
-    collide across two different videos. Confirm it matches the layout your
-    pipeline actually expects (Video.object_key / dash_manifest_key /
-    hls_manifest_key use a *different* UUID set elsewhere at publish time,
-    not video_id, so you may want this to line up with that instead).
+    Client sends:  my-great-movie/dash/chunk-0001.m4s
+    Stored as:     <video_id>/dash/chunk-0001.m4s
+    The first segment is just the local folder name, so it is dropped.
     """
-    return f"{video_id}/{relative_path}"
+    parts = PurePosixPath(relative_path).parts
+    # parts = ("my-great-movie", "dash", "chunk-0001.m4s")
+
+    return f"{video_id}/{PurePosixPath(*parts[1:])}"
 
 class TranscodedUploadService:
 
@@ -263,6 +264,14 @@ class TranscodedUploadService:
 
         if not has_segments:
             raise InvalidUploadState("No media segments were uploaded.")
+
+        # Manually set Video.object_key to the proper object key here.
+        # Since uploading many transcoded video files is not the same as multipart upload,
+        # there is no completion step where multipart upload was finalized and the object_key was asssigned
+        video = await self.video_repository.save_object_key_for_transcoded_files_upload(video_id)
+
+        if video is None:
+            raise InvalidUploadState("Video not found.")
 
         await self.transcoded_upload_repository.update(
             upload.id,
