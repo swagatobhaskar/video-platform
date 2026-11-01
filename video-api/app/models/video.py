@@ -201,7 +201,7 @@ class Video(Base):
     @property
     def thumbnail_key(self) -> str | None:
         if self.thumbnail_object_key:
-            return f"{settings.thumbnails_bucket_dev_url}/{self.thumbnail_object_key}.webp" # extension might be removable
+            return f"{settings.thumbnails_bucket_dev_url}/{self.thumbnail_object_key}"
         else:
             return None
 

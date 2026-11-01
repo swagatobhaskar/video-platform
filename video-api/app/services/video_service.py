@@ -150,12 +150,14 @@ class VideoService:
                 slug=video.slug,
                 language=video.language,
                 episode_number=video.episode_number,
-                thumbnail_object_key=video.thumbnail_object_key,
+                thumbnail_object_key=video.thumbnail_key,
                 created_at=video.created_at,
                 category=video.category,
                 series=video.series,
                 video_status=video.processing_status,
                 progress_percent=video.progress_percent,
+                publication_status=video.publication_status,
+                published_at=video.published_at,
             )
             for video in videos
         ]
@@ -353,4 +355,22 @@ class VideoService:
         autosave_data = req.model_dump(exclude_unset=True)
 
         return await self.update_video_fields(video_id, autosave_data)
-    
+
+
+    async def get_video_player_page_data(self, video_id: UUID):
+        """
+        Input: video_id
+        Output: title, description, meta_title_meta_description, JSON-LD,
+            series, category, category_name, category_image_url,
+            thumbnail_object_key, object_key or dash/hls manifest key,
+            published at, bitrate, codec, width, height, fps, view count,
+            like count, dislike count, thumbnail_alt_text, duration_seconds,
+            language, slug.
+        """
+        
+        video = await self.video_repository.get(video_id)
+                
+        if not video:
+            raise VideoNotFound()
+
+        
