@@ -15,7 +15,7 @@ class CategoryRead(BaseModel):
 
     id: uuid.UUID
     name: str
-    image_url: str | None = None
+    r2_category_image_key: str | None = None
 
 
 class SeriesRead(BaseModel):
