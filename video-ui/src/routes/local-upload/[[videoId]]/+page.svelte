@@ -9,6 +9,8 @@
     import VideoUploadProgressCard from '../_components/VideoUploadProgressCard.svelte';
     import DashPlayer from '$lib/components/DashPlayer.svelte';
 
+    import type { VideoView } from "$lib/types/VideoView";
+
     import {
         entriesFromInput,
         entriesFromDrop,
@@ -25,14 +27,6 @@
     let selectionError = $state<string | null>(null);
     let initiatingUpload = $state(false);
 
-    // unused in latest version
-    // let folderInput: HTMLInputElement;
-    // let dragging = $state(false);
-
-    // import { thumbnailUploadService } from '$lib/services/thumbnailUploadService.svelte';
-    // const thumbnailUploader = thumbnailUploadService();
-
-    // const videoId = $derived(!page.params.videoId);
     const videoId = $derived(page.params.videoId);
     const modalOpen = $derived(videoId === undefined);
 
@@ -126,6 +120,39 @@
             initiatingUpload = false;
         }
     }
+
+    // 1. Fetch the available details of a video
+    let video = $state<VideoView | undefined>(undefined);
+
+    $effect(() => {
+        if (!videoId) {
+            console.error("Video Id Not found in the VideoPlayer!");
+            return;
+        }
+
+        const abortController = new AbortController();
+
+        (async () => {
+            try {
+                const resp = await fetch(`/api/video/view/${videoId}`, {
+                    signal: abortController.signal,
+                });
+
+                if (!resp.ok) {
+                    throw new Error(`Failed to fetch object key: ${resp.status}`);
+                }
+                const data = await resp.json();
+                video = data;
+
+            } catch (error) {
+                if (abortController.signal.aborted) return; // expected on cleanup
+                console.error("Failed to get object key:", error);
+            }
+        }) ();
+
+        // Runs when videoId changes or this effect is destroyed.
+        return () => abortController.abort();
+    });
 </script>
 
 <FolderUploadModal
@@ -148,7 +175,7 @@
             <div class="h-screen w-1/3 flex flex-col justify-evenly">
                 <ThumbnailCard videoId={videoId} />
                 <!-- Video Player -->
-                <DashPlayer videoId={videoId} />
+                <DashPlayer src={video?.dash_manifest_key} poster={video?.thumbnail_object_key} />
             </div>
         </section>
     {:else}

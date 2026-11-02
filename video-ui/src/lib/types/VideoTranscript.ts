@@ -1,5 +1,5 @@
 export type VideoTranscript = {
-    id: string;
+    id?: string;
     language_code: 'en' | 'hi' | 'bn';
     transcript_text: string | null;
     video_id: string;
