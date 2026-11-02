@@ -2,6 +2,7 @@
 
 export async function load({ fetch }) {
 
+    // use backend:8000 since it's a browser request. Not using localhost:8000 because the browser cannot resolve it to the backend container.
     const response = await fetch('http://backend:8000/api/video/upload-history');
 
     if (!response.ok) {
