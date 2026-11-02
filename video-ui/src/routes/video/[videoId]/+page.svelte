@@ -95,7 +95,7 @@
                         <img
 							src={video.category.r2_category_image_key}
 							alt=""
-							class="size-6 shrink-0 rounded-full bg-neutral-200 object-cover"
+							class="size-10 shrink-0 rounded-full bg-neutral-200 object-cover"
 						/>
                     {:else}
                         <span
