@@ -109,7 +109,7 @@
                     transcodedUploadSessionId: transcodedUploadSessionId,
                     folderName: folder.folderName,
                 })
-                .catch(error => console.error(error));
+                .catch(error => console.error("Unexpected uploader error:", error));
 
             prepared = null;
 
@@ -123,30 +123,47 @@
 
     // 1. Fetch the available details of a video
     let video = $state<VideoView | undefined>(undefined);
+    let videoError = $state<string | null>(null);
 
     $effect(() => {
-        if (!videoId) {
+        // Immediate clearing of stale video data.
+        // Proper cancellation when navigating between video IDs.
+        // Explicit error state for the UI.
+        // No accidental display of the previous video's thumbnail or manifest.
+        const id = videoId;
+
+        if (!id) {
+            video = undefined;
+            videoError = null;
             console.error("Video Id Not found in the VideoPlayer!");
             return;
         }
 
         const abortController = new AbortController();
 
+        // Clear previous video's data immediately.
+        video = undefined;
+        videoError = null;
+
         (async () => {
             try {
-                const resp = await fetch(`/api/video/view/${videoId}`, {
+                const resp = await fetch(`/api/video/view/${id}`, {
                     signal: abortController.signal,
                 });
 
                 if (!resp.ok) {
                     throw new Error(`Failed to fetch object key: ${resp.status}`);
                 }
-                const data = await resp.json();
-                video = data;
+                const data: VideoView = await resp.json();
+                // video = data;
+                if (!abortController.signal.aborted) {
+                    video = data;
+                }
 
             } catch (error) {
                 if (abortController.signal.aborted) return; // expected on cleanup
-                console.error("Failed to get object key:", error);
+                console.error("Failed to fetch video:", error);
+                videoError = "Could not load video details.";
             }
         }) ();
 
@@ -175,7 +192,13 @@
             <div class="h-screen w-1/3 flex flex-col justify-evenly">
                 <ThumbnailCard videoId={videoId} />
                 <!-- Video Player -->
-                <DashPlayer src={video?.dash_manifest_key} poster={video?.thumbnail_object_key} />
+                {#if video}
+                    <DashPlayer src={video?.dash_manifest_key} poster={video?.thumbnail_object_key} />
+                {:else if videoError}
+                    <p>{videoError}</p>
+                {:else}
+                    <p>Loading video...</p>
+                {/if}
             </div>
         </section>
     {:else}
