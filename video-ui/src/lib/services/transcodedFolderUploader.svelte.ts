@@ -400,6 +400,12 @@ export function createTranscodedFolderUploader() {
 
             if (!stopping) {
                 await complete(videoId, transcodedUploadSessionId);
+                
+                // later addition
+                // If someone pauses while the completion request is in progress, the upload might incorrectly become completed.
+                // At minimum:
+                if (stopping) return;
+                
                 state.status = "completed";
                 stopSpeedTracking();
             }
@@ -413,8 +419,18 @@ export function createTranscodedFolderUploader() {
 
     /** Begins a fresh upload. `videoId` / `uploadSessionId` must already exist (see your /new-upload-record step). */
     async function start(entries: FolderEntry[], options: UploadOptions): Promise<void> {
-        if (state.status === "uploading") {
+        if (state.status === "uploading" || state.status === "paused") {  // second condition is later addition
             throw new Error("An upload is already running.");
+        }
+
+        // later addition
+        if (!entries.length) {
+            throw new Error("No files selected.");
+        }
+
+        // later addition
+        if (!options.videoId || !options.transcodedUploadSessionId) {
+            throw new Error("Upload session information is missing.");
         }
 
         initializeFiles(entries);
@@ -457,7 +473,7 @@ export function createTranscodedFolderUploader() {
 
         // await postWithQuery(apiUrl(state.videoId, "resume"), { transcoded_upload_session_id: state.transcodedUploadSessionId });
         try {
-            await postWithQuery(apiUrl(state.videoId, "resume"), { upload_session_id: state.transcodedUploadSessionId });
+            await postWithQuery(apiUrl(state.videoId, "resume"), { transcoded_upload_session_id: state.transcodedUploadSessionId });
         } catch (error) {
             // Stay paused and surface the problem instead of leaving an unhandled rejection.
             state.error = error instanceof Error ? error.message : "Could not resume the upload.";
@@ -524,3 +540,5 @@ export function createTranscodedFolderUploader() {
         cancel,
     };
 }
+
+export type TranscodedFolderUploader = ReturnType<typeof createTranscodedFolderUploader>;

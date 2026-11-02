@@ -12,7 +12,7 @@
 	};
 
     let { video }: Props = $props();
-    console.log(video);
+    // console.log(video);
     const href = $derived(video.url ?? `/video/${video.id}`);
 
     const duration = $derived.by(() => {
