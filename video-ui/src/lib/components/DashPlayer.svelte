@@ -1,47 +1,18 @@
 <script lang="ts">
     import type { MediaPlayerClass } from 'dashjs';
-    let { videoId, poster = undefined, autoplay = false } : { videoId: string | undefined; poster?: string; autoplay?: boolean } = $props();
+    // let { videoId, poster = undefined, autoplay = false } : { videoId: string | undefined; poster?: string; autoplay?: boolean } = $props();
+
+    let {
+        src,
+        poster = undefined,
+        autoplay = false
+    }: { src?: string | null; poster?: string | null; autoplay?: boolean } = $props();
 
     let video = $state<HTMLVideoElement>();
-    let dashManifestKey = $state<string | undefined>(undefined);
-    // dashManifestKey = "https://pub-bf798d5654fd4493ba78254210f3e1aa.r2.dev/319ae8f8-b2df-41cd-b24f-7c69c8104ace/busy-bodies/dash/manifest.mpd"
 
-    // 1. Fetch the object key whenever videoId changes
-    $effect(() => {
-        if (!videoId) {
-            console.error("Video Id Not found!");
-            return;
-        }
-
-        const abortController = new AbortController();
-        dashManifestKey = undefined; // clear the previous video's key
-
-        (async () => {
-            try {
-                const resp = await fetch(`/api/video/view/${videoId}`, {
-                    signal: abortController.signal,
-                });
-
-                if (!resp.ok) {
-                    throw new Error(`Failed to fetch object key: ${resp.status}`);
-                }
-                const data = await resp.json();
-                dashManifestKey = data.dash_manifest_key;
-
-            } catch (error) {
-                if (abortController.signal.aborted) return; // expected on cleanup
-                console.error("Failed to get object key:", error);
-            }
-        }) ();
-
-        // Runs when videoId changes or this effect is destroyed.
-        return () => abortController.abort();
-    });
-
-    // 2. Create the player once we have both the <video> element and the URL
     $effect(() => {
         const el = video;
-        const url = dashManifestKey; // read here so the effect re-runs when src changes
+        const url = src; //dashManifestKey; // read here so the effect re-runs when src changes
         if (!el || !url) return;
 
         let player: MediaPlayerClass | undefined;
@@ -64,9 +35,10 @@
 
 <video
     bind:this={video}
-    {poster}
+    poster = {poster ?? undefined}
     controls
     playsinline
-    class="w-full backdrop:gray-900/80 rounded-md shadow-lg"
->
-</video>
+    // class="w-full backdrop:gray-900/80 rounded-md shadow-lg"
+    // class="aspect-video w-full mx-auto bg-black"
+    class="aspect-video max-h-[calc(100vh-9rem)] w-full bg-black"
+></video>
