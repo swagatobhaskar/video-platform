@@ -2,12 +2,25 @@
     import DashPlayer from '$lib/components/DashPlayer.svelte';
     import VideoSuggestions from '$lib/components/VideoSuggestions.svelte';
     // import type { VideoView } from '$lib/types/VideoView';
+	import { page } from '$app/state';
+	import { VideoJsonLd, serializeJsonLd } from '$lib/seo/VideoJsonLd.js';
 
     let { data } = $props();
 	let video = $derived(data.video);
 
     // import { page } from '$app/state';  // no longer reading videoId from URL parameter
     // let videoId = $derived(page?.params?.videoId);
+
+	// --- Strucured data (JSON-LD) ---
+	let jsonLd = $derived(
+		serializeJsonLd(
+			VideoJsonLd(video, {
+				pageUrl: page.url.href,
+				thumbnailUrl: video.thumbnail_object_key,  // must be an absolute URL
+				contentUrl: video.hls_manifest_key // or dash ?  // must be an absolute URL
+			})
+		)
+	);
 
     // --- formatting ---
 	const numberFmt = new Intl.NumberFormat('en');
@@ -53,7 +66,9 @@
 	{#if video.meta_description}
 		<meta name="description" content={video.meta_description} />
 	{/if}
+	{@html `<script type="application/ld+json">${jsonLd}</script>`}
 </svelte:head>
+
 <!-- 1200px is 7xl, 1400px is 350, 1600px is 400. Increase it to increase player width -->
 <main class="mx-auto grid max-w-[1600px] gap-6 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_380px] lg:px-6">
     <!-- Primary Column -->
