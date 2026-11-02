@@ -1,8 +1,9 @@
 <script lang="ts">
 
-    import { createTranscodedFolderUploader, type UploadFile } from '$lib/services/transcodedFolderUploader.svelte'
+    import type { TranscodedFolderUploader } from '$lib/services/transcodedFolderUploader.svelte';
+    import type { UploadFile } from '$lib/services/transcodedFolderUploader.svelte';
 
-    let { uploader } = $props<{uploader: ReturnType<typeof createTranscodedFolderUploader>;}>();
+    let { uploader } : { uploader: TranscodedFolderUploader }= $props();
 
     // import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
@@ -159,7 +160,7 @@
                         <li class="flex items-center justify-between gap-2">
                             <span class="truncate">{file.relativePath}</span>
                             <span class="shrink-0 text-gray-400">
-                                {Math.round((file.uploadedBytes / file.size) * 100)}%
+                                {Math.round((file.uploadedBytes / file.size_bytes) * 100)}%
                             </span>
                         </li>
                     {/each}
