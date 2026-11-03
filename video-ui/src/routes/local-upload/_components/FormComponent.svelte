@@ -4,6 +4,8 @@
 
     import { onMount } from 'svelte';  // for fetching Category, Series, Language, etc.
 
+    import KeywordInput from './KeywordInput.svelte';
+
     type Category = {
         id: number;
         name: string;
@@ -45,20 +47,6 @@
             loading = false;
         }
     });
-
-    type SEOKeyword = {
-        id: string;
-        value: string;
-    };
-
-    // let selectedSEOTagsList = $state<SEOKeyword[]>([]);
-    // let seoTagEntry = $state<string>('');
-
-    let focusKeywordEntry = $state<string>('');
-    // let selectedFocusKeywordsList = $state<SEOKeyword[]>([]);
-    
-    let secondaryKeywordEntry = $state<string>('');
-    // let selectedSecondaryKeywordsList = $state<SEOKeyword[]>([]);
     
     let activeTab = $state("video");
 
@@ -69,67 +57,22 @@
     const formController = MetadataFormController();
     formController.populate(initialData);
 
+    // new
     let lastSavedSnapshot = JSON.stringify(formController.formData);
     let isLoaded = $state(true);
 
-    // const addItemToSEOList = () => {
-    //     const trimmed = seoTagEntry.trim();
-    //     if (!trimmed) return;
-
-    //     const newTag: SEOKeyword = {
-    //         id: crypto.randomUUID(),
-    //         value: trimmed
-    //     }
-        
-    //     selectedSEOTagsList = [...selectedSEOTagsList, newTag];
-    //     seoTagEntry = '';
-    // }
-
-    // const removeItemFromSEOList = (id: string) => {
-    //     selectedSEOTagsList = selectedSEOTagsList.filter(tag => tag.id !== id);
-    // }
-
-    const addItemToFocusKeywordsList = () => {
-        const trimmed = focusKeywordEntry.trim();
-        if (!trimmed) return;
-
-        const newFocusKeyword: SEOKeyword = {
-            id: crypto.randomUUID(),
-            value: trimmed
-        }
-        
-        selectedFocusKeywordsList = [...selectedFocusKeywordsList, newFocusKeyword];
-        // formController.formData.focus_keywords = [ ...formController.formData.focus_keywords, newFocusKeyword ]
-        focusKeywordEntry = '';
-    }
-
-    const removeItemFromFocusKeywordsList = (id: string) => {
-        selectedFocusKeywordsList = selectedFocusKeywordsList.filter(tag => tag.id !== id);
-    }
-
-    const addItemToSecondaryKeywordsList = () => {
-        const trimmed = secondaryKeywordEntry.trim();
-        if (!trimmed) return;
-
-        const newSecondaryKeyword: SEOKeyword = {
-            id: crypto.randomUUID(),
-            value: trimmed
-        }
-        
-        selectedSecondaryKeywordsList = [...selectedSecondaryKeywordsList, newSecondaryKeyword];
-        secondaryKeywordEntry = '';
-    }
-
-    const removeItemFromSecondaryKeywordsList = (id: string) => {
-        selectedSecondaryKeywordsList = selectedSecondaryKeywordsList.filter(tag => tag.id !== id);
-    }
-
     // Auto-save
-    let isLoaded = $state(false);
+    
+    // old
+    // let isLoaded = $state(false);
+
     let saveStatus = $state<"idle" | "saving" | "saved" | "error">("idle");
 
     // Plain variables: these don't need to trigger Svelte effects.
-    let lastSavedSnapshot = "";
+    
+    // old
+    // let lastSavedSnapshot = "";
+    
     let saveVersion = 0;
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -558,7 +501,23 @@
     {:else if activeTab === "seo"}
 
         <!-- Focus Keywords -->
-        <div class="space-y-3">
+        <KeywordInput
+            id="focusKeywords"
+            label="Focus Keywords"
+            help="This is your collection of keywords for this video. These keywords must be included in the Title,
+                Meta Title, Description, Meta Description, Thumbnail Alt Text, Transcript. Keep a list of 2-3 focus keywords."
+            bind:keywords={formController.formData.focus_keywords}
+        />
+
+        <KeywordInput
+            id="secondaryKeywords"
+            label="Secondary Keywords (Optional)"
+            help="This is your collection of related or long-tailed keywords.Include them in the Description,
+                Meta Description, Transcript. Keep a list of 1-2 secondary keywords."
+            bind:keywords={formController.formData.secondary_keywords}
+        />
+
+        <!-- <div class="space-y-3">
             <div>
                 <label
                     for="focusKeywords"
@@ -601,10 +560,10 @@
                 >
                     Add
                 </button>
-            </div>
+            </div> -->
                 
             <!-- Focus Keywords Container -->
-            <div
+            <!-- <div
                 class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
                 border border-dashed border-gray-300 bg-gray-50 p-4"
             >
@@ -634,10 +593,10 @@
                     {/each}
                 {/if}
             </div>
-        </div>
+        </div> -->
 
         <!-- Secondary Keywords -->
-        <div class="space-y-3">
+        <!-- <div class="space-y-3">
             <div>
                 <label
                     for="secondaryKeywords"
@@ -680,10 +639,10 @@
                 >
                     Add
                 </button>
-            </div>
+            </div> -->
                 
             <!-- Secondary Keywords Container -->
-            <div
+            <!-- <div
                 class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
                 border border-dashed border-gray-300 bg-gray-50 p-4"
             >
@@ -713,7 +672,7 @@
                     {/each}
                 {/if}
             </div>
-        </div>
+        </div> -->
 
         <!-- Meta Title -->
         <div class="space-y-2">
@@ -832,86 +791,6 @@
                     focus:outline-none"
             />
         </div>
-
-        <!-- keywords -->
-        <!-- <div class="space-y-3">
-        
-            <div>
-                <label
-                    for="keywords"
-                    class="block text-sm font-semibold tracking-wide text-gray-700"
-                >
-                    General Keywords Specific to this Video
-                </label>
-
-                <p id="keywords-help" class="text-sm text-gray-600">
-                    English summary for the entire Bengali/Hindi Video story. Helps in English language discoverability.
-                    Must include the main topic or keyword when relevant.
-                </p>
-            </div>
-
-            <div class="flex gap-3">
-                <input
-                    type="text"
-                    name="keywords"
-                    aria-describedby="keywords-help"
-                    bind:value={seoTagEntry}
-                    placeholder="Add a SEO keyword..."
-                    onkeydown={(e) =>
-                        e.key === 'Enter' && addItemToSEOList()
-                    }
-                    class="flex-1 rounded-xl border border-gray-300 bg-gray-50
-                        px-4 py-3 text-gray-800 placeholder:text-gray-400
-                        transition-all duration-200
-                        focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
-                        focus:outline-none"
-                />
-
-                <button
-                    type="button"
-                    onclick={addItemToSEOList}
-                    disabled={!seoTagEntry.trim()}  
-                    class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white
-                    shadow-lg shadow-blue-200 transition-all duration-200
-                    hover:bg-blue-700 hover:shadow-blue-300
-                    disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    Add
-                </button>
-            </div> -->
-                
-            <!-- Keyword items Container -->
-            <!-- <div
-                class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
-                border border-dashed border-gray-300 bg-gray-50 p-4"
-            >
-                {#if selectedSEOTagsList.length === 0}
-                    <div class="flex items-center text-sm text-gray-400">
-                        No SEO tags added yet
-                    </div>
-                {:else}
-                    {#each selectedSEOTagsList as tag (tag.id)}
-                        <div
-                            class="group flex items-center gap-2 rounded-lg
-                            bg-linear-to-r from-indigo-500 to-blue-500
-                            px-4 py-2 text-sm font-medium text-white
-                            shadow-md transition-transform duration-200
-                            hover:scale-105"
-                        >
-                            <span>{tag.value}</span>
-
-                            <button
-                                type="button"
-                                onclick={() => removeItemFromSEOList(tag.id)}
-                                class="text-white/80 transition hover:text-white"
-                            >
-                                &times;
-                            </button>
-                        </div>
-                    {/each}
-                {/if}
-            </div> -->
-        <!-- </div> -->
 
     {/if}
 
