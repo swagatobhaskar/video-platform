@@ -382,9 +382,14 @@ class VideoService:
             published at, bitrate, codec, width, height, fps, view count,
             like count, dislike count, thumbnail_alt_text, duration_seconds,
             language, slug.
+
+            BREAK THIS SERVICE INTO TWO:
+                One for only video player data
+                Another for the Transcoded Folder Upload local-upload/ page specific data
+
         """
         
-        video = await self.video_repository.get_with_category_series_transcript(video_id)
+        video: Video = await self.video_repository.get_with_category_series_transcript_upload_session(video_id)
                 
         if not video:
             raise VideoNotFound()
@@ -393,6 +398,29 @@ class VideoService:
         series = video.series
         category = video.category
         transcripts = video.video_transcripts or []
+
+        # Defaults when no upload session exists
+        upload_session_id = None
+        upload_status = None
+        uploaded_files_count = None
+        total_files = None
+
+        # Prefer TranscodedUploadSession, for now
+        if video.transcoded_upload_session:
+            session = video.transcoded_upload_session
+
+            upload_session_id = session.id
+            upload_status = session.status.value
+            uploaded_files_count = session.uploaded_files_count
+            total_files = session.total_files
+
+        elif video.upload_session:
+            session = video.upload_session
+
+            upload_session_id = session.id
+            upload_status = session.status.value
+            uploaded_files_count = session.uploaded_parts_count
+            total_files = session.total_parts
         
         return VideoPlayerViewSchema(
             id = video.id,
@@ -432,6 +460,9 @@ class VideoService:
             series_id = video.series_id,
             # series_name = series.name,
             episode_number = video.episode_number,
+
+            upload_session_id=upload_session_id,
+            upload_status=upload_status,
+            uploaded_files_count=uploaded_files_count,
+            total_files=total_files,
         )
-
-

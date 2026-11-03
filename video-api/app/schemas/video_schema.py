@@ -4,7 +4,7 @@ import uuid
 from app.core.config import get_settings
 from app.models import (
     VideoPublicationStatusEnum, LanguageEnum, UploadSessionStatusEnum,
-    VideoProcessingStatusEnum
+    VideoProcessingStatusEnum, TranscodedUploadStatusEnum
 )
 
 settings = get_settings()
@@ -381,3 +381,13 @@ class VideoPlayerViewSchema(BaseModel):
     view_count: int = 0
     like_count: int = 0
     dislike_count: int = 0
+
+    # Needed by forms and local-upload/ child components
+    upload_session_id: uuid.UUID | None = None
+    # upload_status: TranscodedUploadStatusEnum | None = None
+    upload_status: str | None = None  # Not using specific enum here because any UploadSession table can use it
+    uploaded_files_count: int | None = None
+    total_files: int | None = None
+
+    # change the schema: one for video player another for all these data, specially for TranscodedUploadSession
+    

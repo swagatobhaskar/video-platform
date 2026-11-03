@@ -53,13 +53,15 @@ class VideoRepository:
         return result.scalar_one_or_none()
 
 
-    async def get_with_category_series_transcript(self, video_id: UUID):
+    async def get_with_category_series_transcript_upload_session(self, video_id: UUID):
         result = await self.session.execute(
             select(Video)
             .options(
                 selectinload(Video.category),
                 selectinload(Video.series),
                 selectinload(Video.video_transcripts),
+                selectinload(Video.transcoded_upload_session),
+                selectinload(Video.upload_session),
             )
             .where(Video.id == video_id)
         )
