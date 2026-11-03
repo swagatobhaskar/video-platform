@@ -35,9 +35,9 @@ export function MetadataFormController() {
         episode_number: null,
         transcript: '',
         transcript_code: 'bn',
-        seo_tags: [''],
-        focus_keywords: [''],
-        secondary_keywords: [''],
+        seo_tags: [],
+        focus_keywords: [],  // using [''] gives you an empty keyword chip
+        secondary_keywords: [],
         publication_status: "draft",
         meta_title: '',
         meta_description: '',
@@ -48,10 +48,22 @@ export function MetadataFormController() {
     function populate(data: Partial<MetadataFields> & Record<string, unknown>) {
     // This ensures that any incoming keys match the known fields of MetadataFields,
     // while still allowing optional or extra API properties if needed.
-        Object.assign(formData, {
-            ...data,
+        // Object.assign(formData, {
+        //     ...data,
+        //     meta_title: data.meta_title ?? data.title ?? '',
+        //     meta_description: data.meta_description ?? data.description ?? '',
+        // });
+        Object.assign(formData, data, {
+            // Backend nulls would otherwise overwrite the defaults.
+            description: data.description ?? '',
+            transcript: data.transcript ?? '',      // the template calls transcript.length
             meta_title: data.meta_title ?? data.title ?? '',
             meta_description: data.meta_description ?? data.description ?? '',
+            thumbnail_alt_text: data.thumbnail_alt_text ?? '',
+            seo_summary_en: data.seo_summary_en ?? '',
+            seo_tags: data.seo_tags ?? [],
+            focus_keywords: data.focus_keywords ?? [],
+            secondary_keywords: data.secondary_keywords ?? [],
         });
     }
 
