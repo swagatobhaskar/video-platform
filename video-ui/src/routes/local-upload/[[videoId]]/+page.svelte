@@ -12,8 +12,6 @@
 
     let { data } = $props();
 
-    import type { VideoView } from "$lib/types/VideoView";
-
     import {
         entriesFromInput,
         entriesFromDrop,
@@ -57,6 +55,38 @@
         const entries = entriesFromInput(input.files ?? []);
         input.value = ""; // lets the user re-pick the same folder after cancelling
         selectFromEntries(entries);
+    }
+
+    let resumeError = $state<string | null>(null);
+
+    // Handle reselecting same folder after browser crash or some other issue that breaks the upload
+    async function handleResumePick(event: Event) {
+        const input = event.currentTarget as HTMLInputElement;
+        const entries = entriesFromInput(input.files ?? []);
+        input.value = '';
+        resumeError = null;
+
+        const session = data.video;
+        if (!data.videoId || session) return;
+
+        try {
+            const folder = await prepareTranscodedFolder(entries);
+
+            // Cheap sanity check that this is the same folder.
+            if (folder.uploadEntries.length !== session.total_files) {
+                throw new Error(
+                    `This folder has ${folder.uploadEntries.length} files, but the interrupted upload had ${session.total_files}. Pick the same folder.`
+                );
+            }
+
+            uploader.start(folder.uploadEntries, {
+                videoId: data.videoId,
+                transcodedUploadSessionId: session.upload_session_id,
+                folderName: folder.folderName,
+            }).catch(error => console.error('Unexpected uploader error:', error));
+        } catch (error) {
+            resumeError = error instanceof Error ? error.message : 'Could not read the selected folder.';
+        }
     }
 
     async function handleDrop(event: DragEvent) {
@@ -223,8 +253,10 @@
         <section class="w-2/3 mx-auto">
             <!-- Upload Progress -->
             <VideoUploadProgressCard
-                // serverUpload={data.video}
+                serverUpload={data.video}
                 uploader={uploader}
+                resumeError={resumeError}
+                onResumeSelect={handleResumePick}
             /> 
         </section>
     {/if}
