@@ -112,3 +112,8 @@ async def get_video_player_view(
     video_service: VideoService = Depends(get_video_service)
 ):
     return await video_service.get_video_player_page_data(video_id)
+"""
+NEED A NEW ROUTE:
+    One for only video player data
+    Another for the Transcoded Folder Upload local-upload/ page specific data
+"""
