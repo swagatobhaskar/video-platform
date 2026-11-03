@@ -3,7 +3,12 @@
     import type { TranscodedFolderUploader } from '$lib/services/transcodedFolderUploader.svelte';
     import type { UploadFile } from '$lib/services/transcodedFolderUploader.svelte';
 
-    let { uploader } : { uploader: TranscodedFolderUploader }= $props();
+    let { uploader, serverUpload = null, resumeError = null, onResumeSelect } : {
+        uploader: TranscodedFolderUploader;
+        serverUpload?: { upload_status?: string; uploaded_files_count?: number; total_files?: number } | null;
+        resumeError?: string | null;
+        onResumeSelect?: (event: Event) => void;
+    }= $props();
 
     // import { formatETA, formatSpeed } from '$lib/helpers/multipartUploadHelper';
 	// import UploadProgressSkleton from "$lib/components/ui/uploadProgressSkleton.svelte";
@@ -60,6 +65,8 @@
     // The full per-file list is the expensive one with hundreds of files --
     // only mount it when the user actually asks to see it.
     let showAllFiles = $state(false);
+
+    const percent = (f: UploadFile) => f.size_bytes > 0 ? Math.min(100, Math.round((f.uploadedBytes / f.size_bytes) * 100)) : 0;
 </script>
 
 <!-- Shared by the live view and the failed/cancelled view -->
@@ -76,7 +83,7 @@
     {/if}
 {/snippet}
 
-<div class="h-100vh relative overflow-y-scroll border border-gray-200 p-6">
+<div class="max-h-screen relative overflow-y-scroll border border-gray-200 p-6">
     
     {#if uploader.state.status === "uploading" || uploader.state.status === "paused"}
         {@const isPaused = uploader.state.status === "paused"}
@@ -153,18 +160,51 @@
                 </div>
             </div>
  
+            <!-- Actions -->
+            <div class="flex items-center gap-3 pt-2">
+                {#if isPaused}
+                    <button
+                        class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm
+                            font-medium text-white transition hover:bg-black active:scale-[0.98]"
+                        onclick={handleResumeUpload}
+                    >
+                        Resume
+                    </button>
+                {:else}
+                    <button
+                        class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm
+                            font-medium text-white transition hover:bg-black active:scale-[0.98]"
+                        onclick={handlePauseUpload}
+                    >
+                        Pause
+                    </button>
+                {/if}
+ 
+                <button
+                    class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm border-red-200
+                        bg-red-50 font-medium text-red-600 transition hover:bg-red-100 active:scale-[0.98]"
+                    onclick={cancelUpload}
+                >
+                    X Cancel
+                </button>
+            </div>
+
             <!-- Currently uploading (bounded by concurrency, safe to show live) -->
             {#if uploadingFiles.length > 0}
-                <ul class="space-y-1 text-sm text-gray-600">
-                    {#each uploadingFiles as file (file.id)}
-                        <li class="flex items-center justify-between gap-2">
-                            <span class="truncate">{file.relativePath}</span>
-                            <span class="shrink-0 text-gray-400">
-                                {Math.round((file.uploadedBytes / file.size_bytes) * 100)}%
-                            </span>
-                        </li>
-                    {/each}
-                </ul>
+                <!-- Live list: fixed height, so row count changes don't shift the layout -->
+                <div class="h-40 overflow-hidden">
+                    <ul class="space-y-1 text-sm text-gray-600">
+                        {#each uploadingFiles as file (file.id)}
+                            <li class="flex h-6 items-center justify-between gap-2">
+                                <span class="truncate">{file.relativePath}</span>
+                                <span class="shrink-0 text-gray-400 tabular-nums">
+                                    {percent(file)}%
+                                    <!-- {Math.round((file.uploadedBytes / file.size_bytes) * 100)}% -->
+                                </span>
+                            </li>
+                        {/each}
+                    </ul>
+                </div>
             {/if}
  
             {#if pendingCount > 0}
@@ -197,38 +237,32 @@
                     {/each}
                 </ul>
             {/if}
- 
-            <!-- Actions -->
-            <div class="flex items-center gap-3 pt-2">
-                {#if isPaused}
-                    <button
-                        class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm
-                            font-medium text-white transition hover:bg-black active:scale-[0.98]"
-                        onclick={handleResumeUpload}
-                    >
-                        Resume
-                    </button>
-                {:else}
-                    <button
-                        class="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm
-                            font-medium text-white transition hover:bg-black active:scale-[0.98]"
-                        onclick={handlePauseUpload}
-                    >
-                        Pause
-                    </button>
-                {/if}
- 
-                <button
-                    class="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm border-red-200
-                        bg-red-50 font-medium text-red-600 transition hover:bg-red-100 active:scale-[0.98]"
-                    onclick={cancelUpload}
-                >
-                    X Cancel
-                </button>
-            </div>
         </div>
     {/if}
  
+    <!-- the interrupted panel -->
+    {#if uploader.state.status === "idle" && serverUpload?.upload_status && serverUpload.upload_status !== "COMPLETED"}
+        <div class="space-y-4">
+            <p class="font-medium text-amber-600">Upload interrupted</p>
+            <p class="text-sm text-gray-500">
+                {serverUpload.uploaded_files_count ?? 0}/{serverUpload.total_files ?? 0} files were uploaded.
+                Your browser lost access to the files when the page reloaded. Select the same folder to
+                continue. Files that already finished will be skipped.
+            </p>
+
+            {#if resumeError}
+                <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {resumeError}
+                </div>
+            {/if}
+
+            <label class="inline-flex cursor-pointer rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-black">
+                Select folder
+                <input type="file" webkitdirectory class="hidden" onchange={onResumeSelect} />
+            </label>
+        </div>
+    {/if}
+
     <!-- Previously a failed or cancelled upload rendered an empty card. -->
     {#if uploader.state.status === "failed" || uploader.state.status === "cancelled"}
         <div class="space-y-4">
