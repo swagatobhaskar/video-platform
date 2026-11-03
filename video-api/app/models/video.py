@@ -137,7 +137,7 @@ class Video(Base):
 
     # SEO Fields
     seo_tags: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
-    focus_keyword: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    focus_keywords: Mapped[str | None] = mapped_column(JSONB, nullable=True, default=list)
     secondary_keywords: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
     seo_summary_en: Mapped[str | None] = mapped_column(String(255), nullable=True)
     keywords: Mapped[List[str]] = mapped_column(JSONB, nullable=True, default=list)
