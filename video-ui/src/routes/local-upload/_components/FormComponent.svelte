@@ -1,6 +1,7 @@
 <script lang="ts">
-    let { videoId }: { videoId?: string | null } = $props();
-    
+    // let { videoId }: { videoId?: string | null } = $props();
+    let { videoId, initialData } = $props();
+
     import { onMount } from 'svelte';  // for fetching Category, Series, Language, etc.
 
     type Category = {
@@ -54,10 +55,10 @@
     // let seoTagEntry = $state<string>('');
 
     let focusKeywordEntry = $state<string>('');
-    let selectedFocusKeywordsList = $state<SEOKeyword[]>([]);
+    // let selectedFocusKeywordsList = $state<SEOKeyword[]>([]);
     
     let secondaryKeywordEntry = $state<string>('');
-    let selectedSecondaryKeywordsList = $state<SEOKeyword[]>([]);
+    // let selectedSecondaryKeywordsList = $state<SEOKeyword[]>([]);
     
     let activeTab = $state("video");
 
@@ -66,6 +67,10 @@
     } from "$lib/controllers/metadataFormController.svelte";
 
     const formController = MetadataFormController();
+    formController.populate(initialData);
+
+    let lastSavedSnapshot = JSON.stringify(formController.formData);
+    let isLoaded = $state(true);
 
     // const addItemToSEOList = () => {
     //     const trimmed = seoTagEntry.trim();
@@ -94,6 +99,7 @@
         }
         
         selectedFocusKeywordsList = [...selectedFocusKeywordsList, newFocusKeyword];
+        // formController.formData.focus_keywords = [ ...formController.formData.focus_keywords, newFocusKeyword ]
         focusKeywordEntry = '';
     }
 
@@ -572,7 +578,7 @@
                     type="text"
                     name="focusKeyword"
                     aria-describedby="focus-keywords-help"
-                    bind:value={focusKeywordEntry}
+                    bind:value={formController.formData.focus_keywords}
                     placeholder="Add a focus keyword..."
                     onkeydown={(e) =>
                         e.key === 'Enter' && addItemToFocusKeywordsList()
@@ -650,7 +656,7 @@
                 <input
                     type="text"
                     name="secondaryKeyword"
-                    bind:value={secondaryKeywordEntry}
+                    bind:value={formController.formData.secondary_keywords}
                     placeholder="Add a secondary keyword..."
                     aria-describedby="secondary-keywords-help"
                     onkeydown={(e) =>
