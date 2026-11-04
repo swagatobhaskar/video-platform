@@ -107,7 +107,7 @@ class TranscodeTaskRead(BaseModel):
 #     keywords: list[str] = Field(default_factory=list)
 #     secondary_keywords: list[str] = Field(default_factory=list)
 
-#     focus_keyword: str | None = None
+#     focus_keywords: str | None = None
 #     seo_summary_en: str | None = None
 #     meta_title: str | None = None
 #     meta_description: str | None = None
@@ -143,7 +143,7 @@ class VideoSEOUpdate(BaseModel):
     keywords: list[str] | None = None
     secondary_keywords: list[str] | None = None
 
-    focus_keyword: str | None = None
+    focus_keywords: list[str] | None = None
     seo_summary_en: str | None = None
     meta_title: str | None = None
     meta_description: str | None = None
@@ -158,7 +158,7 @@ class VideoSEORead(BaseModel):
     keywords: list[str] | None = None
     secondary_keywords: list[str] | None = None
 
-    focus_keyword: str | None = None
+    focus_keywords: list[str] | None = None
     seo_summary_en: str | None = None
     meta_title: str | None = None
     meta_description: str | None = None
@@ -186,7 +186,7 @@ Example SEO data format:
     "AI tools",
     "digital transformation"
   ],
-  "focus_keyword": "artificial intelligence trends",
+  "focus_keywords": "artificial intelligence trends",
   "seo_summary_en": "Explore the latest artificial intelligence trends, innovations, and how AI is transforming industries worldwide.",
   "meta_title": "Artificial Intelligence Trends and Latest Innovations",
   "meta_description": "Discover the latest AI trends, emerging technologies, and how artificial intelligence is shaping the future of businesses and everyday life.",
@@ -240,7 +240,7 @@ class VideoRead(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     secondary_keywords: list[str] = Field(default_factory=list)
 
-    focus_keyword: str | None
+    focus_keywords: list[str] | None = None
     seo_summary_en: str | None
     meta_title: str | None
     meta_description: str | None
@@ -330,7 +330,7 @@ class AutoSaveFormData(BaseModel):
     seo_tags: list[str] | None = None
     keywords: list[str] | None = None
     secondary_keywords: list[str] | None = None
-    focus_keyword: str | None = None
+    focus_keywords: list[str] | None = None
     seo_summary_en: str | None = None
     meta_title: str | None = None
     meta_description: str | None = None

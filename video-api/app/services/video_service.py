@@ -331,7 +331,7 @@ class VideoService:
             "seo_tags",
             "keywords",
             "secondary_keywords",
-            "focus_keyword",
+            "focus_keywords",
             "seo_summary_en",
             "meta_title",
             "meta_description",
@@ -382,11 +382,8 @@ class VideoService:
             published at, bitrate, codec, width, height, fps, view count,
             like count, dislike count, thumbnail_alt_text, duration_seconds,
             language, slug.
-
-            BREAK THIS SERVICE INTO TWO:
-                One for only video player data
-                Another for the Transcoded Folder Upload local-upload/ page specific data
-
+            
+            Also, upload session info: upload_session_id, upload_status, uploaded_files_count, total_files.
         """
         
         video: Video = await self.video_repository.get_with_category_series_transcript_upload_session(video_id)

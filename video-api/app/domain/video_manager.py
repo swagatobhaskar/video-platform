@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 REQUIRED_SEO_FIELDS = (
     "search_intent",
-    "focus_keyword",
+    "focus_keywords",
     "keywords",
     "seo_tags",
     "seo_summary_en",
