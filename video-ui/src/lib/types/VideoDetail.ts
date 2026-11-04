@@ -65,7 +65,7 @@ export type VideoDetail = {
 	keywords: (string | null)[];
 	seo_tags: (string | null)[];
 	search_intent: string | null;
-	focus_keyword: string | null;
+	focus_keywords: (string | null)[];
 	secondary_keywords: (string | null)[];
 
 	// computed fields
