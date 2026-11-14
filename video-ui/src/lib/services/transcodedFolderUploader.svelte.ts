@@ -20,6 +20,7 @@ export type UploadFile = {
     status: UploadFileStatus;
     attempts: number;
     error: string | null;
+    recorded: boolean;   // initialise to false in initializeFiles()
 };
 
 type PresignRequestFile = {
@@ -87,7 +88,10 @@ async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Pr
     });
 
     if (!response.ok) {
-        throw new Error(`Request to ${url} failed (${response.status})`);
+        // throw new Error(`Request to ${url} failed (${response.status})`);
+        let detail = "";
+        try { detail = (await response.json()).message ?? ""; } catch {}
+        throw new Error(`Request to ${url} failed (${response.status})${detail ? `: ${detail}` : ""}`);
     }
 
     return response.status === 204 ? (undefined as T) : response.json();
@@ -107,6 +111,8 @@ async function postWithQuery<T>(url: string, query: Record<string, string>): Pro
 /** PUTs one file to its presigned R2 URL, reporting live progress via `file.uploadedBytes`. */
 function putFileToR2(file: UploadFile, signal: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
+        if (signal.aborted) return reject(new DOMException("Upload Aborted", "AbortError"));
+
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", file.uploadUrl!);
         xhr.setRequestHeader("Content-Type", getContentType(file.file));
@@ -155,11 +161,22 @@ export function createTranscodedFolderUploader() {
         etaSeconds: null as number | null,
     });
 
-    let abortController: AbortController | null = null;
+    // Replace `abortController` and `stopping` with a per-run object:
+    type UploadRun = { controller: AbortController; stopped: boolean };
+
+    let currentRun: UploadRun | null = null;
+    let loopPromise: Promise<void> = Promise.resolve();
+    let pauseRequest: Promise<unknown> = Promise.resolve();
+    let completing = false;
+    let resuming = false;
+
+    const isDone = (f: UploadFile) => f.status === "uploaded" && f.recorded;
+
+    // let abortController: AbortController | null = null;
     let batchSize = DEFAULT_BATCH_SIZE;
     let concurrency = DEFAULT_CONCURRENCY;
     let maxRetries = DEFAULT_MAX_RETRIES;
-    let stopping = false;
+    // let stopping = false;
 
     // Rolling window of {time, bytes} samples, used to smooth the speed reading
     // instead of just diffing two consecutive ticks (which is noisy per-second).
@@ -214,6 +231,7 @@ export function createTranscodedFolderUploader() {
             status: "pending",
             attempts: 0,
             error: null,
+            recorded: false,  // later addition
         }));
 
         state.totalBytes = files.reduce((total, file) => total + file.size, 0);
@@ -225,6 +243,7 @@ export function createTranscodedFolderUploader() {
         videoId: string,
         transcodedUploadSessionId: string,
         files: UploadFile[],
+        signal: AbortSignal,
     ): Promise<void> {
         if (files.length === 0) return;
 
@@ -240,6 +259,7 @@ export function createTranscodedFolderUploader() {
         const { files: presigned } = await postJson<{ files: PresignResponseFile[] }>(
             apiUrl(videoId, "presign-batch"),
             { transcoded_upload_session_id: transcodedUploadSessionId, files: requestFiles },
+            signal,
         );
 
         const byId = new SvelteMap(presigned.map(file => [file.file_id, file]));
@@ -256,6 +276,7 @@ export function createTranscodedFolderUploader() {
             // a resume) -- nothing to PUT, no upload_url is even sent for it.
             if (match.already_uploaded) {
                 file.status = "uploaded";
+                file.recorded = true;
                 file.uploadedBytes = file.size_bytes;
                 continue;
             }
@@ -268,23 +289,28 @@ export function createTranscodedFolderUploader() {
         }
     }
 
-    async function uploadSingleFile(file: UploadFile): Promise<void> {
+    async function uploadSingleFile(file: UploadFile, run: UploadRun): Promise<boolean> {
         if (!file.uploadUrl) throw new Error(`No upload URL for ${file.relativePath}`);
 
         while (file.attempts <= maxRetries) {
-            if (stopping) return;
+            // if (stopping) return;
+            if (run.stopped) return false;
 
             file.status = "uploading";
             file.error = null;
             file.uploadedBytes = 0;
 
             try {
-                await putFileToR2(file, abortController!.signal);
+                await putFileToR2(file, run.controller.signal);
                 file.status = "uploaded";
-                return;
+                return true;
             } catch (error) {
                 // Pause/cancel isn't a real upload failure.
-                if (error instanceof DOMException && error.name === "AbortError") return;
+                if (error instanceof DOMException && error.name === "AbortError") {
+                    file.status = "pending";    // so resume re-presigns it
+                    file.uploadedBytes = 0;
+                    return false;
+                }
 
                 file.attempts++;
                 file.error = error instanceof Error ? error.message : "Upload failed";
@@ -297,6 +323,7 @@ export function createTranscodedFolderUploader() {
                 await sleep(getBackoffDelay(file.attempts - 1));
             }
         }
+        return false;
     }
 
     async function recordUploadFile(
@@ -313,36 +340,55 @@ export function createTranscodedFolderUploader() {
                 object_key: file.objectKey,
                 size: file.size_bytes,
             },
-            abortController?.signal,
+            // abortController?.signal,
+            // later addition: don't abort the record-uploaded-file request if the user pauses/cancels,
+            // because that would leave the file unrecorded and the upload session in a bad state.
+            // no abort signal, so a pause can't cancel it
         );
+    }
+
+    async function recordWithRetry(videoId: string, transcodedUploadSessionId: string, file: UploadFile): Promise<void> {
+        for (let attempt = 0; ; attempt ++) {
+            try {
+                await recordUploadFile(videoId, transcodedUploadSessionId, file);
+                return;
+            } catch (error) {
+                if (attempt >= maxRetries) throw error;
+                await sleep(getBackoffDelay(attempt))
+            }
+        }
     }
 
     async function uploadWithWorkerPool(
         videoId: string,
         transcodedUploadSessionId: string,
         files: UploadFile[],
+        run: UploadRun,
     ): Promise<void> {
         let nextIndex = 0;
 
         async function worker() {
-            while (true) {
-                if (stopping) return;
-
+            // while (true) {
+                // if (stopping) return;
+            while (!run.stopped) {
+                
                 const index = nextIndex++;
                 if (index >= files.length) return;
 
                 const file = files[index];
-                if (file.status === "uploaded") continue;
+                if (file.status === "uploaded" && file.recorded) continue;
 
                 try {
-                    await uploadSingleFile(file);
-                    // May be this check is not required since uploadSingleFile() already has a clear contract:
-                    // it returns normally when the upload succeeds, and throws when it ultimately fails.
-                    // if (file.status !== "uploaded") continue;
+                    // Uploaded earlier but never recorded (e.g. paused mid-record): skip the PUT.
+                    if (file.status !== "uploaded") {
+                       const uploaded = await uploadSingleFile(file, run);
+                       if (!uploaded) continue;      // paused / cancelled
+                    }
 
-                    await recordUploadFile(videoId, transcodedUploadSessionId, file);
+                    await recordWithRetry(videoId, transcodedUploadSessionId, file);
+                    file.recorded = true;
                 } catch (error) {
-                    if (stopping) return;
+                    if (run.stopped) return;
                     console.error("File upload failed:", file.relativePath, error);
                 }
             }
@@ -354,7 +400,8 @@ export function createTranscodedFolderUploader() {
 
     async function complete(videoId: string, transcodedUploadSessionId: string): Promise<void> {
         const files = state.files
-            .filter(file => file.status === "uploaded")
+            // .filter(file => file.status === "uploaded")
+            .filter(isDone)
             .map(file => ({
                 file_id: file.id,
                 relative_path: file.relativePath,
@@ -365,57 +412,117 @@ export function createTranscodedFolderUploader() {
         await postJson(apiUrl(videoId, "complete"), { transcoded_upload_session_id: transcodedUploadSessionId, files });
     }
 
-    /** Shared batch/presign/upload loop, used by both `start()` and `resume()`. */
-    async function runUploadLoop(): Promise<void> {
+    async function doUploadLoop(): Promise<void> {
         const videoId = state.videoId;
         const transcodedUploadSessionId = state.transcodedUploadSessionId;
-        if (!videoId || !transcodedUploadSessionId) {
-            throw new Error("Upload session information is missing.");
-        }
+        if (!videoId || !transcodedUploadSessionId) throw new Error("Upload session information is missing.");
 
-        stopping = false;
-        abortController = new AbortController();
+        const run: UploadRun = { controller: new AbortController(), stopped: false };
+        currentRun = run;
         state.status = "uploading";
         state.error = null;
         startSpeedTracking();
 
         try {
             for (let start = 0; start < state.files.length; start += batchSize) {
-                if (stopping) return;
+                if (run.stopped) return;
 
                 const batch = state.files.slice(start, start + batchSize);
-                const pendingBatch = batch.filter(file => file.status !== "uploaded");
-                if (pendingBatch.length === 0) continue;
+                const unfinished = batch.filter(f => !isDone(f));
+                if (unfinished.length === 0) continue;
 
-                await requestUploadUrls(videoId, transcodedUploadSessionId, pendingBatch);
-                await uploadWithWorkerPool(videoId, transcodedUploadSessionId, pendingBatch);
+                // Only presign files that still need a PUT.
+                const needUrls = unfinished.filter(f => f.status !== "uploaded");
+                await requestUploadUrls(videoId, transcodedUploadSessionId, needUrls, run.controller.signal);
+                if (run.stopped) return;
 
-                if (pendingBatch.some(file => file.status === "failed")) {
+                await uploadWithWorkerPool(videoId, transcodedUploadSessionId, unfinished, run);
+                if (run.stopped) return;
+
+                if (unfinished.some(f => f.status === "failed" || !f.recorded)) {
                     state.status = "failed";
                     state.error = "One or more files failed to upload.";
                     stopSpeedTracking();
                     return;
                 }
             }
+        
+            if (run.stopped) return;
 
-            if (!stopping) {
+            // Past this point Pause is disabled, so the backend can't end up
+            // COMPLETED while the UI shows "paused".
+            completing = true;
+            try {
                 await complete(videoId, transcodedUploadSessionId);
-                
-                // later addition
-                // If someone pauses while the completion request is in progress, the upload might incorrectly become completed.
-                // At minimum:
-                if (stopping) return;
-                
-                state.status = "completed";
-                stopSpeedTracking();
+            } finally {
+                completing = false;
             }
+            state.status = "completed";
+            stopSpeedTracking();
         } catch (error) {
-            if (stopping) return;
+            if (run.stopped) return;
             state.status = "failed";
             state.error = error instanceof Error ? error.message : "Upload failed";
             stopSpeedTracking();
         }
     }
+
+    function runUploadLoop(): Promise<void> {
+        loopPromise = doUploadLoop();
+        return loopPromise;
+    }
+
+    /** Shared batch/presign/upload loop, used by both `start()` and `resume()`. */
+    // async function runUploadLoop(): Promise<void> {
+    //     const videoId = state.videoId;
+    //     const transcodedUploadSessionId = state.transcodedUploadSessionId;
+    //     if (!videoId || !transcodedUploadSessionId) {
+    //         throw new Error("Upload session information is missing.");
+    //     }
+
+    //     stopping = false;
+    //     abortController = new AbortController();
+    //     state.status = "uploading";
+    //     state.error = null;
+    //     startSpeedTracking();
+
+    //     try {
+    //         for (let start = 0; start < state.files.length; start += batchSize) {
+    //             if (stopping) return;
+
+    //             const batch = state.files.slice(start, start + batchSize);
+    //             const pendingBatch = batch.filter(file => file.status !== "uploaded");
+    //             if (pendingBatch.length === 0) continue;
+
+    //             await requestUploadUrls(videoId, transcodedUploadSessionId, pendingBatch);
+    //             await uploadWithWorkerPool(videoId, transcodedUploadSessionId, pendingBatch);
+
+    //             if (pendingBatch.some(file => file.status === "failed")) {
+    //                 state.status = "failed";
+    //                 state.error = "One or more files failed to upload.";
+    //                 stopSpeedTracking();
+    //                 return;
+    //             }
+    //         }
+
+    //         if (!stopping) {
+    //             await complete(videoId, transcodedUploadSessionId);
+                
+    //             // later addition
+    //             // If someone pauses while the completion request is in progress, the upload might incorrectly become completed.
+    //             // At minimum:
+    //             if (stopping) return;
+                
+    //             state.status = "completed";
+    //             stopSpeedTracking();
+    //         }
+    //     } catch (error) {
+    //         if (stopping) return;
+    //         state.status = "failed";
+    //         state.error = error instanceof Error ? error.message : "Upload failed";
+    //         stopSpeedTracking();
+    //     }
+    // }
 
     /** Begins a fresh upload. `videoId` / `uploadSessionId` must already exist (see your /new-upload-record step). */
     async function start(entries: FolderEntry[], options: UploadOptions): Promise<void> {
@@ -445,15 +552,19 @@ export function createTranscodedFolderUploader() {
     }
 
     function pause(): void {
-        if (state.status !== "uploading") return;
+        if (state.status !== "uploading" || completing || !currentRun) return;
 
-        stopping = true;
-        abortController?.abort();
+        // stopping = true;
+        // abortController?.abort();
+        currentRun.stopped = true;
+        currentRun.controller.abort();
         state.status = "paused";
         stopSpeedTracking();
 
         if (state.videoId && state.transcodedUploadSessionId) {
-            postWithQuery(apiUrl(state.videoId, "pause"), { transcoded_upload_session_id: state.transcodedUploadSessionId }).catch(
+            pauseRequest = postWithQuery(apiUrl(state.videoId, "pause"), {
+                transcoded_upload_session_id: state.transcodedUploadSessionId
+            }).catch(
                 error => console.error("Failed to notify backend of pause:", error),
             );
         }
@@ -466,25 +577,42 @@ export function createTranscodedFolderUploader() {
      * just flips the session back to UPLOADING and re-enters the normal loop.
      */
     async function resume(): Promise<void> {
-        if (state.status !== "paused") return;
+        if (state.status !== "paused" || resuming) return;
         if (!state.videoId || !state.transcodedUploadSessionId) {
             throw new Error("Upload session information is missing.");
         }
 
-        // await postWithQuery(apiUrl(state.videoId, "resume"), { transcoded_upload_session_id: state.transcodedUploadSessionId });
+        resuming = true;
+        let ready = false;
+
         try {
-            await postWithQuery(apiUrl(state.videoId, "resume"), { transcoded_upload_session_id: state.transcodedUploadSessionId });
-        } catch (error) {
-            // Stay paused and surface the problem instead of leaving an unhandled rejection.
-            state.error = error instanceof Error ? error.message : "Could not resume the upload.";
-            return;
+            await pauseRequest;     // make sure /pause landed before /resume
+            await loopPromise;      // let the paused loop's in-flight record calls finish
+            if (state.status !== "paused") return;   // cancelled while waiting
+
+            try {
+                await postWithQuery(apiUrl(state.videoId, "resume"), {
+                    transcoded_upload_session_id: state.transcodedUploadSessionId,
+                });
+                ready = true;
+            } catch (error) {
+                state.error = error instanceof Error ? error.message : "Could not resume the upload.";
+            }
+        } finally {
+            resuming = false;
         }
-        await runUploadLoop();
+
+        if (ready) await runUploadLoop();
     }
 
     function cancel(): void {
-        stopping = true;
-        abortController?.abort();
+        // same guard as pause, so a cancel can't race the final /complete
+        if (completing) return;
+
+        if (currentRun) {
+            currentRun.stopped = true;
+            currentRun.controller.abort();
+        }
 
         for (const file of state.files) {
             if (file.status !== "uploaded") file.status = "cancelled";
