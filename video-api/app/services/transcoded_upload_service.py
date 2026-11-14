@@ -1,3 +1,4 @@
+import asyncio
 from uuid import UUID
 from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -30,6 +31,8 @@ def build_object_key(video_id: UUID, relative_path: str) -> str:
 
     return f"{video_id}/{PurePosixPath(*parts[1:])}"
 
+MAX_LISTED = 10
+
 class TranscodedUploadService:
 
     def __init__(
@@ -45,6 +48,30 @@ class TranscodedUploadService:
         self.video_repository = video_repository
         self.video_event_repository = video_event_repository
         self.storage_service = storage_service
+
+    # one shared helper used by both record_uploaded_file and complete
+    async def _mark_file_recorded(self, *, video_id: UUID, transcoded_upload_session_id: UUID, upload_file) -> bool:
+        """Atomically flip PENDING -> UPLOADED. False if someone else already did. Caller commits."""
+        changed = await self.transcoded_upload_repository.mark_file_uploaded_if_pending(upload_file.id)
+        if not changed:
+            return False
+
+        await self.transcoded_upload_repository.increment_uploaded_files(transcoded_upload_session_id)
+        await self.transcoded_upload_repository.increment_uploaded_bytes(
+            transcoded_upload_session_id, upload_file.size_bytes
+        )
+        await self.video_event_repository.create_video_event(
+            video_id=video_id,
+            event_type="TRANSCODED_FILE_UPLOADED",
+            payload={
+                "transcoded_upload_session_id": str(transcoded_upload_session_id),
+                "file_id": str(upload_file.id),   # use the client file id here if that's what you store
+                "relative_path": upload_file.relative_path,
+                "object_key": upload_file.object_key,
+                "size_bytes": upload_file.size_bytes,
+            },
+        )
+        return True
 
     async def new_transcoded_upload_record(self, req: NewTranscodedUploadRequest):
         try:
@@ -157,44 +184,29 @@ class TranscodedUploadService:
             raise UploadedFileNotFound()
 
         if upload_file.status == "UPLOADED":
-            return {
-                "success": True,
-                "message": "file already recorded",
-            }
+            return { "success": True, "message": "file already recorded", }
 
         # Optional but valuable:
         # verify R2 actually contains the object.
-        self.storage_service.head_object(object_key=upload_file.object_key)
+        # self.storage_service.head_object(object_key=upload_file.object_key)
+        size = await asyncio.to_thread(self.storage_service.head_object, object_key=upload_file.object_key)
 
-        try:
-            await self.transcoded_upload_repository.mark_file_uploaded(upload_file.id)
-            await self.transcoded_upload_repository.increment_uploaded_files(transcoded_upload_session_id)
-            await self.transcoded_upload_repository.increment_uploaded_bytes(transcoded_upload_session_id, upload_file.size_bytes)
-            await self.video_event_repository.create_video_event(
-                video_id=video_id,
-                event_type="TRANSCODED_FILE_UPLOADED",
-                payload={
-                    "transcoded_upload_session_id": str(transcoded_upload_session_id),
-                    "file_id": file_id,
-                    "relative_path": upload_file.relative_path,
-                    "object_key": upload_file.object_key,
-                    "size_bytes": upload_file.size_bytes,
-                },
-            )
+        if size is None:
+            raise InvalidUploadState(f"{upload_file.relative_path} was not found in storage.")
+        if size != upload_file.size_bytes:
+            raise InvalidUploadState(f"{upload_file.relative_path} size mismatch (storage {size}, expected {upload_file.size_bytes}).")
 
-            await self.session.commit()
-
-        except IntegrityError:
-            await self.session.rollback()
-
-            return {
-                "success": True,
-                "message": "file already recorded",
-            }
+        changed = await self._mark_file_recorded(
+            video_id=video_id,
+            transcoded_upload_session_id=transcoded_upload_session_id,
+            upload_file=upload_file,
+        )
+        
+        await self.session.commit()
 
         return {
             "success": True,
-            "message": "file recorded successfully",
+            "message": "file recorded successfully" if changed else "file already recorded",
         }
 
 
@@ -233,7 +245,6 @@ class TranscodedUploadService:
             "status": "resumed",
         }
 
-
     async def complete(self, *, video_id: UUID, transcoded_upload_session_id: UUID):
         upload = await self.transcoded_upload_repository.get_by_video(transcoded_upload_session_id, video_id)
 
@@ -248,7 +259,36 @@ class TranscodedUploadService:
         incomplete = [file for file in files if file.status != "UPLOADED"]
 
         if incomplete:
-            raise InvalidUploadState(f"{len(incomplete)} files are still pending.")
+            # The client may have uploaded to R2 but failed to record (e.g. paused mid-request).
+            # Trust R2, not the client: if the object exists with the right size, heal the row.
+            sem = asyncio.Semaphore(10)
+
+            async def verify(file):
+                async with sem:
+                    size = await asyncio.to_thread(self.storage_service.head_object, object_key=file.object_key)
+                return file, size == file.size_bytes
+
+            results = await asyncio.gather(*(verify(f) for f in incomplete))
+
+            still_pending = []
+            for file, ok in results:
+                if ok:
+                    await self._mark_file_recorded(
+                        video_id=video_id,
+                        transcoded_upload_session_id=transcoded_upload_session_id,
+                        upload_file=file,
+                    )
+                else:
+                    still_pending.append(file.relative_path)
+            
+            await self.session.commit()   # keep healed rows even if we raise below
+
+            if still_pending:
+                listed = ", ".join(still_pending[:MAX_LISTED])
+                extra = f" (+{len(still_pending) - MAX_LISTED} more)" if len(still_pending) > MAX_LISTED else ""
+                raise InvalidUploadState(f"{len(still_pending)} files pending: {listed}{extra}")
+            
+            # raise InvalidUploadState(f"{len(incomplete)} files are still pending.")
 
         # Required files
         paths = {file.relative_path for file in files}
