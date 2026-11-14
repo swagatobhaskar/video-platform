@@ -1,3 +1,5 @@
+from botocore.exceptions import ClientError
+
 from app.core.config import get_settings
 settings = get_settings()
 
@@ -21,8 +23,15 @@ class R2TranscodedUploadService:
             ExpiresIn=3600,
         )
 
-    def head_object(self, *, object_key: str):
-        return self.client.head_object(Bucket=self.BUCKET, Key=object_key)
+    def head_object(self, *, object_key: str) -> int | None:
+        """Return the object's size in bytes, or None if it doesn't exist."""
+        try:
+            resp = self.client.head_object(Bucket=self.BUCKET, Key=object_key)
+        except ClientError as e:
+            if e.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
+                return None
+            raise
+        return resp["ContentLength"]
 
     def delete_object(self, *, object_key: str):
         return self.client.delete_object(Bucket=self.BUCKET, Key=object_key)
