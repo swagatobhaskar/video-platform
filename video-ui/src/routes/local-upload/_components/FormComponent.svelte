@@ -1,20 +1,13 @@
 <script lang="ts">
-    // let { videoId }: { videoId?: string | null } = $props();
     let { videoId, initialData } = $props();
 
-    import { onMount } from 'svelte';  // for fetching Category, Series, Language, etc.
+    import { onMount, untrack } from 'svelte';  // onMount is for fetching Category, Series, Language, etc.
 
     import KeywordInput from './KeywordInput.svelte';
 
-    type Category = {
-        id: number;
-        name: string;
-    };
+    type Category = { id: number; name: string; };
 
-    type Series = {
-        id: number;
-        name: string;
-    };
+    type Series = { id: number; name: string; };
 
     let categories = $state<Category[]>([]);
     let seriesList = $state<Series[]>([]);
@@ -55,23 +48,20 @@
     } from "$lib/controllers/metadataFormController.svelte";
 
     const formController = MetadataFormController();
-    formController.populate(initialData); // This reference only captures the initial value of `initialData`. Did you mean to reference it inside a closure instead?
-
-    // new
-    let lastSavedSnapshot = JSON.stringify(formController.formData);
-    let isLoaded = $state(true);
-
-    // Auto-save
     
-    // old
-    // let isLoaded = $state(false);
+    // One-time initialisation: the parent recreates this component via
+    // {#key data.videoId}, so later changes to `initialData` are intentionally ignored.
+    formController.populate(untrack(() => initialData));
+
+    // you can use  `svelte-ignore state_referenced_locally` to suppress the warning
+    // However, I used untrack to read initialData inside a closure
+    // formController.populate(initialData); // This reference only captures the initial value of `initialData`. Did you mean to reference it inside a closure instead?
+
+    let lastSavedSnapshot = JSON.stringify(formController.formData);
 
     let saveStatus = $state<"idle" | "saving" | "saved" | "error">("idle");
 
     // Plain variables: these don't need to trigger Svelte effects.
-    
-    // old
-    // let lastSavedSnapshot = "";
     
     let saveVersion = 0;
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -108,62 +98,15 @@
     }
 
     function saveNow() {
-        if (!isLoaded || !videoId) return;
+        if (!videoId) return;
 
         clearTimeout(debounceTimer); // cancel any pending autosave
         void save(videoId, JSON.stringify({ ...formController.formData }));
     }
 
-    // Periodically sync formController's data with DB and switch step
-    $effect(() => {
-        if (!videoId) {
-            console.error("Video Id Not found!");
-            return;
-        }
-
-        // prevents outdated work from updating state
-        let isCurrent = true;
-        const abortController = new AbortController();
-
-        async function fetchFormData() {
-            try {
-                const resp = await fetch(`/api/video/${videoId}`, {
-                    signal: abortController.signal,
-                });
-
-                if (!resp.ok) {
-                    throw new Error(`Failed to fetch video: ${resp.status}`);
-                }
-                const data = await resp.json();
-
-                // Never update the form for an obsolete request.
-                if (!isCurrent) return;
-
-                formController.populate(data);
-
-                // Record the initial state so loading isn't treated as an edit.
-                lastSavedSnapshot = JSON.stringify(formController.formData);
-                isLoaded = true;
-                saveStatus = "idle";
-            } catch (error) {
-                // Cancellation is expected; don't report it as an error.
-                if (!isCurrent || abortController.signal.aborted) return;
-                console.error("Failed to load video data:", error);
-            }
-        }
-
-        void fetchFormData();
-
-        // Runs when videoId changes or this effect is destroyed.
-        return () => {
-            isCurrent = false;
-            abortController.abort();
-        };
-    });
-
     // Debounced autosave.
     $effect(() => {
-        if (!isLoaded || !videoId) return;
+        if (!videoId) return;
 
         const currentVideoId = videoId;
 
@@ -199,9 +142,7 @@
 
         <div>
             <p aria-live="polite">
-                {#if !isLoaded}
-                    Loading form…
-                {:else if saveStatus === "saving"}
+                {#if saveStatus === "saving"}
                     Saving…
                 {:else if saveStatus === "saved"}
                     All changes saved
@@ -517,163 +458,6 @@
             bind:keywords={formController.formData.secondary_keywords}
         />
 
-        <!-- <div class="space-y-3">
-            <div>
-                <label
-                    for="focusKeywords"
-                    class="block text-sm font-semibold tracking-wide text-gray-700"
-                >
-                    Focus Keywords
-                </label>
-
-                <p id="focus-keywords-help" class="text-sm text-gray-600">
-                    This is your collection of keywords for this video. These keywords must be included in the Title, Meta Title, Description, Meta Description,
-                    Thumbnail Alt Text, Transcript. Keep a list of 2-3 focus keywords.
-                </p>
-            </div>
-
-            <div class="flex gap-3">
-                <input
-                    type="text"
-                    name="focusKeyword"
-                    aria-describedby="focus-keywords-help"
-                    bind:value={formController.formData.focus_keywords}
-                    placeholder="Add a focus keyword..."
-                    onkeydown={(e) =>
-                        e.key === 'Enter' && addItemToFocusKeywordsList()
-                    }
-                    class="flex-1 rounded-xl border border-gray-300 bg-gray-50
-                    px-4 py-3 text-gray-800 placeholder:text-gray-400
-                    transition-all duration-200
-                    focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
-                    focus:outline-none"
-                />
-
-                <button
-                    type="button"
-                    onclick={addItemToFocusKeywordsList}
-                    disabled={!focusKeywordEntry.trim()}
-                    class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white
-                    shadow-lg shadow-blue-200 transition-all duration-200
-                    hover:bg-blue-700 hover:shadow-blue-300
-                    disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    Add
-                </button>
-            </div> -->
-                
-            <!-- Focus Keywords Container -->
-            <!-- <div
-                class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
-                border border-dashed border-gray-300 bg-gray-50 p-4"
-            >
-                {#if selectedFocusKeywordsList.length === 0}
-                    <div class="flex items-center text-sm text-gray-400">
-                        No focus keywords added yet
-                    </div>
-                {:else}
-                    {#each selectedFocusKeywordsList as tag (tag.id)}
-                        <div
-                            class="group flex items-center gap-2 rounded-lg
-                            bg-linear-to-r from-indigo-500 to-blue-500
-                            px-4 py-2 text-sm font-medium text-white
-                            shadow-md transition-transform duration-200
-                            hover:scale-105"
-                        >
-                            <span>{tag.value}</span>
-
-                            <button
-                                type="button"
-                                onclick={() => removeItemFromFocusKeywordsList(tag.id)}
-                                class="text-white/80 transition hover:text-white"
-                            >
-                                &times;
-                            </button>
-                        </div>
-                    {/each}
-                {/if}
-            </div>
-        </div> -->
-
-        <!-- Secondary Keywords -->
-        <!-- <div class="space-y-3">
-            <div>
-                <label
-                    for="secondaryKeywords"
-                    class="block text-sm font-semibold tracking-wide text-gray-700"
-                >
-                    Secondary Keywords (Optional)
-                </label>
-
-                <p id="secondary-keywords-help" class="text-sm text-gray-600">
-                    This is your collection of related or long-tailed keywords for this video. Include them in the Description, Meta Description, Transcript.
-                    Keep a list of 1-2 secondary keywords.
-                </p>
-            </div>
-
-            <div class="flex gap-3">
-                <input
-                    type="text"
-                    name="secondaryKeyword"
-                    bind:value={formController.formData.secondary_keywords}
-                    placeholder="Add a secondary keyword..."
-                    aria-describedby="secondary-keywords-help"
-                    onkeydown={(e) =>
-                        e.key === 'Enter' && addItemToSecondaryKeywordsList()
-                    }
-                    class="flex-1 rounded-xl border border-gray-300 bg-gray-50
-                    px-4 py-3 text-gray-800 placeholder:text-gray-400
-                    transition-all duration-200
-                    focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
-                    focus:outline-none"
-                />
-
-                <button
-                    type="button"
-                    onclick={addItemToSecondaryKeywordsList}
-                    disabled={!secondaryKeywordEntry.trim()}
-                    class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white
-                    shadow-lg shadow-blue-200 transition-all duration-200
-                    hover:bg-blue-700 hover:shadow-blue-300
-                    disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    Add
-                </button>
-            </div> -->
-                
-            <!-- Secondary Keywords Container -->
-            <!-- <div
-                class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
-                border border-dashed border-gray-300 bg-gray-50 p-4"
-            >
-                {#if selectedSecondaryKeywordsList.length === 0}
-                    <div class="flex items-center text-sm text-gray-400">
-                        No secondary keywords added yet
-                    </div>
-                {:else}
-                    {#each selectedSecondaryKeywordsList as tag (tag.id)}
-                        <div
-                            class="group flex items-center gap-2 rounded-lg
-                            bg-linear-to-r from-indigo-500 to-blue-500
-                            px-4 py-2 text-sm font-medium text-white
-                            shadow-md transition-transform duration-200
-                            hover:scale-105"
-                        >
-                            <span>{tag.value}</span>
-
-                            <button
-                                type="button"
-                                onclick={() => removeItemFromSecondaryKeywordsList(tag.id)}
-                                class="text-white/80 transition hover:text-white"
-                            >
-                                &times;
-                            </button>
-                        </div>
-                    {/each}
-                {/if}
-            </div>
-        </div> -->
-
         <!-- Meta Title -->
         <div class="space-y-2">
             <label
@@ -804,7 +588,7 @@
         </span>
         <button
             type="button"
-            disabled={!isLoaded || saveStatus === "saving"}
+            disabled={saveStatus === "saving"}
             class="py-2 px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-lg
                 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             onclick={saveNow}
