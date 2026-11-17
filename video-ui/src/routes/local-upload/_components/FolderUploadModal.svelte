@@ -11,7 +11,7 @@
         onCancelSelection,
         handleDrop,
         handlePick
-    } = $props<{
+    } :{
         open: boolean;
         prepared: PreparedFolder | null;
         selectionError: string | null;
@@ -20,7 +20,7 @@
         onCancelSelection: () => void;
         handleDrop: (e: DragEvent) => Promise<void>;
         handlePick: (e: Event) => void;
-    }>(); 
+    } = $props();
 
     let videoFolderInputEl = $state<HTMLInputElement | null>(null);
 
