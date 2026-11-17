@@ -3,6 +3,7 @@
     import { page } from '$app/state';
     import { goto } from "$app/navigation";
     import { resolve } from '$app/paths';
+    import { untrack } from 'svelte';
 
     import FolderUploadModal from '../_components/FolderUploadModal.svelte';
     import FormComponent from '../_components/FormComponent.svelte';
@@ -67,7 +68,7 @@
         resumeError = null;
 
         const session = data.video;
-        if (!data.videoId || session) return;
+        if (!data.videoId || !session) return;
 
         try {
             const folder = await prepareTranscodedFolder(entries);
@@ -162,11 +163,19 @@
         }
     }
 
+    let refreshedAfterUpload = false;   // plain variable on purpose, not $state
+
     // After the upload finishes, the backend has set object_key, so refetch for the manifest URL.
     $effect(() => {
-        if (uploader.state.status === "completed" && data.videoId) {
-            invalidate(`app:video:${data.videoId}`);
+        if (uploader.state.status !== "completed") {
+            refreshedAfterUpload = false;   // re-arm for the next upload
+            return;
         }
+        if (refreshedAfterUpload) return;
+        refreshedAfterUpload = true;
+        
+        const id = untrack(() => data.videoId);
+        if (id) invalidate(`app:video:${id}`);
     });
 
     // // 1. Fetch the available details of a video
