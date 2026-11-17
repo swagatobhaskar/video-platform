@@ -55,7 +55,7 @@
     } from "$lib/controllers/metadataFormController.svelte";
 
     const formController = MetadataFormController();
-    formController.populate(initialData);
+    formController.populate(initialData); // This reference only captures the initial value of `initialData`. Did you mean to reference it inside a closure instead?
 
     // new
     let lastSavedSnapshot = JSON.stringify(formController.formData);
