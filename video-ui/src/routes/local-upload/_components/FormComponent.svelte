@@ -1,7 +1,7 @@
 <script lang="ts">
     let { videoId, initialData } = $props();
 
-    import { onMount, untrack } from 'svelte';  // onMount is for fetching Category, Series, Language, etc.
+    import { onMount, untrack, onDestroy } from 'svelte';  // onMount is for fetching Category, Series, Language, etc.
 
     import KeywordInput from './KeywordInput.svelte';
 
@@ -90,10 +90,10 @@
 
             lastSavedSnapshot = snapshot;
             saveStatus = "saved";
-        } catch (error) {
+        } catch (err) {
             if (version !== saveVersion) return;
             saveStatus = "error";
-            console.error(error);
+            console.error(err);
         }
     }
 
@@ -113,11 +113,28 @@
         // Read formData here (top level of the effect) so it stays tracked.
         const snapshot = JSON.stringify({ ...formController.formData });
 
-        // Don't save unchanged data or the initial fetch.
+        // Don't save unchanged data
         if (snapshot === lastSavedSnapshot) return;
 
         debounceTimer = setTimeout(() => save(currentVideoId, snapshot), 800);
         return () => clearTimeout(debounceTimer);
+    });
+
+    // Edits are lost if the form is destroyed within 800 ms
+    // The debounce effect’s cleanup runs clearTimeout when the component is destroyed.
+    // If the user types and the form unmounts before the timer fires (for example {#key data.videoId} recreating it,
+    // or in-app navigation), the last edit is silently dropped. Flush it on destroy:
+    onDestroy(() => {
+        if (!videoId) return;
+        const snapshot = JSON.stringify({ ...formController.formData });
+        if (snapshot === lastSavedSnapshot) return;
+
+        // Fire-and-forget: the SPA stays alive after navigation, so this completes.
+        void fetch(`/api/video/${videoId}/autosave-formdata`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: snapshot,
+        });
     });
 
 </script>
@@ -191,6 +208,7 @@
         <!-- Video Title -->
         <div class="space-y-2">
             <label
+                id="title"
                 for="title"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
@@ -219,6 +237,7 @@
         <div class="space-y-2">
             <div class="flex items-center justify-between">
                 <label
+                    id="description"
                     for="description"        
                     class="block text-sm font-semibold tracking-wide text-gray-700"
                 >
@@ -248,6 +267,7 @@
         <!-- Video Category -->
         <div class="space-y-2">
             <label
+                id="category"
                 for="category"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
@@ -280,6 +300,7 @@
         <!-- Language -->
         <div class="space-y-2">
             <label
+                id="language"
                 for="language"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
@@ -309,6 +330,7 @@
         <!-- Video Series -->
         <div class="space-y-2">
             <label
+                id="series"
                 for="series"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
@@ -342,7 +364,8 @@
         {#if formController.formData.series}
             <div class="space-y-2">
                 <label
-                    for="Episode Number"
+                    id="episode-number"
+                    for="episode-number"
                     class="block text-sm font-semibold tracking-wide text-gray-700"
                 >
                     Episode Number (Optional. Must, if a Series is selected.)
@@ -353,7 +376,7 @@
                 </p>
 
                 <select
-                    name="series"
+                    name="episode-number"
                     bind:value={formController.formData.episode_number}
                     // required
                     aria-describedby="episode-number-help"
@@ -378,7 +401,8 @@
         <!-- Transcript code -->
         <div class="space-y-2">
             <label
-                for="transcript_code"
+                id="transcript-code"
+                for="transcript-code"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 Transcript Code
@@ -389,7 +413,7 @@
             </p>
 
             <select
-                name="series"
+                name="transcript-code"
                 bind:value={formController.formData.transcript_code}
                 // required
                 aria-describedby="transcript-code-help"
@@ -407,7 +431,8 @@
         <!-- Video Transcript -->
         <div class="space-y-2">            
             <label
-                for="description"        
+                id="transcript"
+                for="transcript"        
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 Transcript
@@ -461,7 +486,8 @@
         <!-- Meta Title -->
         <div class="space-y-2">
             <label
-                for="meta_title"
+                id="meta-title"
+                for="meta-title"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 SEO Meta Title (Must for SEO)
@@ -475,7 +501,7 @@
 
             <input
                 type="text"
-                name="meta_title"
+                name="meta-title"
                 placeholder="Enter video meta title for SEO"
                 required
                 aria-describedby="meta-title-help"
@@ -490,7 +516,8 @@
         <!-- Meta Description -->
         <div class="space-y-2">
             <label
-                for="meta_description"        
+                id="meta-description"
+                for="meta-description"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 SEO Meta Description
@@ -509,7 +536,7 @@
             </div>
 
             <textarea
-                name="description"
+                name="meta-description"
                 placeholder="Enter video meta description for SEO"
                 bind:value={formController.formData.meta_description}
                 maxlength="400"
@@ -525,7 +552,8 @@
         <!-- Thumbnail Alt Text -->
         <div class="space-y-2">
             <label
-                for="thumbnail_alt_text"
+                id="thumbnail-alt-text"
+                for="thumbnail-alt-text"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 SEO Thumbnail Alt Text
@@ -538,7 +566,7 @@
             </p>
             <input
                 type="text"
-                name="thumbnail_alt_text"
+                name="thumbnail-alt-text"
                 placeholder="Enter alternative text for thumbnail"
                 aria-describedby="thumbnail-alt-text-help"
                 required
@@ -552,7 +580,8 @@
         <!-- SEO Summary En -->
         <div class="space-y-2">
             <label
-                for="seo_summary_en"
+                id="seo-summary-en"
+                for="seo-summary-en"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 SEO Summary En
@@ -565,7 +594,7 @@
 
             <input
                 type="text"
-                name="seo_summary_en"
+                name="seo-summary-en"
                 placeholder="Enter Summary of the Entire Video Story in English (for SEO)"
                 required
                 aria-describedby="seo-summary-en-help"
