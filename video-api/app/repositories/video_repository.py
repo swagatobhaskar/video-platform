@@ -180,7 +180,7 @@ class VideoRepository:
         return result.scalar_one_or_none()
 
 
-    async def get_for_admin(self, status: VideoPublicationStatusEnum):
+    async def get_for_admin(self, status: VideoPublicationStatusEnum | None = None):
         stmt = (
             select(Video)
             .options(
@@ -207,6 +207,7 @@ class VideoRepository:
                 selectinload(Video.upload_session),
                 selectinload(Video.transcode_task),
                 selectinload(Video.video_transcripts),
+                selectinload(Video.transcoded_upload_session),
             )
             .where(
                 Video.id == id,
