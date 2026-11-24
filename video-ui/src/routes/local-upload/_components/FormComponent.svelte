@@ -16,6 +16,8 @@
     let error = $state('');
 
     onMount(async () => {
+        void checkReadiness();
+
         try {
             const [categoriesResponse, seriesResponse] = await Promise.all([
                 fetch('/api/category'),
@@ -66,6 +68,32 @@
     let saveVersion = 0;
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
+    let publishErrors = $state<Record<string, string[]> | null>(null); // null = unknown yet
+   
+    let publishing = $state(false);
+    let publishMessage = $state('');
+
+    const isDraft = $derived(formController.formData.publication_status === 'draft');
+    const readyToPublish = $derived(
+        isDraft && publishErrors !== null && Object.keys(publishErrors).length === 0
+    );
+
+    let readinessRequest = 0; // ignore out-of-order responses
+
+    async function checkReadiness() {
+        if (!videoId) return;
+        const request = ++readinessRequest;
+        try {
+            const resp = await fetch(`/api/video/${videoId}/publish-readiness`);
+            if (!resp.ok) throw new Error('readiness check failed');
+            const data = await resp.json();
+            if (request === readinessRequest) publishErrors = data.errors;
+        } catch (err) {
+            if (request === readinessRequest) publishErrors = null; // unknown, so hide the button
+            console.error(err);
+        }
+    }
+
     async function save(currentVideoId: string, snapshot: string) {
         // Nothing changed since the last successful save.
         if (snapshot === lastSavedSnapshot) {
@@ -90,6 +118,7 @@
 
             lastSavedSnapshot = snapshot;
             saveStatus = "saved";
+            void checkReadiness();
         } catch (err) {
             if (version !== saveVersion) return;
             saveStatus = "error";
@@ -137,25 +166,77 @@
         });
     });
 
+    async function publish() {
+        if (!videoId || publishing) return;
+        publishing = true;
+        publishMessage = '';
+        clearTimeout(debounceTimer);
+
+        try {
+            await save(videoId, JSON.stringify({ ...formController.formData }));
+            if (saveStatus === 'error') {
+                publishMessage = 'Could not save your latest changes.';
+                return;
+            }
+
+            const resp = await fetch(`/api/video/${videoId}/publish`, { method: 'PATCH' });
+
+            if (resp.status === 400) {
+                const body = await resp.json();
+                publishErrors = body.errors ?? null; // button disappears, state corrected
+                publishMessage = 'This video is not ready to publish yet.';
+                return;
+            }
+            if (!resp.ok) throw new Error('Publish failed');
+
+            formController.formData.publication_status = 'published';
+            // prevents the autosave effect from re-sending the status change
+            lastSavedSnapshot = JSON.stringify({ ...formController.formData });
+        } catch (err) {
+            console.error(err);
+            publishMessage = 'Publishing failed. Please try again.';
+        } finally {
+            publishing = false;
+        }
+    }
+
 </script>
+
+<!-- Thumbnail and video uploads happen outside this form, so also re-check when the user returns to the tab -->
+<svelte:window onfocus={checkReadiness} />
 
 <div class="h-full w-2/3 p-10 space-y-8">
 
-    <!-- Publication status badge -->
-    <div class="flex flex-row justify-between">
-        <div class="mb-3">
-            <p class="block text-sm fornt-semibold tracking-wide text-gray-700">
-                {#if formController.formData.publication_status === "draft"}
-                    <span class="inline-block px-2 py-1 rounded-md bg-amber-500 text-white">
-                        Draft
-                    </span>
-                {:else}
-                    <span class="inline-block px-2 py-1 rounded-md bg-green-500 text-white">
-                        Published
-                    </span>
-                {/if}
-            </p>
+    <!-- status badge -->
+    <div class="flex flex-row items-center justify-between">
+        <div class="flex items-center gap-3">
+            {#if isDraft}
+                <span class="inline-block px-2 py-1 rounded-md bg-amber-500 text-white text-sm">Draft</span>
+            {:else}
+                <span class="inline-block px-2 py-1 rounded-md bg-green-500 text-white text-sm">Published</span>
+            {/if}
+
+            {#if readyToPublish}
+                <span class="text-sm text-green-700">Ready to publish</span>
+                <button
+                    type="button"
+                    onclick={publish}
+                    disabled={publishing || saveStatus === "saving"}
+                    class="py-1 px-4 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm
+                        disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                    {publishing ? 'Publishing…' : 'Publish'}
+                </button>
+            {/if}
         </div>
+
+        <div>
+            <p aria-live="polite">...</p>
+        </div>
+
+        {#if publishMessage}
+            <p class="text-sm text-red-600" role="alert">{publishMessage}</p>
+        {/if}
 
         <div>
             <p aria-live="polite">
@@ -483,6 +564,34 @@
             bind:keywords={formController.formData.secondary_keywords}
         />
 
+        <!-- Search Intent -->
+        <div class="space-y-2">
+            <label
+                id="search-intent"
+                for="search-intent"
+                class="block text-sm font-semibold tracking-wide text-gray-700"
+            >
+                Search Intent
+            </label>
+            
+            <p id="search-intent-help" class="text-sm text-gray-600">
+                Enter the search term user is likely to enter on Google.
+            </p>
+
+            <input
+                type="text"
+                name="search-intent"
+                placeholder="Enter probable search intent"
+                required
+                aria-describedby="search-intent-help"
+                bind:value={formController.formData.search_intent}
+                class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
+                    transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
+                    focus:outline-none"
+            />
+        
+        </div>
+
         <!-- Meta Title -->
         <div class="space-y-2">
             <label
@@ -605,6 +714,26 @@
             />
         </div>
 
+    {/if}
+
+    <!-- status badge -->
+    <div class="flex items-center gap-3">
+        {#if readyToPublish}
+            <span class="text-sm text-green-700">Ready to publish</span>
+            <button
+                type="button"
+                onclick={publish}
+                disabled={publishing || saveStatus === "saving"}
+                class="py-1 px-4 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm
+                    disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+                {publishing ? 'Publishing…' : 'Publish'}
+            </button>
+        {/if}
+    </div>
+
+    {#if publishMessage}
+        <p class="text-sm text-red-600" role="alert">{publishMessage}</p>
     {/if}
 
     <!-- Save Button for User Satisfaction-->
