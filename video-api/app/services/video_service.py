@@ -44,6 +44,14 @@ class VideoService:
         self.video_transcript_repository = video_transcript_repository
         # self.manager = manager
 
+    async def get_publish_readiness(self, video_id: UUID) -> dict:
+        video = await self.video_repository.get_unpublished_video(video_id)
+        if not video:
+            raise VideoNotFound()
+
+        manager = VideoManager(video)
+        return { "can_publish": manager.can_publish, "errors": manager.publish_errors }
+
 
     async def publish(self, video_id: UUID):
         video = await self.video_repository.get_unpublished_video(video_id)
@@ -55,7 +63,7 @@ class VideoService:
 
         if not manager.can_publish:
             # raise ValueError(f"Video cannot be published: {self.publish_errors}")
-            raise VideoPublishError(manager.publish_errors)
+            raise VideoPuPublblishError(manager.publish_errors)
 
         # It can be done also, because you already have the entity. and let the service commit.:
         # video.publication_status = VideoPublicationStatusEnum.PUBLISHED
