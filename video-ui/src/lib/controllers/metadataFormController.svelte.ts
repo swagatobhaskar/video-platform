@@ -16,6 +16,7 @@ type MetadataFields = {
     seo_summary_en: string,
     focus_keywords: string[],
     secondary_keywords: string[],
+    search_intent: string,
 }
 
 export function MetadataFormController() {
@@ -43,6 +44,7 @@ export function MetadataFormController() {
         meta_description: '',
         thumbnail_alt_text: '',
         seo_summary_en: '',
+        search_intent: '',
     });
 
     function populate(data: Partial<MetadataFields> & Record<string, unknown>) {
@@ -64,6 +66,7 @@ export function MetadataFormController() {
             seo_tags: data.seo_tags ?? [],
             focus_keywords: data.focus_keywords ?? [],
             secondary_keywords: data.secondary_keywords ?? [],
+            search_intent: data.search_intent ?? '',
         });
     }
 
