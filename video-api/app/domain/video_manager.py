@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 REQUIRED_SEO_FIELDS = (
     "search_intent",
     "focus_keywords",
-    "keywords",
-    "seo_tags",
+    # "keywords",
+    # "seo_tags",
     "seo_summary_en",
     "secondary_keywords",
     "thumbnail_alt_text",
@@ -153,7 +153,7 @@ class VideoManager:
         if not self.video_uploaded:
             errors["video"] = ["Video has not been uploaded."]
 
-        if not self.transcoded:
+        if self.video.transcode_task and not self.transcoded:
             errors["processing"] = ["Video processing incomplete."]
 
         if not self.thumbnail_uploaded:
