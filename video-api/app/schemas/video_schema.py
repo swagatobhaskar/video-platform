@@ -232,7 +232,7 @@ class VideoRead(BaseModel):
 
     object_key: uuid.UUID | None
 
-    category_id: uuid.UUID | None
+    # category_id: uuid.UUID | None
     series_id: uuid.UUID | None
     episode_number: int | None
 
@@ -247,7 +247,7 @@ class VideoRead(BaseModel):
     thumbnail_alt_text: str | None
     search_intent: str | None
 
-    thumbnail_object_key: str | None
+    thumbnail_key: str | None
 
     bitrate: int | None
     codec: str | None
