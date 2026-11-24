@@ -1,4 +1,5 @@
 <script lang="ts">
+    let { data } = $props();
     import VideoCard from "$lib/components/ui/VideoCard.svelte";
     import {resolve} from "$app/paths";
 </script>
@@ -13,26 +14,7 @@
 </section>
 
 <section id="video-list" class="p-10 grid grid-cols-5 gap-8">
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
-    <VideoCard />
+    {#each data.videos as video (video.id)}
+        <VideoCard video={video} />
+    {/each}
 </section>
