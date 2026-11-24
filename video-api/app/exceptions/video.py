@@ -13,12 +13,6 @@ class VideoNotFound(AppException):
     message = "Video not found."
 
 
-class VideoPublishError(AppException):
-    status_code = 400
-    error_code = "VIDEO_PUBLISH_FAILED"
-    message = "Failed to publish video."
-
-
 class VideoArchiveFailed(AppException):
     status_code = 400
     error_code = "VIDEO_ARCHIVE_FAILED"
