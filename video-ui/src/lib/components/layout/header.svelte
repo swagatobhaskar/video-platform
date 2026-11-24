@@ -34,6 +34,7 @@
 					New
 				</a>
 			{/if}
+			<a href={resolve('/upload-history')} class="">My Uploads</a>
 		</nav>
 	</div>
 </header>
