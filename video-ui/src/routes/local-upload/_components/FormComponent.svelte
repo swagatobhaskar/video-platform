@@ -2,6 +2,8 @@
     let { videoId, initialData } = $props();
 
     import { onMount, untrack, onDestroy } from 'svelte';  // onMount is for fetching Category, Series, Language, etc.
+    import { goto } from '$app/navigation';
+    import { resolve } from '$app/paths';
 
     import KeywordInput from './KeywordInput.svelte';
 
@@ -14,6 +16,16 @@
 
     let loading = $state(true);
     let error = $state('');
+
+    // snapshot helper function so the comparison with lastSavedSnapshot always uses the same shape
+    function buildSnapshot(): string {
+        // publication_status is display-only; only the publish endpoint changes it.
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { publication_status, ...autosaveFields } = formController.formData;
+        return JSON.stringify(autosaveFields);
+    }
+
+    let lastSavedSnapshot = buildSnapshot();
 
     onMount(async () => {
         void checkReadiness();
@@ -59,7 +71,7 @@
     // However, I used untrack to read initialData inside a closure
     // formController.populate(initialData); // This reference only captures the initial value of `initialData`. Did you mean to reference it inside a closure instead?
 
-    let lastSavedSnapshot = JSON.stringify(formController.formData);
+    // let lastSavedSnapshot = JSON.stringify(formController.formData);
 
     let saveStatus = $state<"idle" | "saving" | "saved" | "error">("idle");
 
@@ -130,7 +142,7 @@
         if (!videoId) return;
 
         clearTimeout(debounceTimer); // cancel any pending autosave
-        void save(videoId, JSON.stringify({ ...formController.formData }));
+        void save(videoId, buildSnapshot());
     }
 
     // Debounced autosave.
@@ -140,7 +152,7 @@
         const currentVideoId = videoId;
 
         // Read formData here (top level of the effect) so it stays tracked.
-        const snapshot = JSON.stringify({ ...formController.formData });
+        const snapshot = buildSnapshot(); // still tracked: it reads formData synchronously
 
         // Don't save unchanged data
         if (snapshot === lastSavedSnapshot) return;
@@ -155,7 +167,7 @@
     // or in-app navigation), the last edit is silently dropped. Flush it on destroy:
     onDestroy(() => {
         if (!videoId) return;
-        const snapshot = JSON.stringify({ ...formController.formData });
+        const snapshot = buildSnapshot();
         if (snapshot === lastSavedSnapshot) return;
 
         // Fire-and-forget: the SPA stays alive after navigation, so this completes.
@@ -173,7 +185,7 @@
         clearTimeout(debounceTimer);
 
         try {
-            await save(videoId, JSON.stringify({ ...formController.formData }));
+            await save(videoId, buildSnapshot());
             if (saveStatus === 'error') {
                 publishMessage = 'Could not save your latest changes.';
                 return;
@@ -190,8 +202,8 @@
             if (!resp.ok) throw new Error('Publish failed');
 
             formController.formData.publication_status = 'published';
-            // prevents the autosave effect from re-sending the status change
-            lastSavedSnapshot = JSON.stringify({ ...formController.formData });
+            // Navigate to video view page
+            await goto(resolve(`/video/${videoId}`));
         } catch (err) {
             console.error(err);
             publishMessage = 'Publishing failed. Please try again.';
@@ -358,7 +370,7 @@
             <select
                 id="category"
                 name="category"
-                bind:value={formController.formData.category}
+                bind:value={formController.formData.category_id}
                 required
                 disabled={loading || !!error}
                 class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
@@ -421,7 +433,7 @@
             <select
                 id="series"
                 name="series"
-                bind:value={formController.formData.series}
+                bind:value={formController.formData.series_id}
                 disabled={loading || !!error}
                 // required
                 class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
@@ -442,7 +454,7 @@
         </div>
 
         <!-- Series Episode Number. Show Episode Number only if a Series is selected. -->
-        {#if formController.formData.series}
+        {#if formController.formData.series_id}
             <div class="space-y-2">
                 <label
                     id="episode-number"
