@@ -2,13 +2,13 @@
 type MetadataFields = {
     title: string,
     description: string,
-    category: string,
+    category_id: string | null,
     language: "hindi" | "bengali",
-    series: string | number,
+    series_id: string | null,
     episode_number: number | null,
     transcript: string,
     transcript_code: "bn" | "hi",
-    seo_tags: string[],  // make it 'keywords'
+    // seo_tags: string[],  // make it 'keywords'
     publication_status: "draft" | "published",
     meta_title: string,
     meta_description: string,
@@ -30,13 +30,13 @@ export function MetadataFormController() {
     const formData = $state<MetadataFields>({
         title: '',
         description: '',
-        category: '',
+        category_id: '',
         language: 'bengali',
-        series: '',
+        series_id: '',
         episode_number: null,
         transcript: '',
         transcript_code: 'bn',
-        seo_tags: [],
+        // seo_tags: [],
         focus_keywords: [],  // using [''] gives you an empty keyword chip
         secondary_keywords: [],
         publication_status: "draft",
