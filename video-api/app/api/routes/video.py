@@ -25,9 +25,11 @@ async def get_video_admin_view(
 ):
     return await video_service.get_admin_view(status)
 
+
 @router.get("/{video_id}/publish-readiness")
 async def publish_readiness(video_id: uuid.UUID, video_service: VideoService = Depends(get_video_service)):
     return await video_service.get_publish_readiness(video_id)
+
 
 @router.patch("/{video_id}/publish", response_model=video_schema.VideoRead)
 async def publish_video(
