@@ -327,8 +327,8 @@ class AutoSaveFormData(BaseModel):
     series_id: uuid.UUID | None = None
     episode_number: int | None = None
 
-    seo_tags: list[str] | None = None
-    keywords: list[str] | None = None
+    # seo_tags: list[str] | None = None
+    # keywords: list[str] | None = None
     secondary_keywords: list[str] | None = None
     focus_keywords: list[str] | None = None
     seo_summary_en: str | None = None

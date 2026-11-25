@@ -63,7 +63,7 @@ class VideoService:
 
         if not manager.can_publish:
             # raise ValueError(f"Video cannot be published: {self.publish_errors}")
-            raise VideoPuPublblishError(manager.publish_errors)
+            raise VideoPublishError(manager.publish_errors)
 
         # It can be done also, because you already have the entity. and let the service commit.:
         # video.publication_status = VideoPublicationStatusEnum.PUBLISHED
@@ -336,8 +336,8 @@ class VideoService:
             "slug",
             "language",
             "episode_number",
-            "seo_tags",
-            "keywords",
+            # "seo_tags",
+            # "keywords",
             "secondary_keywords",
             "focus_keywords",
             "seo_summary_en",
