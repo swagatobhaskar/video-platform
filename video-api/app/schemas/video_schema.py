@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel, computed_field, ConfigDict, Field
 from datetime import datetime
 import uuid
@@ -390,4 +391,15 @@ class VideoPlayerViewSchema(BaseModel):
     total_files: int | None = None
 
     # change the schema: one for video player another for all these data, specially for TranscodedUploadSession
+    
+class PublishErrors(BaseModel):
+    processing: list[str] = []
+    thumbnail: list[str] = []
+    metadata: list[str] = []
+    seo: list[str] = []
+
+class PublishReadinessResponse(BaseModel):
+    published: bool
+    can_publish: bool
+    errors: Optional[PublishErrors] = None
     
