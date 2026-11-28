@@ -16,6 +16,15 @@
         // return date.toLocaleDateString("en-IN", options);
         return new Intl.DateTimeFormat("en-IN", options).format(date);
     };
+
+    const duration = $derived.by(() => {
+		const s = video.duration_seconds;
+		if (s == null) return null;
+		const h = Math.floor(s / 3600);
+		const m = Math.floor((s % 3600) / 60);
+		const sec = String(Math.floor(s % 60)).padStart(2, '0');
+		return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m} min ${sec} sec`;
+	});
 </script>
 
 <a
@@ -33,7 +42,7 @@
     </div>
 
     <!-- Content -->
-    <div class="p-4 flex flex-col gap-2">
+    <div class="p-4 flex flex-col gap-1">
         <!-- Title -->
         <h2 class="text-lg font-sans font-semibold leading-snug text-black tracking-wide">
             {video.title}
@@ -45,10 +54,13 @@
         </p>
 
         <!-- Meta -->
-        <div class="flex justify-between text-sm text-gray-500 pt-2">
+        <div class="flex justify-between text-sm text-gray-500 pt-1">
             <span>Uploaded: {formatDate(video.published_at)}</span>
             <span>{video.view_count} views</span>
         </div>
-        
+
+        <div class="flex justify-between text-sm text-gray-500 pt-1">
+            <span>{duration}</span>
+        </div>
     </div>
 </a>
