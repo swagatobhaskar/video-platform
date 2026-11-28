@@ -16,7 +16,7 @@ from app.core.database import AsyncSession
 from app.storage.r2_video_storage import R2VideoStorage
 from app.storage.image_storage import ImageStorage
 from app.schemas.video_schema import (
-    VideoUploadHistoryRead, VideoMetadataUpdate, 
+    PublishReadinessResponse, VideoUploadHistoryRead, VideoMetadataUpdate, 
     VideoSEOUpdate, AutoSaveFormData, VideoPlayerViewSchema
 )
 
@@ -44,13 +44,33 @@ class VideoService:
         self.video_transcript_repository = video_transcript_repository
         # self.manager = manager
 
-    async def get_publish_readiness(self, video_id: UUID) -> dict:
-        video = await self.video_repository.get_unpublished_video(video_id)
-        if not video:
+
+    async def get_publish_readiness(self, video_id: UUID) -> PublishReadinessResponse:
+        video_stage = await self.video_repository.get_publication_stage(video_id)
+        
+        if video_stage is None:
             raise VideoNotFound()
 
-        manager = VideoManager(video)
-        return { "can_publish": manager.can_publish, "errors": manager.publish_errors }
+        if video_stage == VideoPublicationStatusEnum.PUBLISHED:
+            # return { "published": True, "can_publish": True, "errors": None }
+            return PublishReadinessResponse(published=True, can_publish=True, errors=None)
+        
+        if video_stage == VideoPublicationStatusEnum.DRAFT:
+            video = await self.video_repository.get_unpublished_video(video_id)
+            
+            if not video:
+                raise VideoNotFound()
+
+            manager = VideoManager(video)
+            
+            # return { "published": False, "can_publish": manager.can_publish, "errors": manager.publish_errors }
+            return PublishReadinessResponse(
+                published=False,
+                can_publish=manager.can_publish,
+                errors=manager.publish_errors if not manager.can_publish else None
+            )
+
+        raise VideoNotFound()  # This should not happen if the video exists, but it's a safeguard.            
 
 
     async def publish(self, video_id: UUID):
