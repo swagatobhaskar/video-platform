@@ -46,20 +46,23 @@ class VideoRepository:
                 selectinload(Video.category),
                 selectinload(Video.series),
                 selectinload(Video.video_transcripts),
-                selectinload(Video.upload_session),    
+                selectinload(Video.upload_session),
+                selectinload(Video.transcoded_upload_session),
                 selectinload(Video.transcode_task),
             )
         )
         return result.scalar_one_or_none()
 
 
-    async def get_with_category_series_transcript(self, video_id: UUID):
+    async def get_with_category_series_transcript_upload_session(self, video_id: UUID):
         result = await self.session.execute(
             select(Video)
             .options(
                 selectinload(Video.category),
                 selectinload(Video.series),
                 selectinload(Video.video_transcripts),
+                selectinload(Video.transcoded_upload_session),
+                selectinload(Video.upload_session),
             )
             .where(Video.id == video_id)
         )
@@ -178,7 +181,7 @@ class VideoRepository:
         return result.scalar_one_or_none()
 
 
-    async def get_for_admin(self, status: VideoPublicationStatusEnum):
+    async def get_for_admin(self, status: VideoPublicationStatusEnum | None = None):
         stmt = (
             select(Video)
             .options(
@@ -196,6 +199,12 @@ class VideoRepository:
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def get_publication_stage(self, id: UUID) -> VideoPublicationStatusEnum | None:
+        result = await self.session.execute(
+            select(Video.publication_status).where(Video.id == id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_unpublished_video(self, id: UUID):
         result = await self.session.execute(
             select(Video)
@@ -205,6 +214,7 @@ class VideoRepository:
                 selectinload(Video.upload_session),
                 selectinload(Video.transcode_task),
                 selectinload(Video.video_transcripts),
+                selectinload(Video.transcoded_upload_session),
             )
             .where(
                 Video.id == id,

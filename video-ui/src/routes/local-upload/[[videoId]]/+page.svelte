@@ -1,7 +1,9 @@
 <script lang="ts">
+    import { invalidate } from '$app/navigation';
     import { page } from '$app/state';
     import { goto } from "$app/navigation";
     import { resolve } from '$app/paths';
+    import { untrack } from 'svelte';
 
     import FolderUploadModal from '../_components/FolderUploadModal.svelte';
     import FormComponent from '../_components/FormComponent.svelte';
@@ -9,7 +11,7 @@
     import VideoUploadProgressCard from '../_components/VideoUploadProgressCard.svelte';
     import DashPlayer from '$lib/components/DashPlayer.svelte';
 
-    import type { VideoView } from "$lib/types/VideoView";
+    let { data } = $props();
 
     import {
         entriesFromInput,
@@ -21,6 +23,14 @@
 
     import { createTranscodedFolderUploader } from '$lib/services/transcodedFolderUploader.svelte'
     const uploader = createTranscodedFolderUploader();
+
+    // const uploadDone = $derived(uploader.state.status === "completed" || data.upload?.status === "completed")
+
+    const showDetails = $derived(
+        uploader.state.status === "completed" || (
+            uploader.state.status === "idle" && data.video?.upload_status === "COMPLETED"
+        )
+    );
 
     // Phase 1 (select): prepared holds the parsed folder until the user clicks Upload.
     let prepared = $state<PreparedFolder | null>(null);
@@ -46,6 +56,38 @@
         const entries = entriesFromInput(input.files ?? []);
         input.value = ""; // lets the user re-pick the same folder after cancelling
         selectFromEntries(entries);
+    }
+
+    let resumeError = $state<string | null>(null);
+
+    // Handle reselecting same folder after browser crash or some other issue that breaks the upload
+    async function handleResumePick(event: Event) {
+        const input = event.currentTarget as HTMLInputElement;
+        const entries = entriesFromInput(input.files ?? []);
+        input.value = '';
+        resumeError = null;
+
+        const session = data.video;
+        if (!data.videoId || !session) return;
+
+        try {
+            const folder = await prepareTranscodedFolder(entries);
+
+            // Cheap sanity check that this is the same folder.
+            if (folder.uploadEntries.length !== session.total_files) {
+                throw new Error(
+                    `This folder has ${folder.uploadEntries.length} files, but the interrupted upload had ${session.total_files}. Pick the same folder.`
+                );
+            }
+
+            uploader.start(folder.uploadEntries, {
+                videoId: data.videoId,
+                transcodedUploadSessionId: session.upload_session_id,
+                folderName: folder.folderName,
+            }).catch(error => console.error('Unexpected uploader error:', error));
+        } catch (error) {
+            resumeError = error instanceof Error ? error.message : 'Could not read the selected folder.';
+        }
     }
 
     async function handleDrop(event: DragEvent) {
@@ -121,55 +163,70 @@
         }
     }
 
-    // 1. Fetch the available details of a video
-    let video = $state<VideoView | undefined>(undefined);
-    let videoError = $state<string | null>(null);
+    let refreshedAfterUpload = false;   // plain variable on purpose, not $state
 
+    // After the upload finishes, the backend has set object_key, so refetch for the manifest URL.
     $effect(() => {
-        // Immediate clearing of stale video data.
-        // Proper cancellation when navigating between video IDs.
-        // Explicit error state for the UI.
-        // No accidental display of the previous video's thumbnail or manifest.
-        const id = videoId;
-
-        if (!id) {
-            video = undefined;
-            videoError = null;
-            console.error("Video Id Not found in the VideoPlayer!");
+        if (uploader.state.status !== "completed") {
+            refreshedAfterUpload = false;   // re-arm for the next upload
             return;
         }
-
-        const abortController = new AbortController();
-
-        // Clear previous video's data immediately.
-        video = undefined;
-        videoError = null;
-
-        (async () => {
-            try {
-                const resp = await fetch(`/api/video/view/${id}`, {
-                    signal: abortController.signal,
-                });
-
-                if (!resp.ok) {
-                    throw new Error(`Failed to fetch object key: ${resp.status}`);
-                }
-                const data: VideoView = await resp.json();
-                // video = data;
-                if (!abortController.signal.aborted) {
-                    video = data;
-                }
-
-            } catch (error) {
-                if (abortController.signal.aborted) return; // expected on cleanup
-                console.error("Failed to fetch video:", error);
-                videoError = "Could not load video details.";
-            }
-        }) ();
-
-        // Runs when videoId changes or this effect is destroyed.
-        return () => abortController.abort();
+        if (refreshedAfterUpload) return;
+        refreshedAfterUpload = true;
+        
+        const id = untrack(() => data.videoId);
+        if (id) invalidate(`app:video:${id}`);
     });
+
+    // // 1. Fetch the available details of a video
+    // let video = $state<VideoView | undefined>(undefined);
+    // let videoError = $state<string | null>(null);
+
+    // $effect(() => {
+    //     // Immediate clearing of stale video data.
+    //     // Proper cancellation when navigating between video IDs.
+    //     // Explicit error state for the UI.
+    //     // No accidental display of the previous video's thumbnail or manifest.
+    //     const id = videoId;
+
+    //     if (!id) {
+    //         video = undefined;
+    //         videoError = null;
+    //         console.error("Video Id Not found in the VideoPlayer!");
+    //         return;
+    //     }
+
+    //     const abortController = new AbortController();
+
+    //     // Clear previous video's data immediately.
+    //     video = undefined;
+    //     videoError = null;
+
+    //     (async () => {
+    //         try {
+    //             const resp = await fetch(`/api/video/view/${id}`, {
+    //                 signal: abortController.signal,
+    //             });
+
+    //             if (!resp.ok) {
+    //                 throw new Error(`Failed to fetch object key: ${resp.status}`);
+    //             }
+    //             const data: VideoView = await resp.json();
+    //             // video = data;
+    //             if (!abortController.signal.aborted) {
+    //                 video = data;
+    //             }
+
+    //         } catch (error) {
+    //             if (abortController.signal.aborted) return; // expected on cleanup
+    //             console.error("Failed to fetch video:", error);
+    //             videoError = "Could not load video details.";
+    //         }
+    //     }) ();
+
+    //     // Runs when videoId changes or this effect is destroyed.
+    //     return () => abortController.abort();
+    // });
 </script>
 
 <FolderUploadModal
@@ -185,26 +242,31 @@
 
 <div class="w-5/6 mx-auto h-100vh"> 
     <!-- Form Area -->
-    {#if uploader.state.status === "completed"}
+    <!-- {#if uploader.state.status === "completed"} -->
+    {#if showDetails}
         <section class="flex flex-row justify-evenly">
-            <FormComponent videoId={videoId} />
+            <!--
+            wrapper recreates the component when the ID changes, so reading the prop once is intentional.
+            Svelte may warn about referencing props locally; that’s fine here -->
+            {#key data.videoId}
+                <FormComponent videoId={data.videoId} initialData={data.formData} />
+            {/key}
 
             <div class="h-screen w-1/3 flex flex-col justify-evenly">
-                <ThumbnailCard videoId={videoId} />
+                <ThumbnailCard videoId={data.videoId} />
                 <!-- Video Player -->
-                {#if video}
-                    <DashPlayer src={video?.dash_manifest_key} poster={video?.thumbnail_object_key} />
-                {:else if videoError}
-                    <p>{videoError}</p>
-                {:else}
-                    <p>Loading video...</p>
-                {/if}
+                <DashPlayer src={data.video?.dash_manifest_key} poster={data.video?.thumbnail_object_key} />
             </div>
         </section>
     {:else}
         <section class="w-2/3 mx-auto">
             <!-- Upload Progress -->
-            <VideoUploadProgressCard uploader={uploader} />
+            <VideoUploadProgressCard
+                serverUpload={data.video}
+                uploader={uploader}
+                resumeError={resumeError}
+                onResumeSelect={handleResumePick}
+            /> 
         </section>
     {/if}
 </div>

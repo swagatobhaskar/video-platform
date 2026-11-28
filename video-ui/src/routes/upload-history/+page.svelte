@@ -31,7 +31,7 @@
 	);
 </script>
 
-<main class="mx-auto w-full max-w-4xl px-4 py-6 text-[#0f0f0f]">
+<main class="mx-auto w-full max-w-5xl px-4 py-6 text-[#0f0f0f]">
 	<h1 class="mb-4 text-xl font-medium">Your videos</h1>
  
 	<div class="mb-6 flex gap-3 overflow-x-auto border-b border-[#e5e5e5] pb-3" role="tablist">

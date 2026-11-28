@@ -2,13 +2,13 @@
 type MetadataFields = {
     title: string,
     description: string,
-    category: string,
+    category_id: string | null,
     language: "hindi" | "bengali",
-    series: string | number,
+    series_id: string | null,
     episode_number: number | null,
     transcript: string,
     transcript_code: "bn" | "hi",
-    seo_tags: string[],  // make it 'keywords'
+    // seo_tags: string[],  // make it 'keywords'
     publication_status: "draft" | "published",
     meta_title: string,
     meta_description: string,
@@ -16,6 +16,7 @@ type MetadataFields = {
     seo_summary_en: string,
     focus_keywords: string[],
     secondary_keywords: string[],
+    search_intent: string,
 }
 
 export function MetadataFormController() {
@@ -29,29 +30,43 @@ export function MetadataFormController() {
     const formData = $state<MetadataFields>({
         title: '',
         description: '',
-        category: '',
+        category_id: '',
         language: 'bengali',
-        series: '',
+        series_id: '',
         episode_number: null,
         transcript: '',
         transcript_code: 'bn',
-        seo_tags: [''],
-        focus_keywords: [''],
-        secondary_keywords: [''],
+        // seo_tags: [],
+        focus_keywords: [],  // using [''] gives you an empty keyword chip
+        secondary_keywords: [],
         publication_status: "draft",
         meta_title: '',
         meta_description: '',
         thumbnail_alt_text: '',
         seo_summary_en: '',
+        search_intent: '',
     });
 
     function populate(data: Partial<MetadataFields> & Record<string, unknown>) {
     // This ensures that any incoming keys match the known fields of MetadataFields,
     // while still allowing optional or extra API properties if needed.
-        Object.assign(formData, {
-            ...data,
+        // Object.assign(formData, {
+        //     ...data,
+        //     meta_title: data.meta_title ?? data.title ?? '',
+        //     meta_description: data.meta_description ?? data.description ?? '',
+        // });
+        Object.assign(formData, data, {
+            // Backend nulls would otherwise overwrite the defaults.
+            description: data.description ?? '',
+            transcript: data.transcript ?? '',      // the template calls transcript.length
             meta_title: data.meta_title ?? data.title ?? '',
             meta_description: data.meta_description ?? data.description ?? '',
+            thumbnail_alt_text: data.thumbnail_alt_text ?? '',
+            seo_summary_en: data.seo_summary_en ?? '',
+            seo_tags: data.seo_tags ?? [],
+            focus_keywords: data.focus_keywords ?? [],
+            secondary_keywords: data.secondary_keywords ?? [],
+            search_intent: data.search_intent ?? '',
         });
     }
 

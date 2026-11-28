@@ -1,6 +1,6 @@
 from uuid import UUID
 from datetime import datetime, timezone
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from app.core.database import AsyncSession
 from app.models.upload import TranscodedUploadFile, TranscodedUploadSession, TranscodedUploadStatusEnum
@@ -136,6 +136,17 @@ class TranscodedUploadRepository:
             upload_file.status = "UPLOADED"
             upload_file.uploaded_at = datetime.now(timezone.utc)
             await self.session.flush()
+
+    async def mark_file_uploaded_if_pending(self, file_id) -> bool:
+        result = await self.session.execute(
+            update(TranscodedUploadFile)
+            .where(
+                TranscodedUploadFile.id == file_id,
+                TranscodedUploadFile.status != "UPLOADED",
+            )
+            .values(status="UPLOADED")   # plus uploaded_at if you have it
+        )
+        return result.rowcount == 1
 
     async def increment_uploaded_files(self, transcoded_upload_session_id: UUID) -> None:
         transcoded_upload_session = await self.get(transcoded_upload_session_id)

@@ -1,10 +1,11 @@
+from typing import Optional
 from pydantic import BaseModel, computed_field, ConfigDict, Field
 from datetime import datetime
 import uuid
 from app.core.config import get_settings
 from app.models import (
     VideoPublicationStatusEnum, LanguageEnum, UploadSessionStatusEnum,
-    VideoProcessingStatusEnum
+    VideoProcessingStatusEnum, TranscodedUploadStatusEnum
 )
 
 settings = get_settings()
@@ -107,7 +108,7 @@ class TranscodeTaskRead(BaseModel):
 #     keywords: list[str] = Field(default_factory=list)
 #     secondary_keywords: list[str] = Field(default_factory=list)
 
-#     focus_keyword: str | None = None
+#     focus_keywords: str | None = None
 #     seo_summary_en: str | None = None
 #     meta_title: str | None = None
 #     meta_description: str | None = None
@@ -143,7 +144,7 @@ class VideoSEOUpdate(BaseModel):
     keywords: list[str] | None = None
     secondary_keywords: list[str] | None = None
 
-    focus_keyword: str | None = None
+    focus_keywords: list[str] | None = None
     seo_summary_en: str | None = None
     meta_title: str | None = None
     meta_description: str | None = None
@@ -158,7 +159,7 @@ class VideoSEORead(BaseModel):
     keywords: list[str] | None = None
     secondary_keywords: list[str] | None = None
 
-    focus_keyword: str | None = None
+    focus_keywords: list[str] | None = None
     seo_summary_en: str | None = None
     meta_title: str | None = None
     meta_description: str | None = None
@@ -186,7 +187,7 @@ Example SEO data format:
     "AI tools",
     "digital transformation"
   ],
-  "focus_keyword": "artificial intelligence trends",
+  "focus_keywords": "artificial intelligence trends",
   "seo_summary_en": "Explore the latest artificial intelligence trends, innovations, and how AI is transforming industries worldwide.",
   "meta_title": "Artificial Intelligence Trends and Latest Innovations",
   "meta_description": "Discover the latest AI trends, emerging technologies, and how artificial intelligence is shaping the future of businesses and everyday life.",
@@ -232,7 +233,7 @@ class VideoRead(BaseModel):
 
     object_key: uuid.UUID | None
 
-    category_id: uuid.UUID | None
+    # category_id: uuid.UUID | None
     series_id: uuid.UUID | None
     episode_number: int | None
 
@@ -240,14 +241,14 @@ class VideoRead(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     secondary_keywords: list[str] = Field(default_factory=list)
 
-    focus_keyword: str | None
+    focus_keywords: list[str] | None = None
     seo_summary_en: str | None
     meta_title: str | None
     meta_description: str | None
     thumbnail_alt_text: str | None
     search_intent: str | None
 
-    thumbnail_object_key: str | None
+    thumbnail_key: str | None
 
     bitrate: int | None
     codec: str | None
@@ -327,10 +328,10 @@ class AutoSaveFormData(BaseModel):
     series_id: uuid.UUID | None = None
     episode_number: int | None = None
 
-    seo_tags: list[str] | None = None
-    keywords: list[str] | None = None
+    # seo_tags: list[str] | None = None
+    # keywords: list[str] | None = None
     secondary_keywords: list[str] | None = None
-    focus_keyword: str | None = None
+    focus_keywords: list[str] | None = None
     seo_summary_en: str | None = None
     meta_title: str | None = None
     meta_description: str | None = None
@@ -381,3 +382,24 @@ class VideoPlayerViewSchema(BaseModel):
     view_count: int = 0
     like_count: int = 0
     dislike_count: int = 0
+
+    # Needed by forms and local-upload/ child components
+    upload_session_id: uuid.UUID | None = None
+    # upload_status: TranscodedUploadStatusEnum | None = None
+    upload_status: str | None = None  # Not using specific enum here because any UploadSession table can use it
+    uploaded_files_count: int | None = None
+    total_files: int | None = None
+
+    # change the schema: one for video player another for all these data, specially for TranscodedUploadSession
+    
+class PublishErrors(BaseModel):
+    processing: list[str] = []
+    thumbnail: list[str] = []
+    metadata: list[str] = []
+    seo: list[str] = []
+
+class PublishReadinessResponse(BaseModel):
+    published: bool
+    can_publish: bool
+    errors: Optional[PublishErrors] = None
+    

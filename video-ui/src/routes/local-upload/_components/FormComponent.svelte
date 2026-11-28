@@ -1,17 +1,15 @@
 <script lang="ts">
-    let { videoId }: { videoId?: string | null } = $props();
-    
-    import { onMount } from 'svelte';  // for fetching Category, Series, Language, etc.
+    let { videoId, initialData } = $props();
 
-    type Category = {
-        id: number;
-        name: string;
-    };
+    import { onMount, untrack, onDestroy } from 'svelte';  // onMount is for fetching Category, Series, Language, etc.
+    import { goto } from '$app/navigation';
+    import { resolve } from '$app/paths';
 
-    type Series = {
-        id: number;
-        name: string;
-    };
+    import KeywordInput from './KeywordInput.svelte';
+
+    type Category = { id: number; name: string; };
+
+    type Series = { id: number; name: string; };
 
     let categories = $state<Category[]>([]);
     let seriesList = $state<Series[]>([]);
@@ -19,7 +17,19 @@
     let loading = $state(true);
     let error = $state('');
 
+    // snapshot helper function so the comparison with lastSavedSnapshot always uses the same shape
+    function buildSnapshot(): string {
+        // publication_status is display-only; only the publish endpoint changes it.
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { publication_status, ...autosaveFields } = formController.formData;
+        return JSON.stringify(autosaveFields);
+    }
+
+    let lastSavedSnapshot = buildSnapshot();
+
     onMount(async () => {
+        void checkReadiness();
+
         try {
             const [categoriesResponse, seriesResponse] = await Promise.all([
                 fetch('/api/category'),
@@ -44,20 +54,6 @@
             loading = false;
         }
     });
-
-    type SEOKeyword = {
-        id: string;
-        value: string;
-    };
-
-    // let selectedSEOTagsList = $state<SEOKeyword[]>([]);
-    // let seoTagEntry = $state<string>('');
-
-    let focusKeywordEntry = $state<string>('');
-    let selectedFocusKeywordsList = $state<SEOKeyword[]>([]);
-    
-    let secondaryKeywordEntry = $state<string>('');
-    let selectedSecondaryKeywordsList = $state<SEOKeyword[]>([]);
     
     let activeTab = $state("video");
 
@@ -66,66 +62,49 @@
     } from "$lib/controllers/metadataFormController.svelte";
 
     const formController = MetadataFormController();
+    
+    // One-time initialisation: the parent recreates this component via
+    // {#key data.videoId}, so later changes to `initialData` are intentionally ignored.
+    formController.populate(untrack(() => initialData));
 
-    // const addItemToSEOList = () => {
-    //     const trimmed = seoTagEntry.trim();
-    //     if (!trimmed) return;
+    // you can use  `svelte-ignore state_referenced_locally` to suppress the warning
+    // However, I used untrack to read initialData inside a closure
+    // formController.populate(initialData); // This reference only captures the initial value of `initialData`. Did you mean to reference it inside a closure instead?
 
-    //     const newTag: SEOKeyword = {
-    //         id: crypto.randomUUID(),
-    //         value: trimmed
-    //     }
-        
-    //     selectedSEOTagsList = [...selectedSEOTagsList, newTag];
-    //     seoTagEntry = '';
-    // }
+    // let lastSavedSnapshot = JSON.stringify(formController.formData);
 
-    // const removeItemFromSEOList = (id: string) => {
-    //     selectedSEOTagsList = selectedSEOTagsList.filter(tag => tag.id !== id);
-    // }
-
-    const addItemToFocusKeywordsList = () => {
-        const trimmed = focusKeywordEntry.trim();
-        if (!trimmed) return;
-
-        const newFocusKeyword: SEOKeyword = {
-            id: crypto.randomUUID(),
-            value: trimmed
-        }
-        
-        selectedFocusKeywordsList = [...selectedFocusKeywordsList, newFocusKeyword];
-        focusKeywordEntry = '';
-    }
-
-    const removeItemFromFocusKeywordsList = (id: string) => {
-        selectedFocusKeywordsList = selectedFocusKeywordsList.filter(tag => tag.id !== id);
-    }
-
-    const addItemToSecondaryKeywordsList = () => {
-        const trimmed = secondaryKeywordEntry.trim();
-        if (!trimmed) return;
-
-        const newSecondaryKeyword: SEOKeyword = {
-            id: crypto.randomUUID(),
-            value: trimmed
-        }
-        
-        selectedSecondaryKeywordsList = [...selectedSecondaryKeywordsList, newSecondaryKeyword];
-        secondaryKeywordEntry = '';
-    }
-
-    const removeItemFromSecondaryKeywordsList = (id: string) => {
-        selectedSecondaryKeywordsList = selectedSecondaryKeywordsList.filter(tag => tag.id !== id);
-    }
-
-    // Auto-save
-    let isLoaded = $state(false);
     let saveStatus = $state<"idle" | "saving" | "saved" | "error">("idle");
 
     // Plain variables: these don't need to trigger Svelte effects.
-    let lastSavedSnapshot = "";
+    
     let saveVersion = 0;
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+    let publishErrors = $state<Record<string, string[]> | null>(null); // null = unknown yet
+   
+    let publishing = $state(false);
+    let publishMessage = $state('');
+
+    const isDraft = $derived(formController.formData.publication_status === 'draft');
+    const readyToPublish = $derived(
+        isDraft && publishErrors !== null && Object.keys(publishErrors).length === 0
+    );
+
+    let readinessRequest = 0; // ignore out-of-order responses
+
+    async function checkReadiness() {
+        if (!videoId) return;
+        const request = ++readinessRequest;
+        try {
+            const resp = await fetch(`/api/video/${videoId}/publish-readiness`);
+            if (!resp.ok) throw new Error('readiness check failed');
+            const data = await resp.json();
+            if (request === readinessRequest) publishErrors = data.errors;
+        } catch (err) {
+            if (request === readinessRequest) publishErrors = null; // unknown, so hide the button
+            console.error(err);
+        }
+    }
 
     async function save(currentVideoId: string, snapshot: string) {
         // Nothing changed since the last successful save.
@@ -151,108 +130,129 @@
 
             lastSavedSnapshot = snapshot;
             saveStatus = "saved";
-        } catch (error) {
+            void checkReadiness();
+        } catch (err) {
             if (version !== saveVersion) return;
             saveStatus = "error";
-            console.error(error);
+            console.error(err);
         }
     }
 
     function saveNow() {
-        if (!isLoaded || !videoId) return;
+        if (!videoId) return;
 
         clearTimeout(debounceTimer); // cancel any pending autosave
-        void save(videoId, JSON.stringify({ ...formController.formData }));
+        void save(videoId, buildSnapshot());
     }
-
-    // Periodically sync formController's data with DB and switch step
-    $effect(() => {
-        if (!videoId) {
-            console.error("Video Id Not found!");
-            return;
-        }
-
-        // prevents outdated work from updating state
-        let isCurrent = true;
-        const abortController = new AbortController();
-
-        async function fetchFormData() {
-            try {
-                const resp = await fetch(`/api/video/${videoId}`, {
-                    signal: abortController.signal,
-                });
-
-                if (!resp.ok) {
-                    throw new Error(`Failed to fetch video: ${resp.status}`);
-                }
-                const data = await resp.json();
-
-                // Never update the form for an obsolete request.
-                if (!isCurrent) return;
-
-                formController.populate(data);
-
-                // Record the initial state so loading isn't treated as an edit.
-                lastSavedSnapshot = JSON.stringify(formController.formData);
-                isLoaded = true;
-                saveStatus = "idle";
-            } catch (error) {
-                // Cancellation is expected; don't report it as an error.
-                if (!isCurrent || abortController.signal.aborted) return;
-                console.error("Failed to load video data:", error);
-            }
-        }
-
-        void fetchFormData();
-
-        // Runs when videoId changes or this effect is destroyed.
-        return () => {
-            isCurrent = false;
-            abortController.abort();
-        };
-    });
 
     // Debounced autosave.
     $effect(() => {
-        if (!isLoaded || !videoId) return;
+        if (!videoId) return;
 
         const currentVideoId = videoId;
 
         // Read formData here (top level of the effect) so it stays tracked.
-        const snapshot = JSON.stringify({ ...formController.formData });
+        const snapshot = buildSnapshot(); // still tracked: it reads formData synchronously
 
-        // Don't save unchanged data or the initial fetch.
+        // Don't save unchanged data
         if (snapshot === lastSavedSnapshot) return;
 
         debounceTimer = setTimeout(() => save(currentVideoId, snapshot), 800);
         return () => clearTimeout(debounceTimer);
     });
 
+    // Edits are lost if the form is destroyed within 800 ms
+    // The debounce effect’s cleanup runs clearTimeout when the component is destroyed.
+    // If the user types and the form unmounts before the timer fires (for example {#key data.videoId} recreating it,
+    // or in-app navigation), the last edit is silently dropped. Flush it on destroy:
+    onDestroy(() => {
+        if (!videoId) return;
+        const snapshot = buildSnapshot();
+        if (snapshot === lastSavedSnapshot) return;
+
+        // Fire-and-forget: the SPA stays alive after navigation, so this completes.
+        void fetch(`/api/video/${videoId}/autosave-formdata`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: snapshot,
+        });
+    });
+
+    async function publish() {
+        if (!videoId || publishing) return;
+        publishing = true;
+        publishMessage = '';
+        clearTimeout(debounceTimer);
+
+        try {
+            await save(videoId, buildSnapshot());
+            if (saveStatus === 'error') {
+                publishMessage = 'Could not save your latest changes.';
+                return;
+            }
+
+            const resp = await fetch(`/api/video/${videoId}/publish`, { method: 'PATCH' });
+
+            if (resp.status === 400) {
+                const body = await resp.json();
+                publishErrors = body.errors ?? null; // button disappears, state corrected
+                publishMessage = 'This video is not ready to publish yet.';
+                return;
+            }
+            if (!resp.ok) throw new Error('Publish failed');
+
+            formController.formData.publication_status = 'published';
+            // Navigate to video view page
+            await goto(resolve(`/video/${videoId}`));
+        } catch (err) {
+            console.error(err);
+            publishMessage = 'Publishing failed. Please try again.';
+        } finally {
+            publishing = false;
+        }
+    }
+
 </script>
+
+<!-- Thumbnail and video uploads happen outside this form, so also re-check when the user returns to the tab -->
+<svelte:window onfocus={checkReadiness} />
 
 <div class="h-full w-2/3 p-10 space-y-8">
 
-    <!-- Publication status badge -->
-    <div class="flex flex-row justify-between">
-        <div class="mb-3">
-            <p class="block text-sm fornt-semibold tracking-wide text-gray-700">
-                {#if formController.formData.publication_status === "draft"}
-                    <span class="inline-block px-2 py-1 rounded-md bg-amber-500 text-white">
-                        Draft
-                    </span>
-                {:else}
-                    <span class="inline-block px-2 py-1 rounded-md bg-green-500 text-white">
-                        Published
-                    </span>
-                {/if}
-            </p>
+    <!-- status badge -->
+    <div class="flex flex-row items-center justify-between">
+        <div class="flex items-center gap-3">
+            {#if isDraft}
+                <span class="inline-block px-2 py-1 rounded-md bg-amber-500 text-white text-sm">Draft</span>
+            {:else}
+                <span class="inline-block px-2 py-1 rounded-md bg-green-500 text-white text-sm">Published</span>
+            {/if}
+
+            {#if readyToPublish}
+                <span class="text-sm text-green-700">Ready to publish</span>
+                <button
+                    type="button"
+                    onclick={publish}
+                    disabled={publishing || saveStatus === "saving"}
+                    class="py-1 px-4 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm
+                        disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                    {publishing ? 'Publishing…' : 'Publish'}
+                </button>
+            {/if}
         </div>
 
         <div>
+            <p aria-live="polite">...</p>
+        </div>
+
+        {#if publishMessage}
+            <p class="text-sm text-red-600" role="alert">{publishMessage}</p>
+        {/if}
+
+        <div>
             <p aria-live="polite">
-                {#if !isLoaded}
-                    Loading form…
-                {:else if saveStatus === "saving"}
+                {#if saveStatus === "saving"}
                     Saving…
                 {:else if saveStatus === "saved"}
                     All changes saved
@@ -301,6 +301,7 @@
         <!-- Video Title -->
         <div class="space-y-2">
             <label
+                id="title"
                 for="title"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
@@ -329,6 +330,7 @@
         <div class="space-y-2">
             <div class="flex items-center justify-between">
                 <label
+                    id="description"
                     for="description"        
                     class="block text-sm font-semibold tracking-wide text-gray-700"
                 >
@@ -358,6 +360,7 @@
         <!-- Video Category -->
         <div class="space-y-2">
             <label
+                id="category"
                 for="category"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
@@ -367,7 +370,7 @@
             <select
                 id="category"
                 name="category"
-                bind:value={formController.formData.category}
+                bind:value={formController.formData.category_id}
                 required
                 disabled={loading || !!error}
                 class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
@@ -390,6 +393,7 @@
         <!-- Language -->
         <div class="space-y-2">
             <label
+                id="language"
                 for="language"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
@@ -419,6 +423,7 @@
         <!-- Video Series -->
         <div class="space-y-2">
             <label
+                id="series"
                 for="series"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
@@ -428,7 +433,7 @@
             <select
                 id="series"
                 name="series"
-                bind:value={formController.formData.series}
+                bind:value={formController.formData.series_id}
                 disabled={loading || !!error}
                 // required
                 class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3
@@ -449,10 +454,11 @@
         </div>
 
         <!-- Series Episode Number. Show Episode Number only if a Series is selected. -->
-        {#if formController.formData.series}
+        {#if formController.formData.series_id}
             <div class="space-y-2">
                 <label
-                    for="Episode Number"
+                    id="episode-number"
+                    for="episode-number"
                     class="block text-sm font-semibold tracking-wide text-gray-700"
                 >
                     Episode Number (Optional. Must, if a Series is selected.)
@@ -463,7 +469,7 @@
                 </p>
 
                 <select
-                    name="series"
+                    name="episode-number"
                     bind:value={formController.formData.episode_number}
                     // required
                     aria-describedby="episode-number-help"
@@ -488,7 +494,8 @@
         <!-- Transcript code -->
         <div class="space-y-2">
             <label
-                for="transcript_code"
+                id="transcript-code"
+                for="transcript-code"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 Transcript Code
@@ -499,7 +506,7 @@
             </p>
 
             <select
-                name="series"
+                name="transcript-code"
                 bind:value={formController.formData.transcript_code}
                 // required
                 aria-describedby="transcript-code-help"
@@ -517,7 +524,8 @@
         <!-- Video Transcript -->
         <div class="space-y-2">            
             <label
-                for="description"        
+                id="transcript"
+                for="transcript"        
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 Transcript
@@ -552,167 +560,55 @@
     {:else if activeTab === "seo"}
 
         <!-- Focus Keywords -->
-        <div class="space-y-3">
-            <div>
-                <label
-                    for="focusKeywords"
-                    class="block text-sm font-semibold tracking-wide text-gray-700"
-                >
-                    Focus Keywords
-                </label>
+        <KeywordInput
+            id="focusKeywords"
+            label="Focus Keywords"
+            help="This is your collection of keywords for this video. These keywords must be included in the Title,
+                Meta Title, Description, Meta Description, Thumbnail Alt Text, Transcript. Keep a list of 2-3 focus keywords."
+            bind:keywords={formController.formData.focus_keywords}
+        />
 
-                <p id="focus-keywords-help" class="text-sm text-gray-600">
-                    This is your collection of keywords for this video. These keywords must be included in the Title, Meta Title, Description, Meta Description,
-                    Thumbnail Alt Text, Transcript. Keep a list of 2-3 focus keywords.
-                </p>
-            </div>
+        <KeywordInput
+            id="secondaryKeywords"
+            label="Secondary Keywords (Optional)"
+            help="This is your collection of related or long-tailed keywords.Include them in the Description,
+                Meta Description, Transcript. Keep a list of 1-2 secondary keywords."
+            bind:keywords={formController.formData.secondary_keywords}
+        />
 
-            <div class="flex gap-3">
-                <input
-                    type="text"
-                    name="focusKeyword"
-                    aria-describedby="focus-keywords-help"
-                    bind:value={focusKeywordEntry}
-                    placeholder="Add a focus keyword..."
-                    onkeydown={(e) =>
-                        e.key === 'Enter' && addItemToFocusKeywordsList()
-                    }
-                    class="flex-1 rounded-xl border border-gray-300 bg-gray-50
-                    px-4 py-3 text-gray-800 placeholder:text-gray-400
-                    transition-all duration-200
-                    focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
-                    focus:outline-none"
-                />
-
-                <button
-                    type="button"
-                    onclick={addItemToFocusKeywordsList}
-                    disabled={!focusKeywordEntry.trim()}
-                    class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white
-                    shadow-lg shadow-blue-200 transition-all duration-200
-                    hover:bg-blue-700 hover:shadow-blue-300
-                    disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    Add
-                </button>
-            </div>
-                
-            <!-- Focus Keywords Container -->
-            <div
-                class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
-                border border-dashed border-gray-300 bg-gray-50 p-4"
+        <!-- Search Intent -->
+        <div class="space-y-2">
+            <label
+                id="search-intent"
+                for="search-intent"
+                class="block text-sm font-semibold tracking-wide text-gray-700"
             >
-                {#if selectedFocusKeywordsList.length === 0}
-                    <div class="flex items-center text-sm text-gray-400">
-                        No focus keywords added yet
-                    </div>
-                {:else}
-                    {#each selectedFocusKeywordsList as tag (tag.id)}
-                        <div
-                            class="group flex items-center gap-2 rounded-lg
-                            bg-linear-to-r from-indigo-500 to-blue-500
-                            px-4 py-2 text-sm font-medium text-white
-                            shadow-md transition-transform duration-200
-                            hover:scale-105"
-                        >
-                            <span>{tag.value}</span>
+                Search Intent
+            </label>
+            
+            <p id="search-intent-help" class="text-sm text-gray-600">
+                Enter the search term user is likely to enter on Google.
+            </p>
 
-                            <button
-                                type="button"
-                                onclick={() => removeItemFromFocusKeywordsList(tag.id)}
-                                class="text-white/80 transition hover:text-white"
-                            >
-                                &times;
-                            </button>
-                        </div>
-                    {/each}
-                {/if}
-            </div>
-        </div>
-
-        <!-- Secondary Keywords -->
-        <div class="space-y-3">
-            <div>
-                <label
-                    for="secondaryKeywords"
-                    class="block text-sm font-semibold tracking-wide text-gray-700"
-                >
-                    Secondary Keywords (Optional)
-                </label>
-
-                <p id="secondary-keywords-help" class="text-sm text-gray-600">
-                    This is your collection of related or long-tailed keywords for this video. Include them in the Description, Meta Description, Transcript.
-                    Keep a list of 1-2 secondary keywords.
-                </p>
-            </div>
-
-            <div class="flex gap-3">
-                <input
-                    type="text"
-                    name="secondaryKeyword"
-                    bind:value={secondaryKeywordEntry}
-                    placeholder="Add a secondary keyword..."
-                    aria-describedby="secondary-keywords-help"
-                    onkeydown={(e) =>
-                        e.key === 'Enter' && addItemToSecondaryKeywordsList()
-                    }
-                    class="flex-1 rounded-xl border border-gray-300 bg-gray-50
-                    px-4 py-3 text-gray-800 placeholder:text-gray-400
-                    transition-all duration-200
-                    focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
+            <input
+                type="text"
+                name="search-intent"
+                placeholder="Enter probable search intent"
+                required
+                aria-describedby="search-intent-help"
+                bind:value={formController.formData.search_intent}
+                class="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-gray-800 placeholder:text-gray-400
+                    transition-all duration-200 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
                     focus:outline-none"
-                />
-
-                <button
-                    type="button"
-                    onclick={addItemToSecondaryKeywordsList}
-                    disabled={!secondaryKeywordEntry.trim()}
-                    class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white
-                    shadow-lg shadow-blue-200 transition-all duration-200
-                    hover:bg-blue-700 hover:shadow-blue-300
-                    disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    Add
-                </button>
-            </div>
-                
-            <!-- Secondary Keywords Container -->
-            <div
-                class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
-                border border-dashed border-gray-300 bg-gray-50 p-4"
-            >
-                {#if selectedSecondaryKeywordsList.length === 0}
-                    <div class="flex items-center text-sm text-gray-400">
-                        No secondary keywords added yet
-                    </div>
-                {:else}
-                    {#each selectedSecondaryKeywordsList as tag (tag.id)}
-                        <div
-                            class="group flex items-center gap-2 rounded-lg
-                            bg-linear-to-r from-indigo-500 to-blue-500
-                            px-4 py-2 text-sm font-medium text-white
-                            shadow-md transition-transform duration-200
-                            hover:scale-105"
-                        >
-                            <span>{tag.value}</span>
-
-                            <button
-                                type="button"
-                                onclick={() => removeItemFromSecondaryKeywordsList(tag.id)}
-                                class="text-white/80 transition hover:text-white"
-                            >
-                                &times;
-                            </button>
-                        </div>
-                    {/each}
-                {/if}
-            </div>
+            />
+        
         </div>
 
         <!-- Meta Title -->
         <div class="space-y-2">
             <label
-                for="meta_title"
+                id="meta-title"
+                for="meta-title"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 SEO Meta Title (Must for SEO)
@@ -726,7 +622,7 @@
 
             <input
                 type="text"
-                name="meta_title"
+                name="meta-title"
                 placeholder="Enter video meta title for SEO"
                 required
                 aria-describedby="meta-title-help"
@@ -741,7 +637,8 @@
         <!-- Meta Description -->
         <div class="space-y-2">
             <label
-                for="meta_description"        
+                id="meta-description"
+                for="meta-description"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 SEO Meta Description
@@ -760,7 +657,7 @@
             </div>
 
             <textarea
-                name="description"
+                name="meta-description"
                 placeholder="Enter video meta description for SEO"
                 bind:value={formController.formData.meta_description}
                 maxlength="400"
@@ -776,7 +673,8 @@
         <!-- Thumbnail Alt Text -->
         <div class="space-y-2">
             <label
-                for="thumbnail_alt_text"
+                id="thumbnail-alt-text"
+                for="thumbnail-alt-text"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 SEO Thumbnail Alt Text
@@ -789,7 +687,7 @@
             </p>
             <input
                 type="text"
-                name="thumbnail_alt_text"
+                name="thumbnail-alt-text"
                 placeholder="Enter alternative text for thumbnail"
                 aria-describedby="thumbnail-alt-text-help"
                 required
@@ -803,7 +701,8 @@
         <!-- SEO Summary En -->
         <div class="space-y-2">
             <label
-                for="seo_summary_en"
+                id="seo-summary-en"
+                for="seo-summary-en"
                 class="block text-sm font-semibold tracking-wide text-gray-700"
             >
                 SEO Summary En
@@ -816,7 +715,7 @@
 
             <input
                 type="text"
-                name="seo_summary_en"
+                name="seo-summary-en"
                 placeholder="Enter Summary of the Entire Video Story in English (for SEO)"
                 required
                 aria-describedby="seo-summary-en-help"
@@ -827,86 +726,26 @@
             />
         </div>
 
-        <!-- keywords -->
-        <!-- <div class="space-y-3">
-        
-            <div>
-                <label
-                    for="keywords"
-                    class="block text-sm font-semibold tracking-wide text-gray-700"
-                >
-                    General Keywords Specific to this Video
-                </label>
+    {/if}
 
-                <p id="keywords-help" class="text-sm text-gray-600">
-                    English summary for the entire Bengali/Hindi Video story. Helps in English language discoverability.
-                    Must include the main topic or keyword when relevant.
-                </p>
-            </div>
-
-            <div class="flex gap-3">
-                <input
-                    type="text"
-                    name="keywords"
-                    aria-describedby="keywords-help"
-                    bind:value={seoTagEntry}
-                    placeholder="Add a SEO keyword..."
-                    onkeydown={(e) =>
-                        e.key === 'Enter' && addItemToSEOList()
-                    }
-                    class="flex-1 rounded-xl border border-gray-300 bg-gray-50
-                        px-4 py-3 text-gray-800 placeholder:text-gray-400
-                        transition-all duration-200
-                        focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100
-                        focus:outline-none"
-                />
-
-                <button
-                    type="button"
-                    onclick={addItemToSEOList}
-                    disabled={!seoTagEntry.trim()}  
-                    class="rounded-xl bg-blue-600 px-5 py-3 font-medium text-white
-                    shadow-lg shadow-blue-200 transition-all duration-200
-                    hover:bg-blue-700 hover:shadow-blue-300
-                    disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                    Add
-                </button>
-            </div> -->
-                
-            <!-- Keyword items Container -->
-            <!-- <div
-                class="flex min-h-30 flex-wrap items-start gap-3 rounded-xl
-                border border-dashed border-gray-300 bg-gray-50 p-4"
+    <!-- status badge -->
+    <div class="flex items-center gap-3">
+        {#if readyToPublish}
+            <span class="text-sm text-green-700">Ready to publish</span>
+            <button
+                type="button"
+                onclick={publish}
+                disabled={publishing || saveStatus === "saving"}
+                class="py-1 px-4 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm
+                    disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-                {#if selectedSEOTagsList.length === 0}
-                    <div class="flex items-center text-sm text-gray-400">
-                        No SEO tags added yet
-                    </div>
-                {:else}
-                    {#each selectedSEOTagsList as tag (tag.id)}
-                        <div
-                            class="group flex items-center gap-2 rounded-lg
-                            bg-linear-to-r from-indigo-500 to-blue-500
-                            px-4 py-2 text-sm font-medium text-white
-                            shadow-md transition-transform duration-200
-                            hover:scale-105"
-                        >
-                            <span>{tag.value}</span>
+                {publishing ? 'Publishing…' : 'Publish'}
+            </button>
+        {/if}
+    </div>
 
-                            <button
-                                type="button"
-                                onclick={() => removeItemFromSEOList(tag.id)}
-                                class="text-white/80 transition hover:text-white"
-                            >
-                                &times;
-                            </button>
-                        </div>
-                    {/each}
-                {/if}
-            </div> -->
-        <!-- </div> -->
-
+    {#if publishMessage}
+        <p class="text-sm text-red-600" role="alert">{publishMessage}</p>
     {/if}
 
     <!-- Save Button for User Satisfaction-->
@@ -919,7 +758,7 @@
         </span>
         <button
             type="button"
-            disabled={!isLoaded || saveStatus === "saving"}
+            disabled={saveStatus === "saving"}
             class="py-2 px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-lg
                 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             onclick={saveNow}
