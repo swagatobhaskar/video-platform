@@ -46,7 +46,8 @@ class VideoRepository:
                 selectinload(Video.category),
                 selectinload(Video.series),
                 selectinload(Video.video_transcripts),
-                selectinload(Video.upload_session),    
+                selectinload(Video.upload_session),
+                selectinload(Video.transcoded_upload_session),
                 selectinload(Video.transcode_task),
             )
         )
@@ -197,6 +198,12 @@ class VideoRepository:
     
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def get_publication_stage(self, id: UUID) -> VideoPublicationStatusEnum | None:
+        result = await self.session.execute(
+            select(Video.publication_status).where(Video.id == id)
+        )
+        return result.scalar_one_or_none()
 
     async def get_unpublished_video(self, id: UUID):
         result = await self.session.execute(
